@@ -11,7 +11,7 @@
 
 ## 상태
 
-설계 전. 결정 항목(테마, 검색 노출, 배포 단위, Lightsail 티어)을 정한 뒤 스펙 → 계획 → Phase 0(설치·뼈대·CI·보안 기본값) 순서로 만든다.
+Phase 0(설치·뼈대·CI·보안 기본값) 스펙 검토 중. 결정은 [`docs/decisions.md`](docs/decisions.md), 스펙은 [`docs/superpowers/specs/`](docs/superpowers/specs/).
 
 ## 문서
 

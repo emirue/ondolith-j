@@ -27,7 +27,7 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 
 ## 결정 — 답을 받기 전에는 그 영역을 만들지 않는다
 
-- 미결: D-1 테마, D-2 검색 노출·링크 미리보기, D-3 배포 단위·NFR 재정의, D-4 Lightsail 티어. 답은 스펙에 적는다.
+- 결정과 미결은 `docs/decisions.md` 가 기준이다(D-1~D-3 결정, D-4 보류, 그 밖의 스펙 결정). 새 결정도 거기에 적는다.
 - 유지: 카드번호·유효기간·CVC 저장 금지 / 게시판별 CREATE TABLE 금지(JSONB) / 관리자 CRUD 자동 생성기 금지 / 런타임 플러그인 로더 없음 / 설치에 콘솔 토큰 요구 금지.
 
 ## 구조
@@ -35,8 +35,7 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 | 경로 | 내용 |
 |---|---|
 | `src/front/` | 코어 프런트(React SPA). S3+CloudFront 로 배포 |
-| 코어 백엔드 | `src/back/` 은 측정 앱이 쓰고 있어서, 경로는 스펙에서 정한다 |
-| `src/back/` | 측정용 Spring Boot 앱(Gradle Kotlin, 패키지 `dev.measure.bench`). 지우거나 덮지 않는다 |
+| `src/back/` | 지금은 측정용 Spring Boot 앱(패키지 `dev.measure.bench`). Phase 0 첫 작업에서 `bench/` 로 옮기고(`git mv`), 그 뒤 코어 백엔드 자리가 된다 |
 | `docs/` | 요청서, 스펙, 계획 |
 | `measure.sh` | 시나리오 ID 를 받아 측정·판정한다. 판정 실패 시 exit 1 |
 | `scripts/` | 보조 스크립트(`check-public.sh` 등) |
