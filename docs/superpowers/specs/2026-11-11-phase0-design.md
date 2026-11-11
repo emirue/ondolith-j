@@ -41,11 +41,13 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | 프런트 | React / Vite / TypeScript(strict) | 19.3.1 / 8.3.8 / 7.0.2 | npm |
 | 라우팅·상태 | React Router / TanStack Query / Zustand | 8.5.1 / 5.107.1 / 5.1.0 | npm |
 | 스타일·폼 | Tailwind CSS / React Hook Form + Zod | 4.3.5 / 7.92.0 + 4.6.7 | npm |
+| UI 컴포넌트 | shadcn/ui(Radix 기반 `radix-ui`, CLI 가 소스를 복사) | CLI 4.23.0 / 1.8.1 | npm(2026-11-12) |
 | API 타입 | openapi-typescript + openapi-fetch | 7.13.0 / 0.17.0 | npm |
 | 프런트 시험 | Vitest + Testing Library / Playwright | 5.1.0 + 16.3.3 / 1.65.0 | npm |
 
 - 호환은 뼈대를 만들 때 실제 빌드로 확인한다(특히 springdoc 3.2 ↔ Boot 4.1, TypeScript 7 ↔ 도구들). 안 맞으면 맞는 최신 안정판 조합으로 내리고 이유를 이 표 아래에 적는다.
 - 의존성마다 추가 전에 OSV 로 취약점을 확인하고, 잠금 파일(`package-lock.json`, Gradle 의존성 잠금)을 커밋한다.
+- shadcn/ui: Phase 0 은 Button·Input·Label 만 들이고, 나머지 컴포넌트는 쓰는 Phase 에서 하나씩 추가한다. 복사 위치는 `components.json` 별칭으로 `shared/ui` 에 맞춘다. 색·반경은 `:root` CSS 변수로 둬서 D-1 의 런타임 테마 토큰이 그 변수만 바꾸게 한다. CLI 가 함께 설치하는 패키지는 뼈대를 만들 때 확인해 잠금 파일에 남긴다.
 - 서버 상태는 TanStack Query 에만, Zustand 는 UI 상태에만 둔다. 화면 컴포넌트는 직접 fetch 하지 않고 기능별 훅을 거친다.
 
 ## 2. 설치 흐름 — 같은 프로세스 안의 컨텍스트 교체
