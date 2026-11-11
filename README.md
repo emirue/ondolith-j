@@ -4,7 +4,7 @@
 
 | 구분 | 스택 | 배포 |
 |---|---|---|
-| 백엔드 | Spring Boot, Java, Gradle Kotlin, PostgreSQL | Lightsail |
+| 백엔드 | Spring Boot, Java, Maven, PostgreSQL | Lightsail |
 | 프런트 | React, Zustand, TanStack Query, Tailwind CSS, shadcn/ui | S3 + CloudFront |
 
 판은 모두 최신 안정판을 쓰고, 고를 때마다 확인한다.

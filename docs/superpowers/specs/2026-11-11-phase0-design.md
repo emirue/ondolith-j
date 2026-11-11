@@ -20,7 +20,7 @@
 
 ```
 bench/            측정 앱(src/back 에서 git mv) + measure.sh 경로 수정
-src/back/         코어 백엔드 (Spring Boot, Gradle Kotlin)
+src/back/         코어 백엔드 (Spring Boot, Maven)
 src/front/        코어 프런트 (React SPA)
 mise.toml, mise.lock   Java 25, Node 26.13.0
 docs/             요청서, 결정, 부록, 스펙, 계획
@@ -35,6 +35,9 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 |---|---|---|---|
 | 런타임 | Java(Temurin) / Node | 25 / 26.13.0 | Adoptium API / nodejs.org |
 | 백엔드 | Spring Boot (Spring Security 7.1 계열) | 4.1.2 | start.spring.io |
+| 빌드 | Maven(Maven Wrapper `./mvnw`) | 3.10.0 (Wrapper 3.3.4) | start.spring.io 뼈대·Maven Central(2026-11-12) |
+| 웹·검증·보안 | `spring-boot-starter-webmvc`(내장 Tomcat)·`-validation`·`-security` | Boot 관리 | Boot 4.1 문서 |
+| 코드 줄이기 | Lombok(JDK 25 지원은 1.18.40 부터) | 1.18.48 | Maven Central·Lombok 변경 기록 |
 | DB | Spring Data JPA, Flyway, PostgreSQL 18 | Boot 관리 | Boot 4.1 문서 |
 | API 문서 | springdoc-openapi | 3.2.0 | Maven Central |
 | DB 시험 | Testcontainers PostgreSQL | 2.0.5 | Maven Central |
@@ -46,7 +49,31 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | 프런트 시험 | Vitest + Testing Library / Playwright | 5.1.0 + 16.3.3 / 1.65.0 | npm |
 
 - 호환은 뼈대를 만들 때 실제 빌드로 확인한다(특히 springdoc 3.2 ↔ Boot 4.1, TypeScript 7 ↔ 도구들). 안 맞으면 맞는 최신 안정판 조합으로 내리고 이유를 이 표 아래에 적는다.
-- 의존성마다 추가 전에 OSV 로 취약점을 확인하고, 잠금 파일(`package-lock.json`, Gradle 의존성 잠금)을 커밋한다.
+- 의존성마다 추가 전에 OSV 로 취약점을 확인한다. 프런트는 `package-lock.json` 을 커밋한다. Maven 은 잠금 파일이 없으므로 `pom.xml` 에 판을 명시하고 판 범위 표기를 쓰지 않는다(Boot 가 관리하는 것은 Boot BOM 판을 따른다).
+
+백엔드 기본 선택(2026-11-12 사용자 승인 — 「보편적인 방향」):
+
+| 항목 | 선택 | 메모 |
+|---|---|---|
+| 웹 | Spring MVC. WebFlux 는 쓰지 않는다 | JPA 가 블로킹이다 |
+| 입력 검증 | Bean Validation(`spring-boot-starter-validation`) | 설치 API 의 422 칸별 오류 |
+| JSON | Jackson 3(Boot 기본) | |
+| 비밀번호 | Spring Security `BCryptPasswordEncoder` | |
+| 가상 스레드 | 끔(Boot 기본) | 메모리 재측정 때 켠 경우도 함께 잰다 |
+| 헬스 | Actuator 없이 `/api/health` 직접 | 노출면을 줄인다 |
+| 로그 | Logback 기본 텍스트 | 구조화 로그는 필요할 때 설정만 켠다 |
+| 시험 | JUnit + AssertJ + `MockMvcTester`, 실제 서버는 `RestTestClient` + Testcontainers | Boot 4.1 제공 |
+| Lombok | 쓴다. DTO 는 `record`, 엔티티·설정 클래스의 반복 코드에 Lombok | |
+
+WAS(내장 서버):
+
+| 항목 | Phase 0 | 메모 |
+|---|---|---|
+| 서버 | 내장 Tomcat(Boot 기본). 별도 WAS 설치 없음 | Boot 4.1 지원: Tomcat·Jetty·Reactor Netty |
+| 듣는 주소·포트 | 기본 `8080`, `--server.port`·`--server.address` 로 바꾼다 | ondolith `-addr :8080` 과 같다 |
+| 정상 종료 | 기본값(켜짐) | 전환·재시작 때 처리 중 요청을 마친다 |
+| 스레드 수 | Tomcat 기본값 | 측정과 같은 조건. 바꾸면 다시 잰다 |
+| Phase 4 로 | CloudFront→원본 TLS·인증서, `X-Forwarded-*` 신뢰(원본 우회 차단과 짝), JVM 힙·스택(측정 J1·J2, D-4), systemd 유닛, 응답 압축 위치 | 업로드 크기(기본 파일 1MB·요청 10MB)는 업로드 Phase |
 - shadcn/ui: Phase 0 은 Button·Input·Label 만 들이고, 나머지 컴포넌트는 쓰는 Phase 에서 하나씩 추가한다. 복사 위치는 `components.json` 별칭으로 `shared/ui` 에 맞춘다. 색·반경은 `:root` CSS 변수로 둬서 D-1 의 런타임 테마 토큰이 그 변수만 바꾸게 한다. CLI 가 함께 설치하는 패키지는 뼈대를 만들 때 확인해 잠금 파일에 남긴다.
 - 서버 상태는 TanStack Query 에만, Zustand 는 UI 상태에만 둔다. 화면 컴포넌트는 직접 fetch 하지 않고 기능별 훅을 거친다.
 
@@ -142,7 +169,7 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
 
 로컬:
 - `mise.toml` 도구: Java 25(Temurin), Node 26.13.0. 작업: `mise run test`(셸·백엔드·프런트), `mise run db`(개발용 PostgreSQL 컨테이너), `mise run e2e`.
-- CPU·메모리: `gradle.properties` 에 `org.gradle.workers.max=2` 와 Gradle JVM 메모리 상한. 무거운 작업은 하나씩 `nice -n 19`. 끝나면 Gradle 데몬·개발 서버·브라우저를 끈다.
+- CPU·메모리: Maven 은 상주 데몬이 없다. `.mvn/jvm.config` 에 Maven JVM 메모리 상한을 두고, 무거운 작업은 하나씩 `nice -n 19` 로 돌린다. 끝나면 개발 서버·브라우저를 끈다.
 
 CI(GitHub Actions):
 - `pull_request` 트리거만, `permissions: contents: read`, Action 은 `actions/checkout`·`jdx/mise-action` 만 커밋 SHA 고정.
@@ -172,3 +199,20 @@ TDD: 동작마다 실패하는 시험을 먼저 보고(Red) 구현한다. 무거
 - 같은 포트로 컨텍스트를 다시 띄울 때 포트 해제 시점: 전환 시험으로 확인한다.
 - `csrf.spa()` 의 첫 토큰 발급 시점(지연 로딩): 프런트가 첫 POST 전에 토큰 쿠키를 받는지 시험으로 확인한다.
 - 판 호환(1절)은 뼈대 빌드에서 확인한다.
+
+## 7. 후속 Phase 기술 후보 (확정 아님)
+
+ondolith `go.mod` 의 의존성을 Java 로 옮긴 후보다. 각 Phase 스펙에서 판·유지 상태·취약점을 다시 확인하고 정한다. 쓰지 않을 의존성을 미리 넣지 않는다. 갱신일은 2026-11-12 Maven Central 기준.
+
+| ondolith(Go) | 용도 | Java 후보 | Phase |
+|---|---|---|---|
+| scs + pgxstore | 세션 DB 저장 | Spring Session JDBC(Boot 관리) | 1 |
+| goth, x/oauth2 | 소셜 로그인 | `spring-boot-starter-oauth2-client` | 1 이후 |
+| bluemonday, x/net/html | 본문 HTML 정화 | OWASP Java HTML Sanitizer(2026-11) 또는 jsoup(2026-11) | 글쓰기 |
+| x/image | 썸네일, WebP 읽기 | JDK ImageIO + TwelveMonkeys imageio-webp(2026-10) | 업로드 |
+| rsc.io/qr | 재고 스티커 QR(SVG) | ZXing core(2025-11) | 쇼핑 |
+| aws-sdk-go-v2 s3 | 업로드 파일 S3 저장 | AWS SDK for Java 2.x | 업로드 |
+| net/smtp | 메일 | `spring-boot-starter-mail` | 1 이후 |
+| net/http | 결제사·웹훅 호출 | Spring `RestClient` | 쇼핑 |
+| 내부 스케줄러 | 자동 백업, 기한 만료 | `@Scheduled`(NFR-103) | 해당 기능 |
+| — | 요청 제한 / 캐시 | Bucket4j(2026-11) / Caffeine(2026-10) | 1 / NFR-104 |
