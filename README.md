@@ -4,8 +4,10 @@
 
 | 구분 | 스택 | 배포 |
 |---|---|---|
-| 백엔드 | Spring Boot 4.1.2, Java 25, Gradle Kotlin, PostgreSQL 18 | Lightsail |
+| 백엔드 | Spring Boot, Java, Gradle Kotlin, PostgreSQL | Lightsail |
 | 프런트 | React, Zustand, TanStack Query, Tailwind CSS | S3 + CloudFront |
+
+판은 모두 최신 안정판을 쓰고, 고를 때마다 확인한다.
 
 ## 상태
 
