@@ -23,6 +23,7 @@ expect "AWS 키는 차단" 1 "AKI""AABCDEFGHIJKLMNOP"
 expect "개인키 헤더는 차단" 1 "-----BEGIN RSA ""PRIVATE KEY-----"
 expect "GitHub 토큰은 차단" 1 "gh""p_$(printf 'a%.0s' {1..36})"
 expect "Spring 생성 비밀번호 로그는 차단" 1 "Using generated security ""password: 1234"
+expect "가려 둔(제거됨) 생성 비밀번호 줄은 통과" 0 "Using generated security ""password: [제거됨]"
 
 expect "위반 보고에 파일과 줄이 나온다" 1 "ok
 /Use""rs/someone"

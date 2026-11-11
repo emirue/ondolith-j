@@ -27,7 +27,7 @@ for f in "$@"; do
   report "$f" "AWS 액세스 키" "$(hits "$f" 'AKI[A][0-9A-Z]{16}')"
   report "$f" "개인키 헤더" "$(hits "$f" '-----BEGIN [A-Z ]*PRIVATE KEY-----')"
   report "$f" "GitHub 토큰" "$(hits "$f" 'gh[pousr]_[A-Za-z0-9]{36,}')"
-  report "$f" "Spring 생성 비밀번호 로그" "$(hits "$f" 'Using generated security passwor[d]')"
+  report "$f" "Spring 생성 비밀번호 로그" "$(hits "$f" 'Using generated security passwor[d]: [^[]')"
 done
 
 [ "$bad" -eq 0 ]
