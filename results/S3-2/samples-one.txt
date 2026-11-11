@@ -1,0 +1,6 @@
+bench-app 255.4MiB / 256MiB
+bench-db 46.24MiB / 256MiB
+bench-app 251.9MiB / 256MiB
+bench-db 46.25MiB / 256MiB
+bench-app 253.5MiB / 256MiB
+bench-db 46.1MiB / 256MiB

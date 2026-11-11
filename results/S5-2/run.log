@@ -1,0 +1,3 @@
+== S5 회차 2: DB 512m/sb=256MB, 앱 512m, JVM J1, 티어 1024MB
+유휴 상태: true false | 앱 [251.2MiB / 512MiB] DB [52.68MiB / 512MiB]
+부하 뒤 상태: true false | OOM 0건 | cgroup 최고 [327.8]

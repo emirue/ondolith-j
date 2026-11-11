@@ -1,0 +1,40 @@
+2026-11-11T09:09:43.681Z  INFO 1 --- [bench] [           main] dev.measure.bench.BenchApplication       : No active profile set, falling back to 1 default profile: "default"
+2026-11-11T09:09:44.050Z  INFO 1 --- [bench] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-11T09:09:44.073Z  INFO 1 --- [bench] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 17 ms. Found 1 JPA repository interface.
+2026-11-11T09:09:44.408Z  INFO 1 --- [bench] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-11-11T09:09:44.415Z  INFO 1 --- [bench] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-11T09:09:44.415Z  INFO 1 --- [bench] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.27]
+2026-11-11T09:09:44.441Z  INFO 1 --- [bench] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 721 ms
+2026-11-11T09:09:44.625Z  INFO 1 --- [bench] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-11-11T09:09:44.657Z  INFO 1 --- [bench] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.13.Final
+2026-11-11T09:09:44.979Z  INFO 1 --- [bench] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-11T09:09:45.003Z  INFO 1 --- [bench] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-11T09:09:45.081Z  INFO 1 --- [bench] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@63eea8c4
+2026-11-11T09:09:45.082Z  INFO 1 --- [bench] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-11T09:09:45.122Z  INFO 1 --- [bench] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://bench-db:5432/m]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 18.4
+	Default catalog/schema: m/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-11T09:09:45.780Z  INFO 1 --- [bench] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-11T09:09:45.796Z  INFO 1 --- [bench] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-11T09:09:45.910Z  INFO 1 --- [bench] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-11T09:09:46.086Z  WARN 1 --- [bench] [           main] .s.a.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: [제거됨]
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-11-11T09:09:46.093Z  INFO 1 --- [bench] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-11-11T09:09:46.639Z  INFO 1 --- [bench] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-11-11T09:09:46.672Z  INFO 1 --- [bench] [           main] dev.measure.bench.BenchApplication       : Started BenchApplication in 3.185 seconds (process running for 3.489)
+2026-11-11T09:09:47.451Z  INFO 1 --- [bench] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-11T09:09:47.452Z  INFO 1 --- [bench] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-11-11T09:09:47.457Z  INFO 1 --- [bench] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 5 ms

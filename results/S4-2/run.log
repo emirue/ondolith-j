@@ -1,0 +1,3 @@
+== S4 회차 2: DB 256m/sb=64MB, 앱 256m, JVM J2 (-Xss512k -XX:TieredStopAtLevel=1), 티어 512MB
+유휴 상태: true false | 앱 [226.9MiB / 256MiB] DB [42.42MiB / 256MiB]
+부하 뒤 상태: true false | OOM 0건 | cgroup 최고 [256.1]

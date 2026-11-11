@@ -1,0 +1,3 @@
+== S1 회차 1: DB 384m/sb=128MB, 앱 128m, JVM J1, 티어 512MB
+유휴 상태: true false | 앱 [127.6MiB / 128MiB] DB [46.12MiB / 384MiB]
+부하 뒤 상태: false true | OOM 0건 | cgroup 최고 [읽지 못함]
