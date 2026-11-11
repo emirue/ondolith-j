@@ -5,3 +5,12 @@ build/
 .DS_Store
 starter.zip
 .claude/settings.local.json
+
+# 비밀·운영 데이터 (*.example 만 커밋)
+.env
+.env.*
+!.env.example
+*.dump
+*.sql.gz
+uploads/
+backups/
