@@ -48,6 +48,7 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 - 요청받은 것만 만든다. 추상화·설정·기능을 미리 넣지 않는다. 쓰는 곳이 하나면 함수·클래스로 빼지 않는다.
 - 의존성은 꼭 필요할 때만 쓴다. 추가 전에 취약점(OSV 등)과 유지 상태를 확인하고 잠금 파일을 커밋한다. 표준 도구로 되는 것은 그걸로 한다.
 - **코어의 언어·프레임워크·라이브러리·도구는 최신 안정판(GA)을 쓴다.** 알파·베타·RC·스냅샷은 쓰지 않는다. 판과 API 는 기억으로 쓰지 않고, 고르거나 올릴 때마다 context7 로 확인한다(모자라면 공식 문서). 측정 앱 `src/back` 은 측정 조건을 고정하려고 예외다. Java 는 최신 LTS 를 쓴다(지금 25, 2026-11-11 결정).
+- 도구 판(Java·Node 등)은 mise 로 고정한다: `mise.toml` + `mise.lock` 을 커밋하고 `mise install --locked` 로 설치한다. mise 가 못 다루는 것만 다른 방법(Gradle wrapper, 잠금 파일, Docker 이미지 태그)으로 고정한다.
 - 인증·세션·CSRF·업로드 검증은 직접 만들지 않는다. Spring Security 와 검증된 라이브러리를 쓴다.
 - 새 기능·Phase 는 `superpowers:brainstorming` → 스펙 승인 → `superpowers:writing-plans` → TDD 순서로 한다. 한 번에 다 만들지 않는다.
 - 파일은 적게, 한 파일은 한 가지 일만. 기존 관례를 따르고 인접 코드를 "개선"하지 않는다.
