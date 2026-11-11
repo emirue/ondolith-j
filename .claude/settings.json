@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git remote add *)",
+      "Bash(git remote set-url *)",
+      "Bash(gh repo create *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh repo delete *)",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "mcp__github__create_repository",
+      "mcp__github__create_pull_request"
+    ]
+  }
+}

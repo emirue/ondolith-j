@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# 커밋 전 검사: ① 커밋 메일이 GitHub noreply 인가 ② 스테이지된 파일에 공개 불가 내용이 없는가.
+# 켜기: git config core.hooksPath .githooks
+# ponytail: 작업 트리 파일을 검사한다(스테이지 내용과 다를 수 있음). 어긋나면 git stash 로 맞춘다.
+set -eu
+
+case $(git config user.email || true) in
+  *@users.noreply.github.com) ;;
+  *) echo "pre-commit: user.email 이 GitHub noreply 주소가 아닙니다. 설정을 확인하세요." >&2; exit 1 ;;
+esac
+
+git diff --cached --name-only --diff-filter=ACM -z |
+  xargs -0 bash "$(dirname "$0")/../scripts/check-public.sh"
