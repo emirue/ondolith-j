@@ -146,16 +146,16 @@ run_ab() {
 peak_of() { local n=$1; shift; cat "$@" | grep "^$n " | sed "s/^$n //" | max_mib || echo "재지 못함"; }
 
 measure() {
-	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS JAR
+	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS jar
 	cfg=$(scenario "$id") || hf "알 수 없는 시나리오: $id (S1~S7)"
 	read -r DB_MEM SB APP_MEM J TIER <<<"$cfg"
 	JOPTS=$(jvm_opts "$J")
-	JAR=$(app_jar "$ROOT")
-	[ -f "$JAR" ] || hf "jar 가 없다: $JAR (측정 앱은 src/back 의 bootJar, CLAUDE.md 참고)"
+	jar=$(app_jar "$ROOT")
+	[ -f "$jar" ] || hf "jar 가 없다: $jar (측정 앱은 src/back 의 bootJar, CLAUDE.md 참고)"
 	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
 	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
-	log "== $id 회차 $run${LABEL:+ [$LABEL]}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$JAR")"
+	log "== $id 회차 $run${LABEL:+ [$LABEL]}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$jar")"
 
 	# 1. 네트워크와 DB. 준비는 TCP(-h 127.0.0.1)로 본다: 초기화 중 임시 서버는 소켓만 연다.
 	docker network create "$NET" >/dev/null || hf "네트워크 생성"
@@ -171,7 +171,7 @@ measure() {
 	docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
 		-e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/m" \
 		-e SPRING_DATASOURCE_USERNAME=m -e SPRING_DATASOURCE_PASSWORD=m \
-		-v "$JAR":/app.jar:ro \
+		-v "$jar":/app.jar:ro \
 		eclipse-temurin:25-jre java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
 
 	# 4. 「떴다」는 프로세스가 아니라 응답이다: /api/posts/1 이 200 일 때까지 90초.

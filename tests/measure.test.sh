@@ -68,6 +68,12 @@ chk "LABEL 에 / 나 .. 은 거부" "1|" "$(LABEL=../x run out_dir /r S6 2)"
 chk "EXTRA_JOPTS 를 뒤에 붙임" "0|-Xss512k -XX:TieredStopAtLevel=1 -Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J2)"
 chk "J1 + EXTRA_JOPTS"        "0|-Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J1)"
 chk "J1 기본은 빈 값"          "0|" "$(run jvm_opts J1)"
+# measure 가 JAR 를 실제로 쓰는지: 없는 jar 면 Docker 를 부르기 전에 그 경로로 멈춘다.
+# 실제 실행처럼 전역 환경변수로 넘긴다. 깨져도 측정이 돌지 않게 ROOT 는 빈 임시 폴더, docker 는 가짜.
+T=$(mktemp -d)
+chk "measure 는 JAR 를 쓴다" "하네스 실패: jar 가 없다: /nonexistent/p.jar (측정 앱은 src/back 의 bootJar, CLAUDE.md 참고)" \
+	"$(export JAR=/nonexistent/p.jar; ROOT=$T; docker() { echo "docker 호출됨" >&2; return 1; }; measure S6 1 2>&1 >/dev/null)"
+rm -rf "$T"
 chk "바이트를 MiB 로"  "0|255.0" "$(run bytes_to_mib 267386880)"
 chk "숫자가 아니면 실패" "1|" "$(run bytes_to_mib 'cat: no such file')"
 
