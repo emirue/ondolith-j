@@ -75,6 +75,7 @@ WAS(내장 서버):
 | 정상 종료 | 기본값(켜짐) | 전환·재시작 때 처리 중 요청을 마친다 |
 | 스레드 수 | Tomcat 기본값 | 측정과 같은 조건. 바꾸면 다시 잰다 |
 | Phase 4 로 | CloudFront→원본 TLS·인증서, `X-Forwarded-*` 신뢰(원본 우회 차단과 짝), JVM 힙·스택(측정 J1·J2, D-4), systemd 유닛, 응답 압축 위치 | 업로드 크기(기본 파일 1MB·요청 10MB)는 업로드 Phase |
+
 - shadcn/ui: Phase 0 은 Button·Input·Label 만 들이고, 나머지 컴포넌트는 쓰는 Phase 에서 하나씩 추가한다. 복사 위치는 `components.json` 별칭으로 `shared/ui` 에 맞춘다. 색·반경은 `:root` CSS 변수로 둬서 D-1 의 런타임 테마 토큰이 그 변수만 바꾸게 한다. CLI 가 함께 설치하는 패키지는 뼈대를 만들 때 확인해 잠금 파일에 남긴다.
 - 서버 상태는 TanStack Query 에만, Zustand 는 UI 상태에만 둔다. 화면 컴포넌트는 직접 fetch 하지 않고 기능별 훅을 거친다.
 
