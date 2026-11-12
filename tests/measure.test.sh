@@ -57,6 +57,17 @@ chk "숫자가 아니면 실패" "1" "$(run no_oom '' | cut -d'|' -f1)"
 # --- startup_seconds / bytes_to_mib
 chk "기동 시간"       "0|5.012" "$(run startup_seconds 'x Started BenchApplication in 5.012 seconds (process running for 5.5)')"
 chk "기동 줄이 없으면 실패" "1|" "$(run startup_seconds 'nothing here')"
+chk "다른 앱 이름도 기동 시간" "0|3.25" "$(run startup_seconds 'x Started ProbeApplication in 3.25 seconds (process running for 3.6)')"
+
+# --- app_jar / out_dir / jvm_opts 의 추가 옵션: 코어 스택 사전 측정용
+chk "jar 기본값은 측정 앱" "0|/r/src/back/build/libs/bench-0.0.1-SNAPSHOT.jar" "$(run app_jar /r)"
+chk "JAR 로 다른 jar"      "0|/x/probe.jar" "$(JAR=/x/probe.jar run app_jar /r)"
+chk "결과 폴더 기본값"      "0|/r/results/S6-2" "$(run out_dir /r S6 2)"
+chk "LABEL 이 있으면 그 아래" "0|/r/results/core-a/S6-2" "$(LABEL=core-a run out_dir /r S6 2)"
+chk "LABEL 에 / 나 .. 은 거부" "1|" "$(LABEL=../x run out_dir /r S6 2)"
+chk "EXTRA_JOPTS 를 뒤에 붙임" "0|-Xss512k -XX:TieredStopAtLevel=1 -Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J2)"
+chk "J1 + EXTRA_JOPTS"        "0|-Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J1)"
+chk "J1 기본은 빈 값"          "0|" "$(run jvm_opts J1)"
 chk "바이트를 MiB 로"  "0|255.0" "$(run bytes_to_mib 267386880)"
 chk "숫자가 아니면 실패" "1|" "$(run bytes_to_mib 'cat: no such file')"
 

@@ -61,7 +61,7 @@ no_oom() { case $1 in '' | *[!0-9]*) return 1 ;; esac; [ "$1" -eq 0 ]; }
 
 startup_seconds() {
 	local s
-	s=$(printf '%s\n' "$1" | sed -n -E 's/.*Started BenchApplication in ([0-9.]+) seconds.*/\1/p' | head -1)
+	s=$(printf '%s\n' "$1" | sed -n -E 's/.*Started [A-Za-z0-9_]+ in ([0-9.]+) seconds.*/\1/p' | head -1)
 	[ -n "$s" ] && printf '%s\n' "$s"
 }
 
@@ -84,8 +84,24 @@ scenario() {
 	esac
 }
 
-# J1 = 옵션 없음, J2 = 스레드 스택 축소 + C2 끄기(힙 밖 메모리 절감)
-jvm_opts() { [ "$1" = J2 ] && echo "-Xss512k -XX:TieredStopAtLevel=1"; return 0; }
+# J1 = 옵션 없음, J2 = 스레드 스택 축소 + C2 끄기(힙 밖 메모리 절감). EXTRA_JOPTS 는 뒤에 붙인다.
+jvm_opts() {
+	local o=""
+	[ "$1" = J2 ] && o="-Xss512k -XX:TieredStopAtLevel=1"
+	echo "${o}${o:+${EXTRA_JOPTS:+ }}${EXTRA_JOPTS:-}"
+}
+
+# 잴 jar. 기본은 측정 앱, JAR 로 바꾼다(코어 스택 사전 측정).
+app_jar() { echo "${JAR:-$1/src/back/build/libs/bench-0.0.1-SNAPSHOT.jar}"; }
+
+# 결과 폴더. LABEL 이 있으면 results/<LABEL>/ 아래(기존 결과를 덮지 않는다). LABEL 은 영숫자·-·_ 만.
+out_dir() {
+	case ${LABEL:-} in
+		'') echo "$1/results/$2-$3" ;;
+		*[!A-Za-z0-9_-]*) return 1 ;;
+		*) echo "$1/results/$LABEL/$2-$3" ;;
+	esac
+}
 
 # 7절 판정: <유휴 상태> <부하 후 상태> <OOM 건수> <ab 목록> <ab 단건>. 하나라도 깨지면 FAIL.
 judge() {
@@ -134,11 +150,12 @@ measure() {
 	cfg=$(scenario "$id") || hf "알 수 없는 시나리오: $id (S1~S7)"
 	read -r DB_MEM SB APP_MEM J TIER <<<"$cfg"
 	JOPTS=$(jvm_opts "$J")
-	JAR="$ROOT/src/back/build/libs/bench-0.0.1-SNAPSHOT.jar"
-	[ -f "$JAR" ] || hf "jar 가 없다. 먼저 빌드: src/back 의 bootJar (CLAUDE.md 참고)"
-	OUT="$ROOT/results/$id-$run"; rm -rf "$OUT"; mkdir -p "$OUT"
+	JAR=$(app_jar "$ROOT")
+	[ -f "$JAR" ] || hf "jar 가 없다: $JAR (측정 앱은 src/back 의 bootJar, CLAUDE.md 참고)"
+	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
+	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
-	log "== $id 회차 $run: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB"
+	log "== $id 회차 $run${LABEL:+ [$LABEL]}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$JAR")"
 
 	# 1. 네트워크와 DB. 준비는 TCP(-h 127.0.0.1)로 본다: 초기화 중 임시 서버는 소켓만 연다.
 	docker network create "$NET" >/dev/null || hf "네트워크 생성"
