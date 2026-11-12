@@ -39,7 +39,7 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | 웹·검증·보안 | `spring-boot-starter-webmvc`(내장 Tomcat)·`-validation`·`-security` | Boot 관리 | Boot 4.1 문서 |
 | 코드 줄이기 | Lombok(JDK 25 지원은 1.18.40 부터) | 1.18.48 (Boot 관리) | Boot 4.1.2 BOM·Lombok 변경 기록 |
 | DB | Spring Data JPA, Flyway, PostgreSQL 18 | Boot 관리 | Boot 4.1 문서 |
-| API 문서 | springdoc-openapi | 3.2.0 | Maven Central |
+| API 문서 | springdoc-openapi(`webmvc-api`, **시험 의존성만** — 운영 jar 에 넣지 않는다) | 3.2.0 | Maven Central |
 | DB 시험 | Testcontainers PostgreSQL | 2.0.5 | Maven Central |
 | 프런트 | React / Vite / TypeScript(strict) | 19.3.1 / 8.3.8 / 7.0.2 | npm |
 | 라우팅·상태 | React Router / TanStack Query / Zustand | 8.5.1 / 5.107.1 / 5.1.0 | npm |
@@ -48,7 +48,8 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | API 타입 | openapi-typescript + openapi-fetch | 7.13.0 / 0.17.0 | npm |
 | 프런트 시험 | Vitest + Testing Library / Playwright | 5.1.0 + 16.3.3 / 1.65.0 | npm |
 
-- 호환은 뼈대를 만들 때 실제 빌드로 확인한다(특히 springdoc 3.2 ↔ Boot 4.1, TypeScript 7 ↔ 도구들). 안 맞으면 맞는 최신 안정판 조합으로 내리고 이유를 이 표 아래에 적는다.
+- springdoc 은 실행 jar 에 넣으면 S5 유휴가 약 13–21 MiB 늘었다(`docs/measure-lightsail.md` 「코어 스택 사전 측정」). 그래서 시험 의존성으로만 두고, 시험 하나가 `/v3/api-docs` 를 받아 OpenAPI 파일로 쓴다. 프런트 타입은 그 파일에서 만든다. 운영 서버에는 API 문서 주소가 없다.
+- 호환은 뼈대를 만들 때 실제 빌드로 확인한다(특히 TypeScript 7 ↔ 도구들). springdoc 3.2 ↔ Boot 4.1.2 는 2026-11-12 시험용 앱에서 빌드·기동을 확인했다. 안 맞으면 맞는 최신 안정판 조합으로 내리고 이유를 이 표 아래에 적는다.
 - 의존성마다 추가 전에 OSV 로 취약점을 확인한다. 프런트는 `package-lock.json` 을 커밋한다. Maven 은 잠금 파일이 없으므로 `pom.xml` 에 판을 명시하고 판 범위 표기를 쓰지 않는다(Boot 가 관리하는 것은 Boot BOM 판을 따른다).
 
 백엔드 기본 선택(2026-11-12 사용자 승인 — 「보편적인 방향」):
@@ -59,7 +60,7 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | 입력 검증 | Bean Validation(`spring-boot-starter-validation`) | 설치 API 의 422 칸별 오류 |
 | JSON | Jackson 3(Boot 기본) | |
 | 비밀번호 | Spring Security `BCryptPasswordEncoder` | |
-| 가상 스레드 | 끔(Boot 기본) | 메모리 재측정 때 켠 경우도 함께 잰다 |
+| 가상 스레드 | 끔(Boot 기본) | 2026-11-12 측정: 켜면 처리량 2배 이상(원인 미확인), 메모리 이득은 확인 안 됨. 실제 기능이 생긴 뒤 부하 측정 때 다시 본다 |
 | 헬스 | Actuator 없이 `/api/health` 직접 | 노출면을 줄인다 |
 | 로그 | Logback 기본 텍스트 | 구조화 로그는 필요할 때 설정만 켠다 |
 | 시험 | JUnit + AssertJ + `MockMvcTester`, 실제 서버는 `RestTestClient` + Testcontainers | Boot 4.1 제공 |
@@ -173,7 +174,7 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
 
 CI(GitHub Actions):
 - `pull_request` 트리거만, `permissions: contents: read`, Action 은 `actions/checkout`·`jdx/mise-action` 만 커밋 SHA 고정.
-- 작업: 셸 시험 / 백엔드 시험(Testcontainers) / 프런트 타입 검사·시험·빌드 / OpenAPI 타입 재생성 후 차이 있으면 실패 / Playwright E2E.
+- 작업: 셸 시험 / 백엔드 시험(Testcontainers) / 프런트 타입 검사·시험·빌드 / 백엔드 시험이 쓴 OpenAPI 파일로 프런트 타입을 다시 만들고, 커밋된 것과 차이가 있으면 실패 / Playwright E2E.
 - CI 를 넣을 때 사용자 승인된 GitHub 설정을 적용한다: private vulnerability reporting·Dependabot alerts 켜기, `main` 보호(force push·삭제 금지, PR 로만, CI 통과 필수). `SECURITY.md` 는 GitHub 비공개 제보만 안내한다.
 
 ## 5. 검증
