@@ -37,7 +37,7 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | 백엔드 | Spring Boot (Spring Security 7.1 계열) | 4.1.2 | start.spring.io |
 | 빌드 | Maven(Maven Wrapper `./mvnw`) | 3.10.0 (Wrapper 3.3.4) | start.spring.io 뼈대·Maven Central(2026-11-12) |
 | 웹·검증·보안 | `spring-boot-starter-webmvc`(내장 Tomcat)·`-validation`·`-security` | Boot 관리 | Boot 4.1 문서 |
-| 코드 줄이기 | Lombok(JDK 25 지원은 1.18.40 부터) | 1.18.48 | Maven Central·Lombok 변경 기록 |
+| 코드 줄이기 | Lombok(JDK 25 지원은 1.18.40 부터) | 1.18.48 (Boot 관리) | Boot 4.1.2 BOM·Lombok 변경 기록 |
 | DB | Spring Data JPA, Flyway, PostgreSQL 18 | Boot 관리 | Boot 4.1 문서 |
 | API 문서 | springdoc-openapi | 3.2.0 | Maven Central |
 | DB 시험 | Testcontainers PostgreSQL | 2.0.5 | Maven Central |
