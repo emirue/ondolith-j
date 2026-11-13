@@ -57,6 +57,23 @@ chk "숫자가 아니면 실패" "1" "$(run no_oom '' | cut -d'|' -f1)"
 # --- startup_seconds / bytes_to_mib
 chk "기동 시간"       "0|5.012" "$(run startup_seconds 'x Started BenchApplication in 5.012 seconds (process running for 5.5)')"
 chk "기동 줄이 없으면 실패" "1|" "$(run startup_seconds 'nothing here')"
+chk "다른 앱 이름도 기동 시간" "0|3.25" "$(run startup_seconds 'x Started ProbeApplication in 3.25 seconds (process running for 3.6)')"
+
+# --- app_jar / out_dir / jvm_opts 의 추가 옵션: 코어 스택 사전 측정용
+chk "jar 기본값은 측정 앱" "0|/r/bench/build/libs/bench-0.0.1-SNAPSHOT.jar" "$(run app_jar /r)"
+chk "JAR 로 다른 jar"      "0|/x/probe.jar" "$(JAR=/x/probe.jar run app_jar /r)"
+chk "결과 폴더 기본값"      "0|/r/results/S6-2" "$(run out_dir /r S6 2)"
+chk "LABEL 이 있으면 그 아래" "0|/r/results/core-a/S6-2" "$(LABEL=core-a run out_dir /r S6 2)"
+chk "LABEL 에 / 나 .. 은 거부" "1|" "$(LABEL=../x run out_dir /r S6 2)"
+chk "EXTRA_JOPTS 를 뒤에 붙임" "0|-Xss512k -XX:TieredStopAtLevel=1 -Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J2)"
+chk "J1 + EXTRA_JOPTS"        "0|-Dk=v" "$(EXTRA_JOPTS=-Dk=v run jvm_opts J1)"
+chk "J1 기본은 빈 값"          "0|" "$(run jvm_opts J1)"
+# measure 가 JAR 를 실제로 쓰는지: 없는 jar 면 Docker 를 부르기 전에 그 경로로 멈춘다.
+# 실제 실행처럼 전역 환경변수로 넘긴다. 깨져도 측정이 돌지 않게 ROOT 는 빈 임시 폴더, docker 는 가짜.
+T=$(mktemp -d)
+chk "measure 는 JAR 를 쓴다" "하네스 실패: jar 가 없다: /nonexistent/p.jar (측정 앱은 bench 의 bootJar, CLAUDE.md 참고)" \
+	"$(export JAR=/nonexistent/p.jar; ROOT=$T; docker() { echo "docker 호출됨" >&2; return 1; }; measure S6 1 2>&1 >/dev/null)"
+rm -rf "$T"
 chk "바이트를 MiB 로"  "0|255.0" "$(run bytes_to_mib 267386880)"
 chk "숫자가 아니면 실패" "1|" "$(run bytes_to_mib 'cat: no such file')"
 

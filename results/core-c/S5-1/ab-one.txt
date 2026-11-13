@@ -1,0 +1,53 @@
+This is ApacheBench, Version 2.3 <$Revision$>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking bench-app (be patient)
+Completed 500 requests
+Completed 1000 requests
+Completed 1500 requests
+Completed 2000 requests
+Completed 2500 requests
+Completed 3000 requests
+Completed 3500 requests
+Completed 4000 requests
+Completed 4500 requests
+Completed 5000 requests
+Finished 5000 requests
+
+
+Server Software:        
+Server Hostname:        bench-app
+Server Port:            8080
+
+Document Path:          /api/posts/500
+Document Length:        1480 bytes
+
+Concurrency Level:      20
+Time taken for tests:   2.277 seconds
+Complete requests:      5000
+Failed requests:        0
+Total transferred:      8775000 bytes
+HTML transferred:       7400000 bytes
+Requests per second:    2196.21 [#/sec] (mean)
+Time per request:       9.107 [ms] (mean)
+Time per request:       0.455 [ms] (mean, across all concurrent requests)
+Transfer rate:          3764.02 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.0      0       1
+Processing:     2    9  16.7      4      74
+Waiting:        2    9  16.6      4      74
+Total:          2    9  16.7      4      74
+
+Percentage of the requests served within a certain time (ms)
+  50%      4
+  66%      4
+  75%      5
+  80%      5
+  90%      9
+  95%     62
+  98%     67
+  99%     69
+ 100%     74 (longest request)

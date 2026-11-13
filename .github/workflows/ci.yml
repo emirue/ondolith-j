@@ -1,0 +1,74 @@
+# PR 마다 시험한다. 보안: pull_request 만(pull_request_target 금지), 권한은 읽기 최소,
+# 서드파티 Action 은 커밋 SHA 로 고정(옆 주석이 태그), 비밀 값은 쓰지 않는다.
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  shell:
+    name: 셸 시험
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: for t in tests/*.test.sh; do bash "$t" || exit 1; done
+
+  backend:
+    name: 백엔드 시험과 OpenAPI 차이
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8 (mise.lock 이 있으면 --locked)
+      - name: 백엔드 시험(Testcontainers)
+        working-directory: src/back
+        run: ./mvnw -B test
+      - name: 시험이 쓴 OpenAPI 로 프런트 타입을 다시 만들고 커밋된 것과 비교
+        working-directory: src/front
+        run: |
+          npm ci
+          npm run gen:api
+          git diff --exit-code -- openapi.json src/shared/api/schema.d.ts
+
+  frontend:
+    name: 프런트 타입 검사·시험·빌드
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - working-directory: src/front
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+  e2e:
+    name: 브라우저 흐름(실제 jar)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - name: jar 빌드
+        working-directory: src/back
+        run: ./mvnw -B -DskipTests package
+      - name: Playwright
+        working-directory: src/front
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test

@@ -7,7 +7,8 @@
 set -u
 
 EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
-EMAIL_OK='(@users\.noreply\.github\.com|:noreply@anthropic\.com)$'
+# .test·.invalid 는 RFC 2606 예약 TLD 라 실제 메일이 갈 수 없다(시험용 가짜 주소).
+EMAIL_OK='(@users\.noreply\.github\.com|:noreply@anthropic\.com|\.(test|invalid))$'
 bad=0
 
 # report <파일> <사유> <grep -n 결과>

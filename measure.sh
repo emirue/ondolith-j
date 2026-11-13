@@ -61,7 +61,7 @@ no_oom() { case $1 in '' | *[!0-9]*) return 1 ;; esac; [ "$1" -eq 0 ]; }
 
 startup_seconds() {
 	local s
-	s=$(printf '%s\n' "$1" | sed -n -E 's/.*Started BenchApplication in ([0-9.]+) seconds.*/\1/p' | head -1)
+	s=$(printf '%s\n' "$1" | sed -n -E 's/.*Started [A-Za-z0-9_]+ in ([0-9.]+) seconds.*/\1/p' | head -1)
 	[ -n "$s" ] && printf '%s\n' "$s"
 }
 
@@ -84,8 +84,24 @@ scenario() {
 	esac
 }
 
-# J1 = 옵션 없음, J2 = 스레드 스택 축소 + C2 끄기(힙 밖 메모리 절감)
-jvm_opts() { [ "$1" = J2 ] && echo "-Xss512k -XX:TieredStopAtLevel=1"; return 0; }
+# J1 = 옵션 없음, J2 = 스레드 스택 축소 + C2 끄기(힙 밖 메모리 절감). EXTRA_JOPTS 는 뒤에 붙인다.
+jvm_opts() {
+	local o=""
+	[ "$1" = J2 ] && o="-Xss512k -XX:TieredStopAtLevel=1"
+	echo "${o}${o:+${EXTRA_JOPTS:+ }}${EXTRA_JOPTS:-}"
+}
+
+# 잴 jar. 기본은 측정 앱, JAR 로 바꾼다(코어 스택 사전 측정).
+app_jar() { echo "${JAR:-$1/bench/build/libs/bench-0.0.1-SNAPSHOT.jar}"; }
+
+# 결과 폴더. LABEL 이 있으면 results/<LABEL>/ 아래(기존 결과를 덮지 않는다). LABEL 은 영숫자·-·_ 만.
+out_dir() {
+	case ${LABEL:-} in
+		'') echo "$1/results/$2-$3" ;;
+		*[!A-Za-z0-9_-]*) return 1 ;;
+		*) echo "$1/results/$LABEL/$2-$3" ;;
+	esac
+}
 
 # 7절 판정: <유휴 상태> <부하 후 상태> <OOM 건수> <ab 목록> <ab 단건>. 하나라도 깨지면 FAIL.
 judge() {
@@ -130,15 +146,16 @@ run_ab() {
 peak_of() { local n=$1; shift; cat "$@" | grep "^$n " | sed "s/^$n //" | max_mib || echo "재지 못함"; }
 
 measure() {
-	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS JAR
+	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS jar
 	cfg=$(scenario "$id") || hf "알 수 없는 시나리오: $id (S1~S7)"
 	read -r DB_MEM SB APP_MEM J TIER <<<"$cfg"
 	JOPTS=$(jvm_opts "$J")
-	JAR="$ROOT/src/back/build/libs/bench-0.0.1-SNAPSHOT.jar"
-	[ -f "$JAR" ] || hf "jar 가 없다. 먼저 빌드: src/back 의 bootJar (CLAUDE.md 참고)"
-	OUT="$ROOT/results/$id-$run"; rm -rf "$OUT"; mkdir -p "$OUT"
+	jar=$(app_jar "$ROOT")
+	[ -f "$jar" ] || hf "jar 가 없다: $jar (측정 앱은 bench 의 bootJar, CLAUDE.md 참고)"
+	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
+	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
-	log "== $id 회차 $run: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB"
+	log "== $id 회차 $run${LABEL:+ [$LABEL]}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$jar")"
 
 	# 1. 네트워크와 DB. 준비는 TCP(-h 127.0.0.1)로 본다: 초기화 중 임시 서버는 소켓만 연다.
 	docker network create "$NET" >/dev/null || hf "네트워크 생성"
@@ -147,14 +164,14 @@ measure() {
 		postgres:18-alpine -c shared_buffers="$SB" >/dev/null || hf "DB 컨테이너 시작"
 	wait_for 60 docker exec "$DB" pg_isready -h 127.0.0.1 -U m || hf "DB 가 60초 안에 준비되지 않음"
 	# 2. 스키마·데이터
-	docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/src/back/seed.sql" >/dev/null || hf "seed.sql 적용"
+	docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/bench/seed.sql" >/dev/null || hf "seed.sql 적용"
 
 	# 3. 앱. JOPTS 는 단어 분리가 필요해 따옴표를 쓰지 않는다.
 	# shellcheck disable=SC2086
 	docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
 		-e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/m" \
 		-e SPRING_DATASOURCE_USERNAME=m -e SPRING_DATASOURCE_PASSWORD=m \
-		-v "$JAR":/app.jar:ro \
+		-v "$jar":/app.jar:ro \
 		eclipse-temurin:25-jre java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
 
 	# 4. 「떴다」는 프로세스가 아니라 응답이다: /api/posts/1 이 200 일 때까지 90초.

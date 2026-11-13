@@ -1,0 +1,3 @@
+== S6 회차 1 [core-a]: DB 384m/sb=128MB, 앱 180m, JVM J1, 티어 512MB, jar probe-a.jar
+유휴 상태: true false | 앱 [178.8MiB / 180MiB] DB [47.77MiB / 384MiB]
+부하 뒤 상태: true false | OOM 0건 | cgroup 최고 [180.1]
