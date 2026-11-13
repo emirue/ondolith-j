@@ -1,0 +1,165 @@
+{
+  "components" : {
+    "schemas" : {
+      "Health" : {
+        "properties" : {
+          "state" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InstallRequest" : {
+        "properties" : {
+          "admin_email" : {
+            "format" : "email",
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "admin_password" : {
+            "maxLength" : 2147483647,
+            "minLength" : 10,
+            "type" : "string"
+          },
+          "admin_password_confirm" : {
+            "type" : "string"
+          },
+          "db_host" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "pattern" : "[A-Za-z0-9.:\\[\\]-]+",
+            "type" : "string"
+          },
+          "db_name" : {
+            "maxLength" : 63,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "db_password" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "db_port" : {
+            "format" : "int32",
+            "maximum" : 65535,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "db_sslmode" : {
+            "pattern" : "disable|require|verify-ca|verify-full",
+            "type" : "string"
+          },
+          "db_user" : {
+            "maxLength" : 63,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "site_name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "site_type" : {
+            "pattern" : "cms|shop",
+            "type" : "string"
+          },
+          "site_url" : {
+            "maxLength" : 2048,
+            "minLength" : 0,
+            "pattern" : "https?://[^\\s/?#]+[^\\s]*",
+            "type" : "string"
+          }
+        },
+        "required" : [ "admin_email", "admin_password", "admin_password_confirm", "db_host", "db_name", "db_sslmode", "db_user", "site_name", "site_url" ],
+        "type" : "object"
+      },
+      "Site" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      }
+    }
+  },
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/health" : {
+      "get" : {
+        "operationId" : "health",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Health"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "health-controller" ]
+      }
+    },
+    "/api/install" : {
+      "post" : {
+        "operationId" : "install",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InstallRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "install-controller" ]
+      }
+    },
+    "/api/site" : {
+      "get" : {
+        "operationId" : "site",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Site"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "site-controller" ]
+      }
+    }
+  }
+}
