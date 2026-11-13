@@ -92,7 +92,7 @@ jvm_opts() {
 }
 
 # 잴 jar. 기본은 측정 앱, JAR 로 바꾼다(코어 스택 사전 측정).
-app_jar() { echo "${JAR:-$1/src/back/build/libs/bench-0.0.1-SNAPSHOT.jar}"; }
+app_jar() { echo "${JAR:-$1/bench/build/libs/bench-0.0.1-SNAPSHOT.jar}"; }
 
 # 결과 폴더. LABEL 이 있으면 results/<LABEL>/ 아래(기존 결과를 덮지 않는다). LABEL 은 영숫자·-·_ 만.
 out_dir() {
@@ -151,7 +151,7 @@ measure() {
 	read -r DB_MEM SB APP_MEM J TIER <<<"$cfg"
 	JOPTS=$(jvm_opts "$J")
 	jar=$(app_jar "$ROOT")
-	[ -f "$jar" ] || hf "jar 가 없다: $jar (측정 앱은 src/back 의 bootJar, CLAUDE.md 참고)"
+	[ -f "$jar" ] || hf "jar 가 없다: $jar (측정 앱은 bench 의 bootJar, CLAUDE.md 참고)"
 	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
 	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
@@ -164,7 +164,7 @@ measure() {
 		postgres:18-alpine -c shared_buffers="$SB" >/dev/null || hf "DB 컨테이너 시작"
 	wait_for 60 docker exec "$DB" pg_isready -h 127.0.0.1 -U m || hf "DB 가 60초 안에 준비되지 않음"
 	# 2. 스키마·데이터
-	docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/src/back/seed.sql" >/dev/null || hf "seed.sql 적용"
+	docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/bench/seed.sql" >/dev/null || hf "seed.sql 적용"
 
 	# 3. 앱. JOPTS 는 단어 분리가 필요해 따옴표를 쓰지 않는다.
 	# shellcheck disable=SC2086

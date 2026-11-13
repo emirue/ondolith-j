@@ -33,7 +33,7 @@
 | 부하 도구 | `httpd:2.4-alpine` 안의 `ab` (`-n 5000 -c 20`, 목록 `/api/posts?page=3`·단건 `/api/posts/500` 차례로) |
 | 가상 스레드 / 커넥션 풀 | 끔(기본값) / HikariCP 기본값 |
 | CPU | 앱·DB 컨테이너 모두 `--cpus=1` |
-| 데이터 | `posts` 1000행 ([`src/back/seed.sql`](../src/back/seed.sql)) |
+| 데이터 | `posts` 1000행 ([`bench/seed.sql`](../bench/seed.sql)) |
 
 ### 시나리오
 
@@ -135,7 +135,7 @@
 ```bash
 # 1. 빌드 (테스트는 DB 가 있어야 돌므로 bootJar 만)
 docker volume create bench-gradle
-docker run --rm --cpus=2 -v "$PWD/src/back":/src -w /src -v bench-gradle:/root/.gradle \
+docker run --rm --cpus=2 -v "$PWD/bench":/src -w /src -v bench-gradle:/root/.gradle \
   eclipse-temurin:25-jdk ./gradlew --no-daemon -q bootJar
 
 # 2. 측정 (한 번에 하나씩. 스스로 nice 19 로 다시 실행된다)
@@ -157,7 +157,7 @@ for t in tests/*.test.sh; do bash "$t" || exit 1; done
 
 | 경로 | 내용 |
 |---|---|
-| `src/back/` | 측정용 Spring Boot 앱(API 두 개: 목록·단건). 조건을 고정하려고 코드를 바꾸지 않는다 |
+| `bench/` | 측정용 Spring Boot 앱(API 두 개: 목록·단건). 조건을 고정하려고 코드를 바꾸지 않는다 |
 | `src/front/` | 비워 둠(범위 밖) |
 | `measure.sh` | 시나리오 한 회차 측정·판정 |
 | `scripts/summarize.sh` | 결과표 집계 |

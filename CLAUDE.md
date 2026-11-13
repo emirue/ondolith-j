@@ -35,7 +35,8 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 | 경로 | 내용 |
 |---|---|
 | `src/front/` | 코어 프런트(React SPA). S3+CloudFront 로 배포 |
-| `src/back/` | 지금은 측정용 Spring Boot 앱(패키지 `dev.measure.bench`). Phase 0 첫 작업에서 `bench/` 로 옮기고(`git mv`), 그 뒤 코어 백엔드 자리가 된다 |
+| `src/back/` | 코어 백엔드(Spring Boot, Maven). Lightsail 에 jar 로 배포 |
+| `bench/` | 측정용 Spring Boot 앱(패키지 `dev.measure.bench`, Gradle). 2026-11-13 `src/back` 에서 옮겼다 |
 | `docs/` | 요청서, 스펙, 계획 |
 | `measure.sh` | 시나리오 ID 를 받아 측정·판정한다. 판정 실패 시 exit 1 |
 | `scripts/` | 보조 스크립트(`check-public.sh` 등) |
@@ -46,13 +47,13 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 
 - 요청받은 것만 만든다. 추상화·설정·기능을 미리 넣지 않는다. 쓰는 곳이 하나면 함수·클래스로 빼지 않는다.
 - 의존성은 꼭 필요할 때만 쓴다. 추가 전에 취약점(OSV 등)과 유지 상태를 확인한다. 프런트는 `package-lock.json` 을 커밋하고, 백엔드(Maven)는 `pom.xml` 에 판을 명시한다(판 범위 표기 금지). 표준 도구로 되는 것은 그걸로 한다.
-- **코어의 언어·프레임워크·라이브러리·도구는 최신 안정판(GA)을 쓴다.** 알파·베타·RC·스냅샷은 쓰지 않는다. 판과 API 는 기억으로 쓰지 않고, 고르거나 올릴 때마다 context7 로 확인한다(모자라면 공식 문서). 측정 앱 `src/back` 은 측정 조건을 고정하려고 예외다. Java 는 최신 LTS 를 쓴다(지금 25, 2026-11-11 결정).
+- **코어의 언어·프레임워크·라이브러리·도구는 최신 안정판(GA)을 쓴다.** 알파·베타·RC·스냅샷은 쓰지 않는다. 판과 API 는 기억으로 쓰지 않고, 고르거나 올릴 때마다 context7 로 확인한다(모자라면 공식 문서). 측정 앱 `bench/` 는 측정 조건을 고정하려고 예외다. Java 는 최신 LTS 를 쓴다(지금 25, 2026-11-11 결정).
 - 도구 판(Java·Node 등)은 mise 로 고정한다: `mise.toml` + `mise.lock` 을 커밋하고 `mise install --locked` 로 설치한다. mise 가 못 다루는 것만 다른 방법(Maven Wrapper, `pom.xml` 명시 판, `package-lock.json`, Docker 이미지 태그)으로 고정한다. 코어 백엔드 빌드는 Maven, 측정 앱만 Gradle.
 - 인증·세션·CSRF·업로드 검증은 직접 만들지 않는다. Spring Security 와 검증된 라이브러리를 쓴다.
 - 새 기능·Phase 는 `superpowers:brainstorming` → 스펙 승인 → `superpowers:writing-plans` → TDD 순서로 한다. 한 번에 다 만들지 않는다.
 - 파일은 적게, 한 파일은 한 가지 일만. 기존 관례를 따르고 인접 코드를 "개선"하지 않는다.
 - 일부러 줄인 부분이 있으면 `ponytail:` 주석으로 한계와 올릴 때를 적는다.
-- **측정용 앱 코드(`src/back`)는 조건을 고정하려고 요청서대로 둔다.** 패키지·의존성·설정을 바꾸지 않는다. 뼈대의 `BenchApplication.java` 도 그대로.
+- **측정용 앱 코드(`bench/`)는 조건을 고정하려고 요청서대로 둔다.** 패키지·의존성·설정을 바꾸지 않는다. 뼈대의 `BenchApplication.java` 도 그대로.
 
 ## 측정 규칙
 
@@ -71,7 +72,7 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 - 코어 테스트 명령은 뼈대를 만들 때 여기에 적는다.
 - 측정 쪽 테스트 대상은 `measure.sh` 의 파싱·판정 로직과 `scripts/`. 고정 입력으로 먼저 실패시킨다:
   `Complete requests` 줄 없음=실패, `Non-2xx` 줄 없음=0, `docker stats` 값이 `0B`·비숫자=실패, `OOMKilled=true`=실패, `OutOfMemoryError` 1건 이상=실패.
-- `src/back` 앱 코드는 요청서대로 고정이라 Red 를 만들 수 없다. 빌드 성공과 실제 200 응답으로 검증한다.
+- `bench/` 앱 코드는 요청서대로 고정이라 Red 를 만들 수 없다. 빌드 성공과 실제 200 응답으로 검증한다.
 - 실행: `for t in tests/*.test.sh; do bash "$t" || exit 1; done`
 - 완료 보고에는 실행한 명령과 통과·실패 숫자를 적는다. 못 돌렸으면 「미실행」과 이유. skip·삭제·단언 완화로 green 을 만들지 않는다.
 
