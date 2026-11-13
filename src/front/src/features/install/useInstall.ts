@@ -12,8 +12,11 @@ export function useInstall() {
     mutationFn: async (values: InstallValues): Promise<InstallResult> => {
       const { response, error } = await api.POST("/api/install", { body: values });
       if (response.status === 202) return { ok: true };
-      const problem = (error ?? {}) as { detail?: string; errors?: Record<string, string> };
-      return { ok: false, detail: problem.detail ?? `설치하지 못했습니다(${response.status})`, errors: problem.errors };
+      return {
+        ok: false,
+        detail: error?.detail ?? `설치하지 못했습니다(${response.status})`,
+        errors: error?.errors,
+      };
     },
   });
 }

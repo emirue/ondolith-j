@@ -96,6 +96,13 @@
 			<version>3.2.0</version>
 			<scope>test</scope>
 		</dependency>
+		<!-- OpenAPI 응답 코드 애너테이션. 컴파일과 시험에만 쓰고 실행 jar 에서는 뺀다(아래 excludes). 판은 springdoc 이 쓰는 것과 같게 -->
+		<dependency>
+			<groupId>io.swagger.core.v3</groupId>
+			<artifactId>swagger-annotations-jakarta</artifactId>
+			<version>2.2.55</version>
+			<scope>provided</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -103,6 +110,14 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>io.swagger.core.v3</groupId>
+							<artifactId>swagger-annotations-jakarta</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>

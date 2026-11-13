@@ -67,9 +67,11 @@ class LauncherTest {
 		var installCtx = Launcher.startInstall(dir.resolve("ondolith-j.properties"), cfg -> {
 		}, "--server.port=0");
 		self.complete(installCtx);
-		for (int i = 0; i < 100 && installCtx.isActive(); i++) {
+		// 전환 스레드가 끝날 때까지(운영 기동 실패 → 종료 1) 기다린다. 먼저 끝내면 exitHandler 가 System::exit 로 돌아간 뒤 불린다
+		for (int i = 0; i < 300 && code.get() == -1; i++) {
 			Thread.sleep(100);
 		}
 		assertThat(installCtx.isActive()).isFalse();
+		assertThat(code.get()).isEqualTo(1);
 	}
 }
