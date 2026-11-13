@@ -42,13 +42,13 @@ docs/             요청서, 결정, 부록, 스펙, 계획
 | API 문서 | springdoc-openapi(`webmvc-api`, **시험 의존성만** — 운영 jar 에 넣지 않는다) | 3.2.0 | Maven Central |
 | DB 시험 | Testcontainers PostgreSQL | 2.0.5 | Maven Central |
 | 프런트 | React / Vite / TypeScript(strict) | 19.3.1 / 8.3.8 / 7.0.2 | npm |
-| 라우팅·상태 | React Router / TanStack Query / Zustand | 8.5.1 / 5.107.1 / 5.1.0 | npm |
+| 라우팅·상태 | React Router / TanStack Query / Zustand | 8.5.1 / 5.107.1 / 5.1.0 | npm — **Phase 0 에는 TanStack Query 만 넣었다**(2026-11-13): 화면이 주소가 아니라 health 로 바뀌고 공유 UI 상태가 없다. 쓰는 Phase 에서 넣는다 |
 | 스타일·폼 | Tailwind CSS / React Hook Form + Zod | 4.3.5 / 7.92.0 + 4.6.7 | npm |
 | UI 컴포넌트 | shadcn/ui(Radix 기반 `radix-ui`, CLI 가 소스를 복사) | CLI 4.23.0 / 1.8.1 | npm(2026-11-12) |
 | API 타입 | openapi-typescript + openapi-fetch | 7.13.0 / 0.17.0 | npm |
 | 프런트 시험 | Vitest + Testing Library / Playwright | 5.1.0 + 16.3.3 / 1.65.0 | npm |
 
-- springdoc 은 실행 jar 에 넣으면 S5 유휴가 약 13–21 MiB 늘었다(`docs/measure-lightsail.md` 「코어 스택 사전 측정」). 그래서 시험 의존성으로만 두고, 시험 하나가 `/v3/api-docs` 를 받아 OpenAPI 파일로 쓴다. 프런트 타입은 그 파일에서 만든다. 운영 서버에는 API 문서 주소가 없다.
+- springdoc 은 실행 jar 에 넣으면 S5 유휴가 약 13–21 MiB 늘었다(`docs/measure-lightsail.md` 「코어 스택 사전 측정」). 그래서 시험 의존성으로만 두고, 시험 하나가 `/v3/api-docs` 를 받아 OpenAPI 파일로 쓴다. springdoc 3.2 는 앱의 `SNAKE_CASE` 이름 규칙을 따르지 않아 그 시험이 같은 규칙을 스키마 속성 이름에 적용한다(`@JsonProperty` 로 다른 이름을 쓰는 필드가 생기면 springdoc 설정으로 옮긴다). 프런트 타입은 그 파일에서 만든다. 운영 서버에는 API 문서 주소가 없다.
 - **TypeScript 는 5.9.3 으로 내렸다(2026-11-13).** openapi-typescript 7.13.0(최신)이 peer 로 `typescript ^5.x` 만 받아 7.0.2 와 함께 설치되지 않는다. 5.x 의 최신 안정판을 쓰고, openapi-typescript 가 7 을 받으면 올린다.
 - 호환은 뼈대를 만들 때 실제 빌드로 확인한다. springdoc 3.2 ↔ Boot 4.1.2 는 2026-11-12 시험용 앱에서 빌드·기동을 확인했다. 안 맞으면 맞는 최신 안정판 조합으로 내리고 이유를 이 표 아래에 적는다.
 - 의존성마다 추가 전에 OSV 로 취약점을 확인한다. 프런트는 `package-lock.json` 을 커밋한다. Maven 은 잠금 파일이 없으므로 `pom.xml` 에 판을 명시하고 판 범위 표기를 쓰지 않는다(Boot 가 관리하는 것은 Boot BOM 판을 따른다).
@@ -105,7 +105,7 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
 
 | 필드 | 필수 | 검증 |
 |---|:---:|---|
-| `db_host` | ✔ | 최대 255자, 공백 불가. 접속 시도로 최종 검증 |
+| `db_host` | ✔ | 최대 255자, 문자는 `A-Z a-z 0-9 . _ : [ ] -` 만(JDBC 옵션 주입 차단, 2026-11-13). 접속 시도로 최종 검증 |
 | `db_port` | ✔ | 1~65535 정수, 기본 5432 |
 | `db_user` | ✔ | 최대 63자 |
 | `db_password` | | 최대 255자. 화면에 다시 보이지 않고 설정 파일에만 기록 |
@@ -113,7 +113,7 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
 | `db_sslmode` | ✔ | 허용목록 `disable·require·verify-ca·verify-full` |
 | `site_name` | ✔ | 1~100자 |
 | `site_type` | ✔ | `cms·shop` 둘만, 기본 `cms` (FR-710) |
-| `site_url` | ✔ | http·https 절대 주소. 프런트가 현재 주소로 미리 채우고 사용자가 확인한다. 요청의 Host 로 만들지 않는다 |
+| `site_url` | ✔ | http·https 절대 주소이고 호스트가 있어야 한다 — 설정 파일 읽기와 같은 규칙(`ConfigFile.parseSiteUrl`). 프런트가 현재 주소로 미리 채우고, 보낼 때 URL 로 정규화한다(한글 도메인은 punycode). 요청의 Host 로 만들지 않는다 |
 | `admin_email` | ✔ | 형식, 최대 254자, 소문자화 |
 | `admin_password` | ✔ | 10자 이상(NFR-208), 최대 72바이트. 확인 칸 일치는 프런트 편의 + 서버 검증 |
 
@@ -124,7 +124,7 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
   3. DB 접속 → 실패 시 400 + 드라이버 오류 원문(비밀번호·DSN 제외) (FR-107, NFR-210 의 유일한 예외).
   4. 사용 중 감지(FR-108) → 400 「이미 사용 중인 데이터베이스입니다」 + 감지 근거:
      - 마이그레이션 이력 표가 없는데 스키마가 비어 있지 않음(Flyway 도 기본값 `baselineOnMigrate=false` 로 이 경우 멈춘다);
-     - 이력 표가 있고 같은 이메일 계정이 있음.
+     - 이력 표가 있고 계정이 하나라도 있음(2026-11-13 강화 — 이메일이 달라도 거부. 기존 사이트 DB 에 덮어 설치하지 않는다). 표는 `pg_class` 로 센다(권한 없는 표도 보이게).
   5. 마이그레이션 적용 → 실패 시 400 + 실패한 파일 이름 + 원문.
   6. 한 트랜잭션에서: 기본 설정(사이트 이름·유형) → 관리자 계정(bcrypt, FR-104) + 관리자 역할. 둘은 함께 성립하거나 함께 없다.
   7. 임시 설정 파일에 내용을 쓰고 `rename` (FR-105). **이 순간이 설치 완료다.** 이후 설치 API 는 닫힌다(재요청 404). 전환이 실패해도 다시 열지 않는다 — 다시 열면 포트에 닿는 누구나 자기 DB 로 설정을 덮어쓴다. 전환 실패는 재시작으로 푼다(ondolith 설치 코드와 같다).
@@ -162,6 +162,8 @@ java -jar → 설정 파일 확인 (기본 ./ondolith-j.properties, --config 로
 | 항목 | 내용 |
 |---|---|
 | CSRF | 두 컨텍스트 모두 Spring Security 의 `csrf.spa()` (7.1 공식 문서). 프런트 API 클라이언트가 `XSRF-TOKEN` 쿠키를 `X-XSRF-TOKEN` 헤더로 보낸다 |
+| 인가 | Phase 0 은 `permitAll`(있는 API 가 모두 공개) — 없는 경로가 MVC 의 404 가 되게(D-3). 기본 `/logout` 은 끈다. Phase 1 로그인과 함께 기본 거부 + 경로별 허용으로 바꾼다 |
+| 설치 DB 접속 | URL 문자열을 이어 붙이지 않고 `PGSimpleDataSource` 에 값을 하나씩 넘긴다(드라이버 옵션 주입 차단) |
 | 세션 쿠키 | HttpOnly, SameSite=Lax, `site_url` 이 https 면 Secure 로 설정만 해 둔다. Phase 0 은 세션을 만들지 않으므로 세 플래그 단언 시험은 로그인이 생기는 Phase 1 에서 한다 |
 | 응답 헤더 | 프레임 금지, `nosniff`, `Referrer-Policy`, API 응답 CSP `default-src 'none'; frame-ancestors 'none'` |
 | 오류 응답 | Problem Details(`spring.mvc.problemdetails.enabled`). 스택·내부 메시지를 내보내지 않는다. 예외는 설치의 DB 접속 실패 원인뿐 |
