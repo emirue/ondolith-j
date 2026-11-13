@@ -104,5 +104,13 @@ chk "생성 비밀번호 가림" "0|Using generated security password: [제거�
   "$(run redact <<<"Using generated security ""password: 1234-abcd")"
 chk "다른 줄은 그대로" "0|Started BenchApplication in 5 seconds" "$(run redact <<<'Started BenchApplication in 5 seconds')"
 
+# --- TARGET=core: 코어 jar 측정. 경로는 "<기동 확인> <부하 목록 칸> <부하 단건 칸>"
+chk "대상 기본은 측정 앱" "0|/api/posts/1 /api/posts?page=3 /api/posts/500" "$(run target_paths)"
+# 설치 모드도 /api/health 는 200 이라, 운영 모드에만 있는 /api/site 로 떴는지 본다
+chk "코어는 /api/site 로 기동 확인" "0|/api/site /api/site /api/health" "$(TARGET=core run target_paths)"
+chk "모르는 대상은 거부" "1|" "$(TARGET=x run target_paths)"
+CORE_CFG=$'db.url=jdbc:postgresql://bench-db:5432/m\ndb.user=m\ndb.password=m\nsite.url=http://measure.ondolith.test\ncookies.secure=false\nseal.key=KEY\nupload.dir=/tmp/uploads\nbackup.dir=/tmp/backups\ninstalled.at=2026-11-14T00:00:00Z'
+chk "코어 설정 파일" "0|$CORE_CFG" "$(run core_config bench-db KEY 2026-11-14T00:00:00Z)"
+
 echo "measure: 통과 $pass / 실패 $fail"
 [ "$fail" -eq 0 ]

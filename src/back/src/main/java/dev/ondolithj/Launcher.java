@@ -7,7 +7,7 @@ import dev.ondolithj.install.InstallApplication;
 import dev.ondolithj.install.InstallTarget;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.IntConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,13 +60,19 @@ public final class Launcher {
 
 	/** 설치가 끝나면 별도 스레드가 설치 컨텍스트를 닫고 같은 인자(같은 포트)로 운영 컨텍스트를 띄운다(FR-106). */
 	public static ConfigurableApplicationContext startInstall(Path configFile, String... args) {
-		AtomicReference<ConfigurableApplicationContext> self = new AtomicReference<>();
-		// 요청 스레드(데몬)에서 만들므로 데몬이 아님을 명시한다 — 두 컨텍스트 사이에 JVM 이 끝나지 않게
-		ContextSwitch sw = config -> Thread.ofPlatform().name("ondolith-switch").daemon(false)
-			.start(() -> switchToRunning(self.get(), config, args));
-		ConfigurableApplicationContext ctx = startInstall(configFile, sw, args);
-		self.set(ctx);
+		CompletableFuture<ConfigurableApplicationContext> self = new CompletableFuture<>();
+		ConfigurableApplicationContext ctx = startInstall(configFile, contextSwitch(self, args), args);
+		self.complete(ctx);
 		return ctx;
+	}
+
+	/**
+	 * 요청 스레드(데몬)에서 만들므로 데몬이 아님을 명시한다 — 두 컨텍스트 사이에 JVM 이 끝나지 않게.
+	 * 웹 서버는 run() 이 돌아오기 전에 요청을 받으므로, 설치 컨텍스트가 넘어올 때까지 기다린다.
+	 */
+	static ContextSwitch contextSwitch(CompletableFuture<ConfigurableApplicationContext> self, String[] args) {
+		return config -> Thread.ofPlatform().name("ondolith-switch").daemon(false)
+			.start(() -> switchToRunning(self.join(), config, args));
 	}
 
 	public static ConfigurableApplicationContext startInstall(Path configFile, ContextSwitch contextSwitch,

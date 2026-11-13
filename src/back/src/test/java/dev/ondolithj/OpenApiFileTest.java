@@ -61,12 +61,26 @@ class OpenApiFileTest {
 		merge((ObjectNode) merged.withObject("/components").withObject("/schemas"), running.at("/components/schemas"));
 		merged.remove("servers"); // 시험마다 바뀌는 임시 포트
 		snakeCase(merged.at("/components/schemas"));
+		problemMembers(merged.at("/components/schemas/ProblemDetail"));
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
 		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/health", "/api/install", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
+		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
+		JsonNode responses = written.at("/paths/~1api~1install/post/responses");
+		assertThat(fieldNames(responses)).containsExactlyInAnyOrder("202", "400", "403", "404", "409", "422", "500");
+		assertThat(responses.at("/202/content").isMissingNode()).isTrue();
+		// CSRF 거부는 필터에서 나서 Problem Details 가 아니다(Boot 기본 오류 JSON)
+		assertThat(responses.at("/403/content").isMissingNode()).isTrue();
+		for (String code : java.util.List.of("400", "404", "409", "422", "500")) {
+			assertThat(responses.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
+		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
+		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");
 	}
 
 	static void merge(ObjectNode into, JsonNode from) {
@@ -97,6 +111,16 @@ class OpenApiFileTest {
 				schema.set("required", renamed);
 			}
 		});
+	}
+
+	/**
+	 * Spring 은 ProblemDetail.properties 를 응답 최상위로 펼친다(Jackson mixin 의 @JsonAnyGetter). springdoc 은 이를 모르고
+	 * properties 칸을 문서에 적으므로, 우리가 쓰는 확장 멤버(ApiErrors 의 errors: 칸 → 메시지)로 바꾼다.
+	 */
+	static void problemMembers(JsonNode schema) {
+		ObjectNode props = (ObjectNode) schema.get("properties");
+		props.remove("properties");
+		props.putObject("errors").put("type", "object").putObject("additionalProperties").put("type", "string");
 	}
 
 	static String snake(String camel) {
