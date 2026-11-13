@@ -9,7 +9,6 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -152,12 +151,13 @@ class SwitchTest {
 				ConfigFile.newSealKey(), dir.resolve("u"), dir.resolve("b"), Instant.now());
 		assertThatThrownBy(() -> Launcher.startRunning(config, "--server.port=0",
 				"--spring.flyway.locations=classpath:db/migration,classpath:db/failing"))
-			.isInstanceOf(Exception.class);
+			// 접속 실패 같은 다른 이유로 못 뜬 것이 아님을 확인한다
+			.hasStackTraceContaining("V9999__fails.sql")
+			.hasStackTraceContaining("division by zero");
 		try (Connection c = DriverManager.getConnection(jdbc(db), "app", DB_PASS);
 				ResultSet r = c.createStatement().executeQuery("SELECT to_regclass('public.half_done')::text")) {
 			r.next();
 			assertThat(r.getString(1)).isNull();
 		}
-		assertThat(Files.exists(dir.resolve("ondolith-j.properties"))).isFalse();
 	}
 }

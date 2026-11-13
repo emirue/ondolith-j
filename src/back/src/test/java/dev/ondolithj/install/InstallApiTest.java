@@ -7,6 +7,7 @@ import dev.ondolithj.TestHttp;
 import dev.ondolithj.config.ConfigFile;
 import dev.ondolithj.config.ConfigLoad;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.http.HttpResponse;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -253,11 +256,13 @@ class InstallApiTest {
 	@Test
 	void 동시_요청은_하나만() throws Exception {
 		confDir();
-		try (ServerSocket silent = new ServerSocket(0)) {
+		try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
 			List<Socket> held = new ArrayList<>();
+			CountDownLatch connected = new CountDownLatch(1);
 			Thread acceptor = Thread.ofVirtual().start(() -> {
 				try {
 					held.add(silent.accept()); // 받기만 하고 응답하지 않는다
+					connected.countDown();
 				} catch (IOException e) {
 					// 닫힘
 				}
@@ -270,7 +275,8 @@ class InstallApiTest {
 					throw new RuntimeException(e);
 				}
 			});
-			Thread.sleep(500);
+			// 첫 요청이 잠금을 쥔 채 DB 접속 단계에 들어갔다
+			assertThat(connected.await(10, TimeUnit.SECONDS)).isTrue();
 			int second = install(valid()).statusCode();
 			assertThat(second).isEqualTo(409);
 			assertThat(first.get()).isEqualTo(400);

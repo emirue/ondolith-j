@@ -233,7 +233,7 @@ class InstallService {
 	}
 
 	/** 드라이버가 입력값을 되풀이해도 비밀번호가 응답에 나가지 않게 한다. */
-	private static String scrub(String message, InstallRequest req) {
+	static String scrub(String message, InstallRequest req) {
 		if (message == null) {
 			return "";
 		}
