@@ -18,7 +18,7 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 - **`git push`, `gh repo create/edit/delete`, 원격 변경, MCP GitHub 쓰기 도구는 사용자 승인 후에만.** `.claude/settings.json` 이 매번 확인을 걸어 둔다.
 - 커밋 전 검사는 `scripts/check-public.sh`, 훅은 `.githooks/pre-commit`. 새 클론에서는 한 번 켠다: `git config core.hooksPath .githooks`
 - `results/` 원본 출력은 **눈으로 훑은 뒤** 커밋한다(생성 비밀번호·절대 경로가 섞일 수 있다).
-- DB 계정 `m`/`m` 은 포트를 열지 않는 일회용 컨테이너용이다. 실제 비밀번호는 어디에도 쓰지 않는다.
+- DB 계정 `m`/`m`(측정)·`dev`/`dev`(`mise run db`, 127.0.0.1 에만 열림)은 일회용 컨테이너용이다. 실제 비밀번호는 어디에도 쓰지 않는다.
 - 공격자가 코드를 전부 읽는다고 가정한다. 방어는 숨김이 아니라 코드와 설정에 있어야 한다.
 - `.env`·실제 설정 파일·DB 덤프·업로드·백업도 커밋하지 않는다. `.gitignore` 로 막고 `*.example` 만 커밋한다. 테스트·시드에는 누가 봐도 가짜인 값만 쓴다.
 - 프런트 빌드 변수(`VITE_*` 등 번들에 들어가는 값)는 전부 공개다. 비밀을 넣지 않는다.
@@ -69,7 +69,8 @@ ondolith(Go) 의 기능을 백엔드 Spring Boot(API) 와 프런트 React(SPA) �
 ## TDD
 
 - 동작이 바뀌는 변경은 실패하는 테스트 먼저(Red) → 최소 구현(Green) → 정리(Refactor). 테스트가 **옳은 이유로 실패**하는지 실행해서 확인한다.
-- 코어 테스트 명령은 뼈대를 만들 때 여기에 적는다.
+- 코어 시험(Docker 필요): `mise run test` = 셸 시험 + `src/back` 의 `./mvnw -q -B test`(Testcontainers) + `src/front` 의 `npm test && npm run typecheck`. 브라우저 흐름은 `mise run e2e`. 하나만: `cd src/back && ./mvnw -q -B test -Dtest=<클래스>`, `cd src/front && npx vitest run <경로>`.
+- 시험의 HTTP 는 `localhost` 가 아니라 `127.0.0.1` 로 보낸다. 고정 포트가 필요하면 루프백에서 고르고 `--server.address=127.0.0.1` 로 띄운다(다른 프로세스와 포트가 섞이지 않게).
 - 측정 쪽 테스트 대상은 `measure.sh` 의 파싱·판정 로직과 `scripts/`. 고정 입력으로 먼저 실패시킨다:
   `Complete requests` 줄 없음=실패, `Non-2xx` 줄 없음=0, `docker stats` 값이 `0B`·비숫자=실패, `OOMKilled=true`=실패, `OutOfMemoryError` 1건 이상=실패.
 - `bench/` 앱 코드는 요청서대로 고정이라 Red 를 만들 수 없다. 빌드 성공과 실제 200 응답으로 검증한다.

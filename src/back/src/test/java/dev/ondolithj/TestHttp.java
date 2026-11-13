@@ -22,7 +22,8 @@ public final class TestHttp {
 	}
 
 	public static TestHttp of(ConfigurableApplicationContext ctx) {
-		return new TestHttp("http://localhost:" + ctx.getEnvironment().getProperty("local.server.port"));
+		// localhost 는 ::1 로 풀릴 수 있어 다른 프로세스로 갈 수 있다. 루프백 IPv4 로 고정한다
+		return new TestHttp("http://127.0.0.1:" + ctx.getEnvironment().getProperty("local.server.port"));
 	}
 
 	public HttpResponse<String> get(String path) throws IOException, InterruptedException {

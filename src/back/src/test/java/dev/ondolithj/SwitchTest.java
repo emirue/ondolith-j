@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ondolithj.config.ConfigFile;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpResponse;
@@ -69,8 +70,9 @@ class SwitchTest {
 		return "jdbc:postgresql://" + pg.getHost() + ":" + pg.getMappedPort(5432) + "/" + db;
 	}
 
+	/** 루프백에서 빈 포트. 와일드카드로 고르면 다른 프로세스가 127.0.0.1 에 쥔 포트를 고를 수 있다(SO_REUSEADDR). */
 	static int freePort() throws IOException {
-		try (ServerSocket s = new ServerSocket(0)) {
+		try (ServerSocket s = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
 			return s.getLocalPort();
 		}
 	}
@@ -101,8 +103,8 @@ class SwitchTest {
 
 	Path install(int port, String db) throws Exception {
 		Path config = dir.resolve("ondolith-j.properties");
-		Launcher.startInstall(config, "--server.port=" + port);
-		TestHttp http = new TestHttp("http://localhost:" + port);
+		Launcher.startInstall(config, "--server.port=" + port, "--server.address=127.0.0.1");
+		TestHttp http = new TestHttp("http://127.0.0.1:" + port);
 		assertThat(http.post("/api/install", body(db)).statusCode()).isEqualTo(202);
 		assertThat(waitRunning(http, 30)).isTrue();
 		return config;
@@ -112,7 +114,7 @@ class SwitchTest {
 	void 설치_뒤_같은_포트에서_운영으로_바뀐다() throws Exception {
 		int port = freePort();
 		install(port, newDb());
-		TestHttp http = new TestHttp("http://localhost:" + port);
+		TestHttp http = new TestHttp("http://127.0.0.1:" + port);
 		assertThat(http.post("/api/install", "{}").statusCode()).isEqualTo(404);
 		HttpResponse<String> site = http.get("/api/site");
 		assertThat(site.statusCode()).isEqualTo(200);

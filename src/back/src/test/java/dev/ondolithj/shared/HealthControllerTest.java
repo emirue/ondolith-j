@@ -21,7 +21,7 @@ class HealthControllerTest {
 		try (var ctx = Launcher.startInstall(dir.resolve("ondolith-j.properties"), "--server.port=0")) {
 			String port = ctx.getEnvironment().getProperty("local.server.port");
 			HttpResponse<String> r = HttpClient.newHttpClient().send(
-					HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/health")).build(),
+					HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/health")).build(),
 					HttpResponse.BodyHandlers.ofString());
 			assertThat(r.statusCode()).isEqualTo(200);
 			assertThat(r.body()).contains("\"state\":\"install\"").containsPattern("\"version\":\"[^\"]+\"");
