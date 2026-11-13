@@ -66,11 +66,16 @@ class InstallService {
 			} catch (IOException e) {
 				return new InstallOutcome.ConfigNotWritable("설정 파일을 쓸 수 없습니다: " + file.getParent() + ": " + describe(e));
 			}
+			// 쓸 설정을 DB 를 바꾸기 전에 만든다 — 여기서 실패하면 DB 는 그대로다
+			URI siteUrl = ConfigFile.parseSiteUrl(req.siteUrl());
+			ConfigFile config = new ConfigFile(jdbcUrl(req), req.dbUser(), req.password(), siteUrl,
+					"https".equals(siteUrl.getScheme()), ConfigFile.newSealKey(), file.getParent().resolve("uploads"),
+					file.getParent().resolve("backups"), Instant.now());
 			PGSimpleDataSource ds = dataSource(req);
 			String email = req.adminEmail().strip().toLowerCase(Locale.ROOT);
 			// 3·4. 접속과 사용 중 감지
 			try (Connection c = ds.getConnection()) {
-				String evidence = inUse(c, email);
+				String evidence = inUse(c);
 				if (evidence != null) {
 					return new InstallOutcome.DbInUse("이미 사용 중인 데이터베이스입니다: " + evidence);
 				}
@@ -90,9 +95,6 @@ class InstallService {
 				return new InstallOutcome.DbFailed("관리자를 만들지 못했습니다: " + scrub(e.getMessage(), req));
 			}
 			// 7. 설정 파일 교체 = 설치 완료
-			ConfigFile config = new ConfigFile(jdbcUrl(req), req.dbUser(), req.password(), URI.create(req.siteUrl()),
-					req.siteUrl().startsWith("https://"), ConfigFile.newSealKey(), file.getParent().resolve("uploads"),
-					file.getParent().resolve("backups"), Instant.now());
 			try {
 				config.commit(reserved, file);
 				reserved = null;
@@ -137,24 +139,25 @@ class InstallService {
 				+ URLEncoder.encode(req.dbName(), StandardCharsets.UTF_8).replace("+", "%20") + "?sslmode=" + req.dbSslmode();
 	}
 
-	/** 사용 중이면 근거, 아니면 null(FR-108). */
-	private static String inUse(Connection c, String email) throws SQLException {
-		boolean history = exists(c, "flyway_schema_history");
-		if (!history) {
-			try (ResultSet r = c.createStatement()
-				.executeQuery("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema()")) {
+	/**
+	 * 사용 중이면 근거, 아니면 null(FR-108). 이력 표 없이 무엇이든 있거나, 계정이 하나라도 있으면 사용 중이다.
+	 * 표는 pg_class 로 센다 — information_schema 는 권한 있는 표만 보여 준다.
+	 * 계정이 있으면 이메일이 달라도 거부한다 — 기존 사이트에 덮어 설치하면 사이트 설정이 바뀌고 슈퍼유저가 하나 더 생긴다.
+	 * 설치 중 실패하면 만든 관리자를 지우므로 재시도는 막히지 않는다.
+	 */
+	private static String inUse(Connection c) throws SQLException {
+		if (!exists(c, "flyway_schema_history")) {
+			try (ResultSet r = c.createStatement().executeQuery("SELECT count(*) FROM pg_class "
+					+ "WHERE relnamespace = current_schema()::regnamespace AND relkind IN ('r', 'p', 'v', 'm', 'S', 'f')")) {
 				r.next();
 				int n = r.getInt(1);
-				return n > 0 ? "마이그레이션 이력 표 없이 표가 " + n + "개 있습니다" : null;
+				return n > 0 ? "마이그레이션 이력 표 없이 객체가 " + n + "개 있습니다" : null;
 			}
 		}
 		if (exists(c, "users")) {
-			try (PreparedStatement s = c.prepareStatement("SELECT 1 FROM users WHERE email = ?")) {
-				s.setString(1, email);
-				try (ResultSet r = s.executeQuery()) {
-					if (r.next()) {
-						return "같은 이메일의 계정이 있습니다";
-					}
+			try (ResultSet r = c.createStatement().executeQuery("SELECT 1 FROM users LIMIT 1")) {
+				if (r.next()) {
+					return "계정이 이미 있습니다";
 				}
 			}
 		}

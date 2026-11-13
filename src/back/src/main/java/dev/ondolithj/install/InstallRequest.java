@@ -1,5 +1,6 @@
 package dev.ondolithj.install;
 
+import dev.ondolithj.config.ConfigFile;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,7 +17,7 @@ import java.util.Map;
  * db_host 는 호스트 이름·IP 문자만 허용한다 — JDBC URL 에 드라이버 옵션을 끼워 넣지 못하게.
  */
 public record InstallRequest(
-		@NotBlank(message = "필수입니다") @Size(max = 255, message = "255자 이하") @Pattern(regexp = "[A-Za-z0-9.:\\[\\]-]+", message = "호스트 이름 또는 IP 주소만") String dbHost,
+		@NotBlank(message = "필수입니다") @Size(max = 255, message = "255자 이하") @Pattern(regexp = "[A-Za-z0-9._:\\[\\]-]+", message = "호스트 이름 또는 IP 주소만") String dbHost,
 		@Min(value = 1, message = "1~65535") @Max(value = 65535, message = "1~65535") Integer dbPort,
 		@NotBlank(message = "필수입니다") @Size(max = 63, message = "63자 이하") String dbUser,
 		@Size(max = 255, message = "255자 이하") String dbPassword,
@@ -44,6 +45,11 @@ public record InstallRequest(
 	/** 애너테이션으로 못 하는 검사. 칸 이름(snake_case) → 메시지. */
 	Map<String, String> check() {
 		Map<String, String> e = new LinkedHashMap<>();
+		try {
+			ConfigFile.parseSiteUrl(siteUrl);
+		} catch (IllegalArgumentException ex) {
+			e.put("site_url", "http·https 절대 주소(한글 도메인은 punycode)");
+		}
 		if (adminPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
 			e.put("admin_password", "72바이트 이하(한글은 약 24자)");
 		}
@@ -51,5 +57,13 @@ public record InstallRequest(
 			e.put("admin_password_confirm", "비밀번호 확인이 다릅니다");
 		}
 		return e;
+	}
+
+	/** 비밀번호가 로그(DEBUG 의 요청 본문 등)에 새지 않게 가린다. */
+	@Override
+	public String toString() {
+		return "InstallRequest[dbHost=" + dbHost + ", dbPort=" + dbPort + ", dbUser=" + dbUser + ", dbName=" + dbName
+				+ ", dbSslmode=" + dbSslmode + ", siteName=" + siteName + ", siteType=" + siteType + ", siteUrl=" + siteUrl
+				+ ", adminEmail=" + adminEmail + "]";
 	}
 }

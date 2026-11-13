@@ -324,4 +324,82 @@ class InstallApiTest {
 		assertThat(install(valid()).statusCode()).isEqualTo(202);
 		assertThat(out.getAll()).doesNotContain(DB_PASS).doesNotContain(ADMIN_PASS);
 	}
+
+	@Test
+	void 이상한_사이트_주소는_422_이고_DB_는_그대로() throws Exception {
+		confDir();
+		for (String bad : new String[] { "https://example.com/a|b", "https://한국.kr", "http://under_score.example" }) {
+			HttpResponse<String> r = install(with("site_url", bad));
+			assertThat(r.statusCode()).as(bad).isEqualTo(422);
+			assertThat(r.body()).as(bad).contains("\"site_url\"");
+		}
+		assertThat(rows("SELECT to_regclass('public.flyway_schema_history')::text")).containsOnlyNulls();
+	}
+
+	@Test
+	void 특이한_DB_이름도_설치한_설정으로_운영_컨텍스트가_뜨고_쿠키_설정이_들어간다() throws Exception {
+		confDir();
+		String odd = "my db %한";
+		admin("CREATE DATABASE \"" + odd + "\" OWNER app");
+		assertThat(install(with("db_name", odd)).statusCode()).isEqualTo(202);
+		ConfigFile c = ((ConfigLoad.Loaded) ConfigFile.load(config())).config();
+		try (var running = Launcher.startRunning(c, "--server.port=0")) {
+			HttpResponse<String> site = TestHttp.of(running).get("/api/site");
+			assertThat(site.statusCode()).isEqualTo(200);
+			assertThat(site.body()).contains("시험 사이트");
+			var env = running.getEnvironment();
+			assertThat(env.getProperty("server.servlet.session.cookie.secure")).isEqualTo("true");
+			assertThat(env.getProperty("server.servlet.session.cookie.http-only")).isEqualTo("true");
+			assertThat(env.getProperty("server.servlet.session.cookie.same-site")).isEqualTo("lax");
+		}
+	}
+
+	@Test
+	void 다른_이메일이라도_사용자가_있으면_사용중() throws Exception {
+		confDir();
+		assertThat(install(valid()).statusCode()).isEqualTo(202);
+		ctx.close();
+		Path other = dir.resolve("other/ondolith-j.properties");
+		Files.createDirectories(other.getParent());
+		ctx = Launcher.startInstall(other, cfg -> {
+		}, "--server.port=0");
+		http = TestHttp.of(ctx);
+		HttpResponse<String> r = install(with("admin_email", "someone@ondolith.test"));
+		assertThat(r.statusCode()).isEqualTo(400);
+		assertThat(r.body()).contains("이미 사용 중인 데이터베이스입니다");
+		assertThat(rows("SELECT value FROM settings WHERE key = 'site.name'")).containsExactly("시험 사이트");
+	}
+
+	@Test
+	void 권한이_없는_다른_역할의_표도_사용중으로_본다() throws Exception {
+		confDir();
+		try (Connection c = DriverManager.getConnection(jdbc(), pg.getUsername(), pg.getPassword())) {
+			c.createStatement().execute("CREATE TABLE secret (id int)");
+			c.createStatement().execute("REVOKE ALL ON secret FROM PUBLIC");
+		}
+		HttpResponse<String> r = install(valid());
+		assertThat(r.statusCode()).isEqualTo(400);
+		assertThat(r.body()).contains("이미 사용 중인 데이터베이스입니다");
+	}
+
+	@Test
+	void 호스트_이름의_밑줄은_검증을_통과한다() throws Exception {
+		confDir();
+		HttpResponse<String> r = install(with("db_host", "my_db"));
+		assertThat(r.statusCode()).isEqualTo(400);
+		assertThat(r.body()).doesNotContain("\"db_host\"");
+	}
+
+	@Test
+	void DEBUG_로그에도_비밀번호가_없다(CapturedOutput out) throws Exception {
+		ctx.close();
+		ctx = Launcher.startInstall(config(), cfg -> {
+		}, "--server.port=0", "--logging.level.org.springframework.web=DEBUG");
+		http = TestHttp.of(ctx);
+		confDir();
+		install(with("admin_password", "short-pw", "admin_password_confirm", "short-pw"));
+		install(with("site_type", "blog"));
+		assertThat(out.getAll()).contains("POST \"/api/install\"").doesNotContain(DB_PASS).doesNotContain("short-pw")
+			.doesNotContain(ADMIN_PASS);
+	}
 }

@@ -33,5 +33,6 @@ describe("전환 대기 화면", () => {
     expect(await screen.findByText("오래 걸립니다. 서버 로그를 확인하세요")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(screen.getByRole("status")).toHaveTextContent("사이트를 준비하고 있습니다");
+    expect(screen.getByRole("heading", { name: "사이트를 준비하고 있습니다" })).toHaveFocus();
   });
 });

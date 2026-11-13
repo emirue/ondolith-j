@@ -15,6 +15,8 @@ public class SecurityConfig {
 		http
 			// 프런트가 XSRF-TOKEN 쿠키를 X-XSRF-TOKEN 헤더로 돌려보낸다(Spring Security 7.1 SPA 설정)
 			.csrf(c -> c.spa())
+			// 기본 /logout 을 끈다 — 없는 경로는 404 여야 한다(D-3). 로그아웃은 Phase 1 에서 API 로 만든다
+			.logout(l -> l.disable())
 			.headers(h -> h.frameOptions(f -> f.deny())
 				.referrerPolicy(r -> r.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 				.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")))

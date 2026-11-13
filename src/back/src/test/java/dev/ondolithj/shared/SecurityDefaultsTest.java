@@ -67,6 +67,11 @@ class SecurityDefaultsTest {
 	}
 
 	@Test
+	void Spring_Security_의_기본_logout_경로도_없다() throws Exception {
+		assertThat(http.post("/logout", "{}").statusCode()).isEqualTo(404);
+	}
+
+	@Test
 	void 생성_비밀번호를_로그에_찍지_않는다(CapturedOutput out) {
 		assertThat(out.getAll()).doesNotContainIgnoringCase("generated security password");
 	}

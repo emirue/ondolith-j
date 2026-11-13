@@ -114,7 +114,14 @@ public record ConfigFile(String dbUrl, String dbUser, String dbPassword, URI sit
 	}
 
 	private static URI siteUrl(Properties p) {
-		String v = required(p, "site.url");
+		return parseSiteUrl(required(p, "site.url"));
+	}
+
+	/**
+	 * 사이트 주소 규칙(설치 검증과 설정 파일 읽기가 같이 쓴다 — 둘이 다르면 설치는 되고 재시작이 실패한다).
+	 * http·https 절대 주소이고 호스트가 있어야 한다. 한글 도메인은 punycode 로 바꿔서 넣는다.
+	 */
+	public static URI parseSiteUrl(String v) {
 		try {
 			URI u = new URI(v);
 			if (u.isAbsolute() && ("http".equals(u.getScheme()) || "https".equals(u.getScheme())) && u.getHost() != null) {

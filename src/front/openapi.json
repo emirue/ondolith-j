@@ -31,7 +31,7 @@
           "db_host" : {
             "maxLength" : 255,
             "minLength" : 0,
-            "pattern" : "[A-Za-z0-9.:\\[\\]-]+",
+            "pattern" : "[A-Za-z0-9._:\\[\\]-]+",
             "type" : "string"
           },
           "db_name" : {

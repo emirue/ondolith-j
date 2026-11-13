@@ -44,6 +44,25 @@ describe("설치 화면", () => {
     expect(screen.getByLabelText("DB 포트")).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("422 를 받으면 첫 오류 칸으로 포커스를 옮긴다", async () => {
+    mockApi(() => json(422, { detail: "입력이 올바르지 않습니다", errors: { db_port: "1~65535" } }));
+    renderWithQuery(<InstallPage onSubmitted={() => {}} />);
+    const u = await fillValid();
+    await u.click(screen.getByRole("button", { name: "설치" }));
+    await waitFor(() => expect(screen.getByLabelText("DB 포트")).toHaveFocus());
+  });
+
+  it("사이트 주소는 URL 로 정규화해 보낸다(한글 도메인은 punycode)", async () => {
+    const f = mockApi(() => new Response(null, { status: 202 }));
+    renderWithQuery(<InstallPage onSubmitted={() => {}} />);
+    const u = await fillValid();
+    await u.clear(screen.getByLabelText("사이트 주소"));
+    await u.type(screen.getByLabelText("사이트 주소"), "https://한국.kr/a|b");
+    await u.click(screen.getByRole("button", { name: "설치" }));
+    await waitFor(() => expect(f).toHaveBeenCalled());
+    expect((await f.mock.calls[0]![0].json()).site_url).toBe("https://xn--3e0b707e.kr/a%7Cb");
+  });
+
   it("DB 접속 실패 원인(400)은 폼 위에 보인다", async () => {
     mockApi(() => json(400, { detail: "데이터베이스에 접속하지 못했습니다: password authentication failed" }));
     renderWithQuery(<InstallPage onSubmitted={() => {}} />);

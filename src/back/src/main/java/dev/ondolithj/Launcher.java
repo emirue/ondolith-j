@@ -84,7 +84,10 @@ public final class Launcher {
 	public static ConfigurableApplicationContext startRunning(ConfigFile config, String... args) {
 		current = new SpringApplicationBuilder(RunningApplication.class)
 			.properties(Map.of("spring.datasource.url", config.dbUrl(), "spring.datasource.username", config.dbUser(),
-					"spring.datasource.password", config.dbPassword()))
+					"spring.datasource.password", config.dbPassword(),
+					// 세션 쿠키(스펙 3절). 세션은 Phase 1 에서 생긴다
+					"server.servlet.session.cookie.http-only", "true", "server.servlet.session.cookie.same-site", "lax",
+					"server.servlet.session.cookie.secure", Boolean.toString(config.secureCookies())))
 			.run(args);
 		return current;
 	}

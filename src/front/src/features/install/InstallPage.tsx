@@ -5,7 +5,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
-import { installSchema, type InstallValues } from "./installSchema";
+import { installSchema, normalizeSiteUrl, type InstallValues } from "./installSchema";
 import { useInstall } from "./useInstall";
 
 /** 설치 화면(P-001). 서버 검증(422)은 칸 옆에, DB 접속 실패 등은 폼 위에 보인다. */
@@ -26,12 +26,13 @@ export function InstallPage({ onSubmitted }: { onSubmitted: () => void }) {
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
     try {
-      const r = await install.mutateAsync(values);
+      const r = await install.mutateAsync({ ...values, site_url: normalizeSiteUrl(values.site_url) });
       if (r.ok) return onSubmitted();
       if (r.errors && Object.keys(r.errors).length > 0) {
-        for (const [field, message] of Object.entries(r.errors)) {
-          form.setError(field as FieldPath<InstallValues>, { message });
-        }
+        // 첫 오류 칸으로 포커스를 옮겨 키보드·스크린 리더 사용자도 알게 한다
+        Object.entries(r.errors).forEach(([field, message], i) => {
+          form.setError(field as FieldPath<InstallValues>, { message }, { shouldFocus: i === 0 });
+        });
       } else {
         setFormError(r.detail);
       }
