@@ -72,7 +72,9 @@ class OpenApiFileTest {
 		JsonNode responses = written.at("/paths/~1api~1install/post/responses");
 		assertThat(fieldNames(responses)).containsExactlyInAnyOrder("202", "400", "403", "404", "409", "422", "500");
 		assertThat(responses.at("/202/content").isMissingNode()).isTrue();
-		for (String code : java.util.List.of("400", "403", "404", "409", "422", "500")) {
+		// CSRF 거부는 필터에서 나서 Problem Details 가 아니다(Boot 기본 오류 JSON)
+		assertThat(responses.at("/403/content").isMissingNode()).isTrue();
+		for (String code : java.util.List.of("400", "404", "409", "422", "500")) {
 			assertThat(responses.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
 				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
 		}

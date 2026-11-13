@@ -156,9 +156,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
-                };
+                content?: never;
             };
             /** @description 이미 설치됨 */
             404: {

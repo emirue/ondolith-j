@@ -30,8 +30,8 @@ class InstallController {
 	@ApiResponse(responseCode = "202", description = "설치 완료. 운영 모드로 바뀐다", content = @Content)
 	@ApiResponse(responseCode = "400", description = "DB 접속 실패·이미 사용 중인 DB·마이그레이션 실패",
 			content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "CSRF 토큰 없음",
-			content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	// ponytail: CSRF 거부는 보안 필터가 내서 Boot 기본 오류 JSON 이다. Phase 1 에서 보안 설정을 바꿀 때 Problem Details 로 맞춘다
+	@ApiResponse(responseCode = "403", description = "CSRF 토큰 없음", content = @Content)
 	@ApiResponse(responseCode = "404", description = "이미 설치됨",
 			content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "409", description = "다른 설치 요청이 진행 중",
