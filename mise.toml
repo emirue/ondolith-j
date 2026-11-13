@@ -1,0 +1,4 @@
+# 도구 판 고정. mise install --locked 로 설치한다(판은 mise.lock 이 기준).
+[tools]
+java = "temurin-25"
+node = "26.13.0"
