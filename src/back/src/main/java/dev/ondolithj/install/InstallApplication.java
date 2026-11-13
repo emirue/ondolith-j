@@ -1,5 +1,6 @@
 package dev.ondolithj.install;
 
+import dev.ondolithj.shared.ApiErrors;
 import dev.ondolithj.shared.AppState;
 import dev.ondolithj.shared.HealthController;
 import dev.ondolithj.shared.SecurityConfig;
@@ -20,7 +21,7 @@ import org.springframework.context.annotation.Import;
 		DataJpaRepositoriesAutoConfiguration.class, FlywayAutoConfiguration.class,
 		UserDetailsServiceAutoConfiguration.class })
 @ComponentScan
-@Import({ SecurityConfig.class, HealthController.class })
+@Import({ SecurityConfig.class, ApiErrors.class, HealthController.class })
 public class InstallApplication {
 
 	@Bean

@@ -2,6 +2,7 @@ package dev.ondolithj;
 
 import dev.ondolithj.config.ConfigFile;
 import dev.ondolithj.config.ConfigLoad;
+import dev.ondolithj.install.ContextSwitch;
 import dev.ondolithj.install.InstallApplication;
 import dev.ondolithj.install.InstallTarget;
 import java.nio.file.Path;
@@ -51,10 +52,18 @@ public final class Launcher {
 	}
 
 	public static ConfigurableApplicationContext startInstall(Path configFile, String... args) {
+		// ponytail: 전환은 다음 작업(스펙 2.3)에서 붙인다
+		return startInstall(configFile, config -> {
+		}, args);
+	}
+
+	public static ConfigurableApplicationContext startInstall(Path configFile, ContextSwitch contextSwitch,
+			String... args) {
 		InstallTarget target = new InstallTarget(configFile.toAbsolutePath());
-		return new SpringApplicationBuilder(InstallApplication.class)
-			.initializers(ctx -> ctx.getBeanFactory().registerSingleton("installTarget", target))
-			.run(args);
+		return new SpringApplicationBuilder(InstallApplication.class).initializers(ctx -> {
+			ctx.getBeanFactory().registerSingleton("installTarget", target);
+			ctx.getBeanFactory().registerSingleton("contextSwitch", contextSwitch);
+		}).run(args);
 	}
 
 	/** DB 접속 값은 기본 속성으로만 넘긴다(환경변수·파일로 새지 않게). */
