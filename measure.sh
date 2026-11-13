@@ -103,6 +103,23 @@ out_dir() {
 	esac
 }
 
+# 대상(TARGET=bench|core)별 "<기동 확인> <부하 목록 칸> <부하 단건 칸>" 경로.
+# 코어는 설치 모드도 /api/health 가 200 이라, 운영 모드에만 있는 /api/site 로 떴는지 본다.
+target_paths() {
+	case ${TARGET:-bench} in
+		bench) echo "/api/posts/1 /api/posts?page=3 /api/posts/500" ;;
+		core) echo "/api/site /api/site /api/health" ;;
+		*) return 1 ;;
+	esac
+}
+
+# core_config <DB 호스트> <seal.key> <installed.at>: 코어를 운영 모드로 띄울 설정 파일.
+# 계정 m/m 은 일회용 측정 DB 용이다. 파일은 results/ 밖 임시 폴더에 두고 끝나면 지운다.
+core_config() {
+	printf '%s\n' "db.url=jdbc:postgresql://$1:5432/m" db.user=m db.password=m site.url=http://measure.ondolith.test \
+		cookies.secure=false "seal.key=$2" upload.dir=/tmp/uploads backup.dir=/tmp/backups "installed.at=$3"
+}
+
 # 7절 판정: <유휴 상태> <부하 후 상태> <OOM 건수> <ab 목록> <ab 단건>. 하나라도 깨지면 FAIL.
 judge() {
 	local r=""
@@ -124,7 +141,11 @@ NET=bench-net DB=bench-db APP=bench-app
 HTTPD=httpd:2.4-alpine  # ab·wget 용
 
 hf() { echo "하네스 실패: $*" >&2; exit 2; }
-cleanup() { docker rm -f "$APP" "$DB" >/dev/null 2>&1; docker network rm "$NET" >/dev/null 2>&1; return 0; }
+cleanup() {
+	docker rm -f "$APP" "$DB" >/dev/null 2>&1; docker network rm "$NET" >/dev/null 2>&1
+	[ -n "${CORE_DIR:-}" ] && rm -rf "$CORE_DIR"
+	return 0
+}
 log() { echo "$*" | tee -a "$OUT/run.log"; }
 state() { docker inspect -f '{{.State.Running}} {{.State.OOMKilled}}' "$1" 2>/dev/null; }
 
@@ -146,7 +167,9 @@ run_ab() {
 peak_of() { local n=$1; shift; cat "$@" | grep "^$n " | sed "s/^$n //" | max_mib || echo "재지 못함"; }
 
 measure() {
-	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS jar
+	local id=$1 run=${2:-1} cfg DB_MEM SB APP_MEM J TIER JOPTS jar paths BOOT_PATH LOAD_LIST LOAD_ONE
+	paths=$(target_paths) || hf "TARGET 은 bench 또는 core"
+	read -r BOOT_PATH LOAD_LIST LOAD_ONE <<<"$paths"
 	cfg=$(scenario "$id") || hf "알 수 없는 시나리오: $id (S1~S7)"
 	read -r DB_MEM SB APP_MEM J TIER <<<"$cfg"
 	JOPTS=$(jvm_opts "$J")
@@ -155,7 +178,7 @@ measure() {
 	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
 	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
-	log "== $id 회차 $run${LABEL:+ [$LABEL]}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$jar")"
+	log "== $id 회차 $run${LABEL:+ [$LABEL]} 대상 ${TARGET:-bench}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$jar")"
 
 	# 1. 네트워크와 DB. 준비는 TCP(-h 127.0.0.1)로 본다: 초기화 중 임시 서버는 소켓만 연다.
 	docker network create "$NET" >/dev/null || hf "네트워크 생성"
@@ -163,22 +186,32 @@ measure() {
 		-e POSTGRES_USER=m -e POSTGRES_PASSWORD=m -e POSTGRES_DB=m \
 		postgres:18-alpine -c shared_buffers="$SB" >/dev/null || hf "DB 컨테이너 시작"
 	wait_for 60 docker exec "$DB" pg_isready -h 127.0.0.1 -U m || hf "DB 가 60초 안에 준비되지 않음"
-	# 2. 스키마·데이터
-	docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/bench/seed.sql" >/dev/null || hf "seed.sql 적용"
+	# 2·3. 스키마·데이터와 앱. JOPTS 는 단어 분리가 필요해 따옴표를 쓰지 않는다.
+	if [ "${TARGET:-bench}" = core ]; then
+		# 코어는 빈 DB 에 스스로 마이그레이션한다. DB 접속값은 설정 파일에서만 온다(환경변수를 주지 않는다).
+		CORE_DIR=$(mktemp -d) || hf "임시 폴더"
+		core_config "$DB" "$(openssl rand -base64 32)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$CORE_DIR/ondolith-j.properties" \
+			|| hf "코어 설정 파일"
+		# shellcheck disable=SC2086
+		docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
+			-v "$jar":/app.jar:ro -v "$CORE_DIR":/conf:ro \
+			eclipse-temurin:25-jre java $JOPTS -jar /app.jar --config=/conf/ondolith-j.properties >/dev/null \
+			|| hf "앱 컨테이너 시작"
+	else
+		docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/bench/seed.sql" >/dev/null || hf "seed.sql 적용"
+		# shellcheck disable=SC2086
+		docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
+			-e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/m" \
+			-e SPRING_DATASOURCE_USERNAME=m -e SPRING_DATASOURCE_PASSWORD=m \
+			-v "$jar":/app.jar:ro \
+			eclipse-temurin:25-jre java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
+	fi
 
-	# 3. 앱. JOPTS 는 단어 분리가 필요해 따옴표를 쓰지 않는다.
-	# shellcheck disable=SC2086
-	docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
-		-e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/m" \
-		-e SPRING_DATASOURCE_USERNAME=m -e SPRING_DATASOURCE_PASSWORD=m \
-		-v "$jar":/app.jar:ro \
-		eclipse-temurin:25-jre java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
-
-	# 4. 「떴다」는 프로세스가 아니라 응답이다: /api/posts/1 이 200 일 때까지 90초.
+	# 4. 「떴다」는 프로세스가 아니라 응답이다: 기동 확인 경로가 200 일 때까지 90초.
 	# ponytail: 앱이 일찍 죽어도 90초까지 기다린다. 길어지면 루프 안에서 state 를 본다.
 	local booted=yes
-	docker run --rm --network "$NET" "$HTTPD" sh -c \
-		'i=0; while [ $i -lt 90 ]; do wget -q -T 2 -O /dev/null http://bench-app:8080/api/posts/1 2>/dev/null && exit 0; i=$((i+1)); sleep 1; done; exit 1' \
+	docker run --rm --network "$NET" -e P="$BOOT_PATH" "$HTTPD" sh -c \
+		'i=0; while [ $i -lt 90 ]; do wget -q -T 2 -O /dev/null "http://bench-app:8080$P" 2>/dev/null && exit 0; i=$((i+1)); sleep 1; done; exit 1' \
 		|| booted=no
 	docker logs "$APP" 2>&1 | redact | tail -n 40 >"$OUT/app-log-tail.txt"
 	if [ "$booted" = no ]; then
@@ -189,11 +222,20 @@ measure() {
 	local startup
 	startup=$(startup_seconds "$(docker logs "$APP" 2>&1)") || startup="읽지 못함"
 
-	# 5. 데우기: 목록 page 0~9, 단건 1~10 을 한 번씩
-	docker run --rm --network "$NET" "$HTTPD" sh -c \
-		'for p in 0 1 2 3 4 5 6 7 8 9; do wget -q -O /dev/null "http://bench-app:8080/api/posts?page=$p"; done
-		 for i in 1 2 3 4 5 6 7 8 9 10; do wget -q -O /dev/null "http://bench-app:8080/api/posts/$i"; done' \
-		|| log "데우기 중 오류"
+	# 5. 데우기: 측정 앱은 목록 page 0~9, 단건 1~10 을 한 번씩. 코어는 사이트 설정을 넣고 두 경로를 10번씩
+	if [ "${TARGET:-bench}" = core ]; then
+		docker exec "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q \
+			-c "INSERT INTO settings (key, value) VALUES ('site.name', '측정 사이트'), ('site.type', 'cms')" \
+			|| hf "사이트 설정 넣기"
+		docker run --rm --network "$NET" -e A="$LOAD_LIST" -e B="$LOAD_ONE" "$HTTPD" sh -c \
+			'for i in 1 2 3 4 5 6 7 8 9 10; do wget -q -O /dev/null "http://bench-app:8080$A"; wget -q -O /dev/null "http://bench-app:8080$B"; done' \
+			|| log "데우기 중 오류"
+	else
+		docker run --rm --network "$NET" "$HTTPD" sh -c \
+			'for p in 0 1 2 3 4 5 6 7 8 9; do wget -q -O /dev/null "http://bench-app:8080/api/posts?page=$p"; done
+			 for i in 1 2 3 4 5 6 7 8 9 10; do wget -q -O /dev/null "http://bench-app:8080/api/posts/$i"; done' \
+			|| log "데우기 중 오류"
+	fi
 
 	# 6. 유휴: 5초 뒤. 살아 있는지 먼저 본다 — 죽은 컨테이너의 stats 0B 가 좋은 성적처럼 보이면 안 된다.
 	sleep 5
@@ -206,8 +248,8 @@ measure() {
 	db_idle=$(parse_mib "$db_raw") || db_idle="재지 못함"
 
 	# 7. 부하: 목록·단건 차례로
-	run_ab list "http://$APP:8080/api/posts?page=3"
-	run_ab one "http://$APP:8080/api/posts/500"
+	run_ab list "http://$APP:8080$LOAD_LIST"
+	run_ab one "http://$APP:8080$LOAD_ONE"
 	local ab_list ab_one app_peak db_peak
 	ab_list=$(cat "$OUT/ab-list.txt"); ab_one=$(cat "$OUT/ab-one.txt")
 	app_peak=$(peak_of "$APP" "$OUT"/samples-list.txt "$OUT"/samples-one.txt)
