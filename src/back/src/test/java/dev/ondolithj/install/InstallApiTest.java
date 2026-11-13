@@ -402,4 +402,19 @@ class InstallApiTest {
 		assertThat(out.getAll()).contains("POST \"/api/install\"").doesNotContain(DB_PASS).doesNotContain("short-pw")
 			.doesNotContain(ADMIN_PASS);
 	}
+
+	@Test
+	void 설치_중_마이그레이션이_실패하면_400_이고_원복된다() throws Exception {
+		ctx.close();
+		ctx = Launcher.startInstall(config(), cfg -> {
+		}, "--server.port=0", "--ondolithj.install.migration-locations=classpath:db/migration,classpath:db/failing");
+		http = TestHttp.of(ctx);
+		confDir();
+		HttpResponse<String> r = install(valid());
+		assertThat(r.statusCode()).isEqualTo(400);
+		assertThat(r.body()).contains("마이그레이션이 실패했습니다").contains("9999");
+		assertThat(rows("SELECT to_regclass('public.half_done')::text")).containsOnlyNulls();
+		assertThat(rows("SELECT count(*) FROM users")).containsExactly("0");
+		assertThat(filesIn(config().getParent())).isEmpty();
+	}
 }

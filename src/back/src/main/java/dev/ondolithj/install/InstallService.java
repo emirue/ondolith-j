@@ -20,6 +20,7 @@ import org.flywaydb.core.api.FlywayException;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -42,9 +43,14 @@ class InstallService {
 
 	private volatile boolean done;
 
-	InstallService(InstallTarget target, ContextSwitch contextSwitch) {
+	/** 마이그레이션 위치. 시험이 실패하는 마이그레이션을 끼울 때만 바꾼다. */
+	private final String[] migrationLocations;
+
+	InstallService(InstallTarget target, ContextSwitch contextSwitch,
+			@Value("${ondolithj.install.migration-locations:classpath:db/migration}") String[] migrationLocations) {
 		this.target = target;
 		this.contextSwitch = contextSwitch;
+		this.migrationLocations = migrationLocations;
 	}
 
 	InstallOutcome install(InstallRequest req) {
@@ -84,7 +90,7 @@ class InstallService {
 			}
 			// 5. 마이그레이션(실패하면 트랜잭션으로 원복된다)
 			try {
-				Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
+				Flyway.configure().dataSource(ds).locations(migrationLocations).load().migrate();
 			} catch (FlywayException e) {
 				return new InstallOutcome.MigrationFailed("마이그레이션이 실패했습니다: " + scrub(e.getMessage(), req));
 			}
