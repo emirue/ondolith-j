@@ -20,6 +20,12 @@ describe("첫 진입 분기", () => {
     expect(await screen.findByRole("heading", { name: "내 사이트" })).toBeInTheDocument();
   });
 
+  it("운영 상태에서 /login 이면 로그인 화면", async () => {
+    mockApi((req) => (req.url.endsWith("/api/me") ? json(200, { user: null, can: {} }) : json(200, { state: "running", version: "t" })));
+    renderWithQuery(<App />, "/login");
+    expect(await screen.findByRole("heading", { name: "로그인" })).toBeInTheDocument();
+  });
+
   it("응답이 없으면(전환 중 새로고침) 대기 화면", async () => {
     mockApi(() => {
       throw new TypeError("연결 실패");

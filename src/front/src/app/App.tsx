@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
+import { Route, Routes } from "react-router";
 import { fetchHealth } from "@/shared/api/health";
+import { AdminGate } from "@/features/auth/AdminGate";
+import { LoginPage } from "@/features/auth/LoginPage";
+import { UserMenu } from "@/features/auth/UserMenu";
 import { HomePage } from "@/features/home/HomePage";
 import { InstallPage } from "@/features/install/InstallPage";
 import { WaitingScreen } from "@/features/install/WaitingScreen";
@@ -20,6 +24,23 @@ export function App() {
     next ?? (first.isError ? "waiting" : first.data ? (first.data.state === "running" ? "home" : "install") : null);
   if (screen === "install") return <InstallPage onSubmitted={toWaiting} />;
   if (screen === "waiting") return <WaitingScreen onRunning={toHome} />;
-  if (screen === "home") return <HomePage />;
+  if (screen === "home") return <Running />;
   return null;
+}
+
+/** 운영 상태의 화면. 주소로 고른다(1-A 스펙 7절). */
+function Running() {
+  return (
+    <>
+      <header className="flex justify-end p-4">
+        <UserMenu />
+      </header>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin" element={<AdminGate />} />
+        <Route path="*" element={<main className="mx-auto max-w-lg p-6"><h1 className="text-2xl font-semibold">없는 화면입니다</h1></main>} />
+      </Routes>
+    </>
+  );
 }
