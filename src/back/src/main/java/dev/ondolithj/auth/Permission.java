@@ -9,12 +9,23 @@ import java.util.Optional;
  */
 public enum Permission {
 
-	ADMIN_ACCESS("admin.access");
+	ADMIN_ACCESS("admin.access", false);
 
 	private final String key;
 
-	Permission(String key) {
+	private final boolean visitor;
+
+	Permission(String key, boolean visitor) {
 		this.key = key;
+		this.visitor = visitor;
+	}
+
+	/**
+	 * 방문자 권한(ondolith D15 R9: post.read·post.write·comment.write). 모두가 갖는 역할(anonymous·member)은 이것만 받는다 —
+	 * 거기 관리 권한이 들어가면 가입한 누구나 그 권한을 갖는다. 1-A 에는 방문자 권한이 없다(게시판은 Phase 2).
+	 */
+	public boolean visitor() {
+		return visitor;
 	}
 
 	public String key() {

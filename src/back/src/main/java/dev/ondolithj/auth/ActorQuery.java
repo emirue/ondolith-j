@@ -3,10 +3,12 @@ package dev.ondolithj.auth;
 import java.sql.Array;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +16,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class ActorQuery {
 
-	// 유효 역할 = {anonymous, member} ∪ user_roles (D15 1.1)
+	/** 방문자 권한 키. 코드의 enum 에서 오므로(형식이 고정된 상수) SQL 에 그대로 넣는다. */
+	private static final String VISITOR_KEYS = Arrays.stream(Permission.values()).filter(Permission::visitor)
+		.map(p -> "'" + p.key() + "'").collect(Collectors.joining(", ", "ARRAY[", "]::text[]"));
+
+	// 유효 역할 = {anonymous, member} ∪ user_roles (D15 1.1).
+	// R9: anonymous·member 의 부여는 방문자 권한만 센다 — 이 규칙 전에 들어간 부여까지 효력이 없다
 	private static final String SQL = """
 			SELECT u.email, u.display_name, u.is_active, u.sessions_valid_from,
 			       COALESCE(bool_or(r.is_superuser), false) AS superuser,
@@ -24,9 +31,10 @@ public class ActorQuery {
 			    OR r.id IN (SELECT ur.role_id FROM user_roles ur WHERE ur.user_id = u.id)
 			LEFT JOIN role_permissions rp ON rp.role_id = r.id
 			LEFT JOIN permissions p ON p.id = rp.permission_id
+			    AND (r.key NOT IN ('anonymous', 'member') OR p.key = ANY(%s))
 			WHERE u.id = ?
 			GROUP BY u.id
-			""";
+			""".formatted(VISITOR_KEYS);
 
 	private final JdbcClient jdbc;
 
