@@ -1,5 +1,6 @@
 package dev.ondolithj.install;
 
+import dev.ondolithj.auth.GuardCheck;
 import dev.ondolithj.shared.ApiErrors;
 import dev.ondolithj.shared.AppState;
 import dev.ondolithj.shared.HealthController;
@@ -21,7 +22,8 @@ import org.springframework.context.annotation.Import;
 		DataJpaRepositoriesAutoConfiguration.class, FlywayAutoConfiguration.class,
 		UserDetailsServiceAutoConfiguration.class })
 @ComponentScan
-@Import({ SecurityConfig.class, ApiErrors.class, HealthController.class })
+// 설치 컨텍스트는 install 패키지만 스캔하므로 기동 점검을 직접 넣는다
+@Import({ SecurityConfig.class, ApiErrors.class, HealthController.class, GuardCheck.class })
 public class InstallApplication {
 
 	@Bean
