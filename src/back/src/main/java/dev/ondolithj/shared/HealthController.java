@@ -1,5 +1,6 @@
 package dev.ondolithj.shared;
 
+import dev.ondolithj.auth.PublicApi;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ public class HealthController {
 		this.health = new Health(state.state(), b == null ? "dev" : b.getVersion());
 	}
 
+	@PublicApi
 	@GetMapping("/api/health")
 	public Health health() {
 		return health;

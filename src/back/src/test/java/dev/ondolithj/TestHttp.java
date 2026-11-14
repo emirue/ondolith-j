@@ -30,6 +30,11 @@ public final class TestHttp {
 		return client.send(HttpRequest.newBuilder(URI.create(base + path)).build(), HttpResponse.BodyHandlers.ofString());
 	}
 
+	public HttpResponse<String> get(String path, String accept) throws IOException, InterruptedException {
+		return client.send(HttpRequest.newBuilder(URI.create(base + path)).header("Accept", accept).build(),
+				HttpResponse.BodyHandlers.ofString());
+	}
+
 	/** CSRF 없이 보낸다. */
 	public HttpResponse<String> postRaw(String path, String json) throws IOException, InterruptedException {
 		return client.send(json(path, json).build(), HttpResponse.BodyHandlers.ofString());

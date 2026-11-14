@@ -65,16 +65,15 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/health", "/api/install", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/health", "/api/install", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
 		JsonNode responses = written.at("/paths/~1api~1install/post/responses");
 		assertThat(fieldNames(responses)).containsExactlyInAnyOrder("202", "400", "403", "404", "409", "422", "500");
 		assertThat(responses.at("/202/content").isMissingNode()).isTrue();
-		// CSRF 거부는 필터에서 나서 Problem Details 가 아니다(Boot 기본 오류 JSON)
-		assertThat(responses.at("/403/content").isMissingNode()).isTrue();
-		for (String code : java.util.List.of("400", "404", "409", "422", "500")) {
+		// CSRF 거부도 Problem Details 다(1-A 스펙 6절, SecurityConfig 의 거부 처리기)
+		for (String code : java.util.List.of("400", "403", "404", "409", "422", "500")) {
 			assertThat(responses.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
 				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
 		}

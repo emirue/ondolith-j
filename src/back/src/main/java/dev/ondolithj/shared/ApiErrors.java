@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,7 +43,12 @@ public class ApiErrors extends ResponseEntityExceptionHandler {
 	}
 
 	@ExceptionHandler(Exception.class)
-	ResponseEntity<ProblemDetail> unexpected(Exception ex) {
+	ResponseEntity<ProblemDetail> unexpected(Exception ex) throws Exception {
+		// 메서드 보안의 거부는 컨트롤러 호출 안에서 예외로 나온다. 같은 예외를 다시 던지면 Spring 이 조용히 넘기고,
+		// 보안 필터가 401(익명)·403(권한 없음)으로 바꾼다(1-A 스펙 9절)
+		if (ex instanceof AccessDeniedException || ex instanceof AuthenticationException) {
+			throw ex;
+		}
 		log.error("처리하지 못한 예외", ex);
 		return ResponseEntity.internalServerError()
 			.body(ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 났습니다. 서버 로그를 확인하세요"));
