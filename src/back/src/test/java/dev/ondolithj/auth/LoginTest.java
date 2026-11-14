@@ -153,6 +153,8 @@ class LoginTest {
 			.noneMatch(n -> n.contains("SPRING_SECURITY_CONTEXT"));
 		assertThat((Object) s.getAttribute("ondolithj.user_id")).isEqualTo(userId.toString());
 		assertThat((Object) s.getAttribute("ondolithj.auth_at")).isEqualTo(validFrom);
+		// 수명 12시간(D60 NFR-204, server.servlet.session.timeout)이 DB 세션에 닿는다
+		assertThat(s.getMaxInactiveInterval()).isEqualTo(java.time.Duration.ofHours(12));
 	}
 
 	@Test

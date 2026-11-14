@@ -26,6 +26,8 @@ class LoginDbDownTest {
 			assertThat(r.statusCode()).isEqualTo(500);
 			assertThat(r.body()).doesNotContain("비밀번호가 맞지 않습니다").doesNotContain("Exception");
 			assertThat(out.getAll()).contains("처리하지 못한 예외");
+			// 스택 전체를 ERROR 로 찍는 경로다 — 이메일·비밀번호가 섞이지 않는다
+			assertThat(out.getAll()).doesNotContain("admin@ondolith.test").doesNotContain(PASSWORD);
 		}
 	}
 }
