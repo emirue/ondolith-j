@@ -72,7 +72,7 @@
 ### 3.4 요청마다
 
 - 권한이 필요한 순간에만(지연 로드) 사용자와 유효 권한 집합을 **쿼리 한 번**으로 읽는다(D15 4.3-1). 공개 API 는 읽지 않는다.
-- 유효 역할: 익명 `{anonymous}`, 로그인 `{anonymous, member} ∪ user_roles`(D15 1.1). 권한 = 그 역할들의 `role_permissions`. 역할 하나라도 `is_superuser` 면 코드의 권한 목록 전부.
+- 유효 역할: 로그인 `{anonymous, member} ∪ user_roles`(D15 1.1). 익명 요청에 익명 역할 권한을 주는 일은 그 권한을 처음 쓰는 Phase 로 미룬다 — 1-A 에는 익명에게 줄 권한이 없고, 익명 요청마다 질의하지 않는다. 권한 = 그 역할들의 `role_permissions`. 역할 하나라도 `is_superuser` 면 코드의 권한 목록 전부.
 - 거부하고 세션을 무효화하는 경우: 사용자가 없음, `is_active=false`, `authAt < sessions_valid_from`(같으면 유효 — 로그인 때 그 값을 찍었다). 그 요청은 익명으로 이어진다(공개 API 는 그대로 응답, 권한 API 는 401).
 
 ## 4. 횟수 제한

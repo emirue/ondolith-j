@@ -20,6 +20,8 @@
 - 오류 응답은 Problem Details(`application/problem+json`), JSON 필드는 snake_case.
 - 인증·세션·CSRF 는 Spring Security 클래스로 한다. 직접 만드는 것은 세션 어댑터·권한 조회·기동 점검·횟수 제한뿐.
 - 로그에 비밀번호·이메일을 남기지 않는다.
+- **경로를 더하는 작업(2·4·7)은 같은 커밋에서** `OpenApiFileTest` 의 경로 목록 단언을 고치고 `src/front/openapi.json`·`src/front/src/shared/api/schema.d.ts` 를 다시 만든다(CI 가 커밋된 파일과의 차이로 실패한다).
+- 횟수 제한(Task 6)이 들어간 뒤로, 횟수 제한을 보는 시험이 아니면 한도를 크게 준 속성(`--ondolithj.rate-limit.login-account=1000` 등)으로 띄운다.
 
 ## Review Focus
 
@@ -72,7 +74,7 @@
   - `GuardTest`: 표현식이 깨져 500 이 나지 않는다(익명 401 이 그 증거). enum 이 `ADMIN_ACCESS` 로 바뀌어 권한과 맞는지는 Task 4 의 「관리자 로그인 뒤 `/api/admin` 200」이 증명한다 — 맞지 않으면 그때 403 이다.
 - [ ] **Step 2: Red 확인** — `-Dtest='GuardTest,SecurityDefaultsTest'` → `/api/admin` 404, CSRF 403 은 `application/json`.
 - [ ] **Step 3: 구현** — 위 Interfaces. `ApiErrors.unexpected` 는 `AccessDeniedException`·`AuthenticationException` 을 다시 던진다(필터의 진입점·거부 처리기가 응답한다). 기존 컨트롤러에 `@PublicApi`. 템플릿이 enum 을 받지 못하면(Step 4 에서 확인) `@RequiresPermission(String)` 로 바꾸고 결정 문서에 Ruling 을 남긴다.
-- [ ] **Step 4: Green** — 같은 명령 → 통과. package-private 메서드가 실제로 막히는지는 익명 401(200 이 아님)이 증거다.
+- [ ] **Step 4: Green** — **전체 백엔드**(`nice -n 19 mise x -- ./mvnw -q -B test`) → 통과. 메서드 보안과 `ApiErrors` 수정은 모든 컨트롤러에 닿는다. package-private 메서드가 실제로 막히는지는 익명 401(200 이 아님)이 증거다. `/api/admin` 을 더했으니 OpenAPI 단언·생성 파일도 고친다.
 - [ ] **Step 5: 커밋** `인증 2: 메서드 보안, /api/admin, 401·403 Problem Details`
 
 ### Task 3: 기동 점검
@@ -83,14 +85,20 @@
 
 **Interfaces:**
 - `GuardCheck implements SmartInitializingSingleton` — 웹 서버가 요청을 받기 전에 돈다. `RequestMappingHandlerMapping` 의 모든 처리 메서드 중 빈 클래스가 `dev.ondolithj` 패키지인 것에 대해: 메서드 또는 클래스(메타 포함)에 `@RequiresPermission`·`@PublicApi` 가 **정확히 하나**, `@PreAuthorize` 직접 사용 금지. 어기면 `IllegalStateException`(메시지에 클래스#메서드).
+- 표시가 있어도 프록시가 가로채지 못하는 메서드(`private`·`final`, 또는 빈이 프록시가 아님)는 기동 실패. 먼저 시험용 컨트롤러로 그런 메서드에 익명 요청이 통과하는지 본 뒤(통과하면 이 규칙이 필요하다는 증거) 규칙을 넣는다.
+- `dev.ondolithj` 밖의 처리 메서드는 허용 목록에 없으면 기동 실패. 기본 허용은 Boot 오류 컨트롤러(`BasicErrorController`). 허용을 더하는 길은 `GuardCheck.Allowed` 빈(시험 전용 — 시험 클래스패스의 springdoc 경로)뿐이고 운영 설정 속성으로는 열 수 없다.
 - 운영 컨텍스트에서만(DataSource 가 있을 때): `SELECT key FROM permissions` 집합 == `Permission` 의 key 집합, 아니면 예외. 어느 메서드도 쓰지 않는 `Permission` 은 WARN.
+- 설치 컨텍스트는 `install` 패키지만 스캔하므로 `InstallApplication` 의 `@Import` 에 `GuardCheck` 를 더한다.
 
 - [ ] **Step 1: 실패하는 시험** — 시험 전용 설정으로 컨텍스트를 띄워 기동 실패를 본다:
   - 표시 없는 `@RestController` → 기동 실패, 메시지에 그 메서드 이름.
   - 메서드에 `@PublicApi` + 클래스에 `@RequiresPermission` → 실패(정확히 하나).
   - `@PreAuthorize("permitAll()")` 직접 → 실패.
   - DB 에 `permissions` 행 `x.y` 추가 → 운영 기동 실패.
-  - 정상 코어(기존 컨트롤러 전부) → 기동 성공.
+  - `private`(또는 `final`) 처리 메서드에 `@RequiresPermission` → 실패.
+  - `dev.ondolithj` 밖 패키지의 시험용 컨트롤러 → 실패. `GuardCheck.Allowed` 빈으로 허용하면 성공.
+  - 설치 컨텍스트에서도 표시 없는 컨트롤러가 기동을 멈춘다(설치 컨텍스트에 `@Import` 된 시험용 설정으로).
+  - 정상 코어(기존 컨트롤러 전부) → 두 컨텍스트 모두 기동 성공.
 - [ ] **Step 2: Red** — `-Dtest=GuardCheckTest` → 표시 없는 컨트롤러로도 기동 성공해 실패.
 - [ ] **Step 3: 구현** — `AnnotatedElementUtils.hasAnnotation`/`findMergedAnnotation` 으로 메타 포함 검사.
 - [ ] **Step 4: Green** + 전체 백엔드 시험.
@@ -105,8 +113,8 @@
 
 **Interfaces:**
 - 세션 속성: `ondolithj.user_id`(String), `ondolithj.auth_at`(Instant).
-- `record Actor(UUID id, String email, String displayName, Set<Permission> permissions)` — 인증 주체. authority = `permissions` 의 enum 이름.
-- `ActorQuery.load(UUID id, Instant authAt) → Optional<Actor>`: 쿼리 1회로 사용자·`is_active`·`sessions_valid_from`·유효 권한(`{anonymous, member} ∪ user_roles`, 슈퍼유저면 전부). 없음·비활성·`authAt < sessions_valid_from` 이면 빈 값. `ActorQuery.anonymousPermissions() → Set<Permission>`.
+- `record Actor(UUID id, String email, String displayName, Instant authAt, Set<Permission> permissions)` — 인증 주체. authority = `permissions` 의 enum 이름. `saveContext` 는 `id`·`authAt` 을 세션 속성으로 쓴다. 로그인 때 `authAt` 은 `UserDetailsService` 가 읽은 `sessions_valid_from` 이다.
+- `ActorQuery.load(UUID id, Instant authAt) → Optional<Actor>`: 쿼리 1회로 사용자·`is_active`·`sessions_valid_from`·유효 권한(`{anonymous, member} ∪ user_roles`, 슈퍼유저면 전부). 없음·비활성·`authAt < sessions_valid_from` 이면 빈 값. (익명 요청에 익명 역할 권한을 주는 일은 그 권한을 처음 쓰는 Phase 로 미룬다 — 스펙 3.4.)
 - `UserDetailsService`: `is_active=true` 인 계정만 찾는다(비활성은 없는 계정). 같은 질의로 `sessions_valid_from` 을 읽어 인증 결과에 담는다 → `authAt`.
 - `SessionContextRepository implements SecurityContextRepository`: `loadDeferredContext` 는 세션이 있으면 두 속성을 읽어 지연 공급자로 `ActorQuery.load`; 실패·타입 불일치·빈 값이면 세션 무효화 후 빈 컨텍스트. `saveContext` 는 `Actor` 인증일 때만 두 속성을 쓴다(익명이면 세션을 만들지 않는다). 세션은 `request.getSession(false)` 로만 읽는다.
 - `POST /api/auth/login`(`@PublicApi`) `LoginRequest(@NotBlank @Size(max=254) email, @NotNull @Size(max=1000) password)` → 204 / 401 Problem「이메일 또는 비밀번호가 맞지 않습니다」 / 422. `POST /api/auth/logout`(`@PublicApi`) → 204.
@@ -156,10 +164,11 @@
 **Interfaces:**
 - `RateLimiter(Clock clock)`: `Decision hit(String key, int limitPerMinute)` → `record Decision(boolean allowed, long retryAfterSeconds)`. 1분 고정 창, 창이 바뀌면 지난 창의 맵을 버린다. 스레드 안전.
 - `@ConfigurationProperties("ondolithj.rate-limit") record RateLimitProperties(int loginIp = 10, int loginAccount = 5, int adminIp = 60)`.
-- 로그인: 비밀번호 대조 전에 `login-ip:<ip>` 와 `login-account:<정규화 이메일>` 를 센다. 관리자: `/api/admin/**` 에 `admin-ip:<ip>`. 넘으면 429 Problem Details + `Retry-After`.
+- 로그인: 비밀번호 대조 전에 `login-ip:<ip>` 를 먼저 세고, 넘었으면 계정 키는 세지 않는다(한 IP 가 1분에 만드는 키 수를 묶는다). 그다음 `login-account:<정규화 이메일>`.
+- 관리자 필터는 Spring 빈으로 만들면 Boot 가 서블릿 필터로도 등록한다 — 보안 체인에만 넣고 서블릿 등록은 끈다(`FilterRegistrationBean.setEnabled(false)` 또는 빈이 아닌 객체로 체인에 추가). 관리자: `/api/admin/**` 에 `admin-ip:<ip>`. 넘으면 429 Problem Details + `Retry-After`.
 - IP 는 `request.getRemoteAddr()` (`ponytail:` Phase 4 에서 믿을 프록시).
 
-- [ ] **Step 1: 실패하는 시험** — 단위: 10번 허용·11번째 거부·`retryAfter` = 창 끝까지 초·창 지나면 회복(가짜 시계)·다른 키 독립·동시 100 스레드 정확히 한도만 허용. 통합: 같은 IP 로 로그인 11번째 429(+`Retry-After`), 같은 계정 6번째 429(없는 계정도), 설정 속성으로 한도 바꾸면 따른다, `/api/admin` 61번째 429.
+- [ ] **Step 1: 실패하는 시험** — 단위: 10번 허용·11번째 거부·`retryAfter` = 창 끝까지 초·창 지나면 회복(가짜 시계)·다른 키 독립·동시 100 스레드 정확히 한도만 허용. 통합: 같은 IP 로 로그인 10번째까지 401·11번째 429(+`Retry-After`), 같은 계정 5번째까지 401·6번째 429(없는 계정도), IP 한도를 넘은 요청은 계정 키를 세지 않는다, 설정 속성으로 한도 바꾸면 따른다, `/api/admin` 60번째 200·61번째 429(두 번 세면 31번째에 막힌다). 다른 시험 클래스는 큰 한도로 띄우도록 고친다. E2E 의 1분 안 로그인 횟수가 한도 안인지 센다.
 - [ ] **Step 2: Red** — `-Dtest='RateLimiterTest,LoginTest,GuardTest'`.
 - [ ] **Step 3: 구현**
 - [ ] **Step 4: Green** + 전체 백엔드.
