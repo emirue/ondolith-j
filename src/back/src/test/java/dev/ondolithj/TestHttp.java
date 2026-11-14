@@ -54,6 +54,25 @@ public final class TestHttp {
 		return client.send(b.build(), HttpResponse.BodyHandlers.ofString());
 	}
 
+	/** 이름이 같은 쿠키 값. 없으면 null. */
+	public String cookie(String name) {
+		return cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals(name))
+			.map(HttpCookie::getValue).findFirst().orElse(null);
+	}
+
+	/** 쿠키를 직접 심는다(세션 고정 시험: 공격자가 정한 값). */
+	public void plant(String name, String value) {
+		HttpCookie c = new HttpCookie(name, value);
+		c.setPath("/");
+		c.setVersion(0);
+		cookies.getCookieStore().add(URI.create(base), c);
+	}
+
+	public void forget(String name) {
+		cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals(name)).toList()
+			.forEach(c -> cookies.getCookieStore().remove(null, c));
+	}
+
 	public String xsrf() {
 		return cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals("XSRF-TOKEN"))
 			.map(HttpCookie::getValue).findFirst().orElse(null);

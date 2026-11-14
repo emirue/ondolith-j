@@ -78,6 +78,22 @@
         "required" : [ "admin_email", "admin_password", "admin_password_confirm", "db_host", "db_name", "db_sslmode", "db_user", "site_name", "site_url" ],
         "type" : "object"
       },
+      "LoginRequest" : {
+        "properties" : {
+          "email" : {
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "password" ],
+        "type" : "object"
+      },
       "ProblemDetail" : {
         "properties" : {
           "detail" : {
@@ -143,6 +159,45 @@
           }
         },
         "tags" : [ "admin-controller" ]
+      }
+    },
+    "/api/auth/login" : {
+      "post" : {
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "login-controller" ]
+      }
+    },
+    "/api/auth/logout" : {
+      "post" : {
+        "operationId" : "logout",
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "login-controller" ]
       }
     },
     "/api/health" : {

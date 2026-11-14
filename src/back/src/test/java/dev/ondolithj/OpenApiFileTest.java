@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/health", "/api/install", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다

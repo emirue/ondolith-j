@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.annotation.AnnotationTemplateExpressionDefaults;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,7 +30,17 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	SecurityFilterChain api(HttpSecurity http, JsonMapper json) throws Exception {
+	SecurityFilterChain api(HttpSecurity http, JsonMapper json, ObjectProvider<SecurityContextRepository> contexts)
+			throws Exception {
+		// 운영 컨텍스트: 세션에는 사용자 ID·authAt 만 두는 저장소(1-A 스펙 3.3). 설치 컨텍스트에는 없다
+		contexts.ifAvailable(r -> {
+			try {
+				http.securityContext(s -> s.securityContextRepository(r));
+			}
+			catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
+		});
 		http
 			// 프런트가 XSRF-TOKEN 쿠키를 X-XSRF-TOKEN 헤더로 돌려보낸다(Spring Security 7.1 SPA 설정)
 			.csrf(c -> c.spa())
