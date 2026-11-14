@@ -51,7 +51,8 @@
   2. `AuthenticationManager.authenticate`.
      **비활성 계정은 「없는 계정」으로 조회한다** — `DaoAuthenticationProvider` 는 비활성 검사를 비밀번호 대조 전에 해서, 그대로 두면 비활성 계정만 BCrypt 를 건너뛰어 응답 시간으로 존재가 드러난다.
      BCrypt 72바이트를 넘는 비밀번호에서 인코더가 던지는 예외도 실패로 다룬다(500 이 아니다).
-  3. 성공: 세션 ID 재발급(`ChangeSessionIdAuthenticationStrategy`)과 CSRF 토큰 교체(`CsrfAuthenticationStrategy`)를 Spring 클래스로 건다 — REST 컨트롤러 로그인에서는 Spring 이 이것을 자동으로 걸지 않는다. 세션에 `SessionUser(id, authAt)` 를 넣고 204.
+  3. 성공: 세션 ID 재발급(`ChangeSessionIdAuthenticationStrategy`)과 CSRF 토큰 교체(`CsrfAuthenticationStrategy`)를 Spring 클래스로 건다 — REST 컨트롤러 로그인에서는 Spring 이 이것을 자동으로 걸지 않는다. 세션에 사용자 ID 와 `authAt` 을 넣고 204.
+     **`authAt` 은 앱 시계가 아니라, 비밀번호 해시와 같은 질의에서 읽은 그 계정의 `sessions_valid_from` 값이다**(D15 5.4, ondolith 2026-10-21 5차 점검). 앱 시각을 찍으면 회수(기준 시각을 앞으로 옮기는 트랜잭션)와 겹친 로그인이 회수 뒤에도 살아남고, 앱·DB 시계가 어긋나면 막 로그인한 세션이 거부된다.
   4. 실패: 원인과 관계없이 **같은 401**(상태·본문·헤더). 본문 `detail` 은 「이메일 또는 비밀번호가 맞지 않습니다」.
 - 로그: 성공·실패를 INFO 로 남긴다. 이메일·비밀번호는 남기지 않는다(사용자 ID 는 성공 때만).
 
@@ -61,15 +62,18 @@
 
 ### 3.3 세션에 담는 것
 
-- 담는다: `SessionUser(UUID id, Instant authAt)` 하나. 담지 않는다: 권한·역할·판정 결과·비밀번호(D15 5.4).
-- Spring 기본 `HttpSessionSecurityContextRepository` 는 권한 목록이 든 `Authentication` 을 통째로 세션에 넣는다. 그래서 `SecurityContextRepository` 를 구현한 작은 어댑터가 저장 때는 `SessionUser` 만 쓰고, 읽을 때 DB 에서 `Authentication` 을 새로 만든다.
+- 담는다: 속성 둘 — `ondolithj.user_id`(`String`, UUID), `ondolithj.auth_at`(`java.time.Instant`). **JDK 타입만** 넣는다 — Spring Session 은 속성을 Java 직렬화로 저장하므로, 우리 클래스를 넣으면 다음 판에서 모양이 바뀔 때 jar 교체 뒤 세션을 못 읽는다((가)를 고른 이유가 jar 교체 뒤 로그인 유지다). 속성이 없거나 타입이 다르면 그 세션을 버리고 익명으로 이어진다.
+- 담지 않는다: 권한·역할·판정 결과·비밀번호(D15 5.4).
+- Spring 기본 `HttpSessionSecurityContextRepository` 는 권한 목록이 든 `Authentication` 을 통째로 세션에 넣는다. 그래서 `SecurityContextRepository` 를 구현한 작은 어댑터가 저장 때는 위 두 속성만 쓰고, 읽을 때 DB 에서 `Authentication` 을 새로 만든다.
+- **로그인에 성공하기 전에는 세션(`SPRING_SESSION` 행)을 만들지 않는다.** 익명 요청·로그인 실패·401·403·CSRF 거부 어느 것도 세션을 만들지 않는다. 401 때 원래 요청을 세션에 저장하는 Spring 기능(request cache)은 끈다 — 익명 요청마다 행이 쌓이면 세션 표가 공격으로 커진다.
+- 설치 컨텍스트에는 세션 저장소와 로그인이 없다(DataSource 가 없다). 설치 API 는 Phase 0 그대로다.
 - 쿠키: `HttpOnly`, `SameSite=Lax`, `Secure` 는 설정 파일의 `cookies.secure`(Phase 0 그대로). 수명 12시간(`server.servlet.session.timeout`, 기동 인자로 바꿀 수 있다). 만료 세션 정리는 Spring Session 기본 주기(1분).
 
 ### 3.4 요청마다
 
 - 권한이 필요한 순간에만(지연 로드) 사용자와 유효 권한 집합을 **쿼리 한 번**으로 읽는다(D15 4.3-1). 공개 API 는 읽지 않는다.
 - 유효 역할: 익명 `{anonymous}`, 로그인 `{anonymous, member} ∪ user_roles`(D15 1.1). 권한 = 그 역할들의 `role_permissions`. 역할 하나라도 `is_superuser` 면 코드의 권한 목록 전부.
-- 거부하고 세션을 무효화하는 경우: 사용자가 없음, `is_active=false`, `authAt < sessions_valid_from`. 그 요청은 익명으로 이어진다(공개 API 는 그대로 응답, 권한 API 는 401).
+- 거부하고 세션을 무효화하는 경우: 사용자가 없음, `is_active=false`, `authAt < sessions_valid_from`(같으면 유효 — 로그인 때 그 값을 찍었다). 그 요청은 익명으로 이어진다(공개 API 는 그대로 응답, 권한 API 는 401).
 
 ## 4. 횟수 제한
 
@@ -123,7 +127,9 @@
 
 - 통합 시험(Testcontainers PostgreSQL):
   - 없는 계정·틀린 비밀번호·비활성 계정의 로그인 응답이 상태·본문까지 같다.
-  - 로그인 앞뒤로 세션 ID 와 CSRF 토큰이 바뀐다. 옛 세션 ID 로는 로그인 상태가 아니다.
+  - 로그인 성공 전에는 `SPRING_SESSION` 행이 0 이다: 익명 `/api/admin`(`Accept: application/json` 과 `text/html` 둘 다), `/api/me`, 로그인 실패, CSRF 거부 뒤.
+  - 세션 고정: 미리 심은 세션 쿠키(공격자가 정한 값)로 로그인해도 응답의 세션 ID 가 다르다. 로그인한 세션으로 다시 로그인하면 세션 ID 가 바뀌고 옛 ID 로는 로그인 상태가 아니다. CSRF 토큰도 바뀐다.
+  - `authAt` 은 DB 의 `sessions_valid_from` 값이다(앱 시계와 무관). 세션 속성이 없거나 타입이 다르면 익명으로 이어지고 세션이 지워진다.
   - 로그아웃 뒤 `SPRING_SESSION` 행이 없다.
   - 로그인 뒤 `is_active=false` 또는 `sessions_valid_from` 을 앞으로 옮기면 다음 요청이 401 이고 세션이 지워진다.
   - `editor` 역할을 회수하면 다음 요청부터 `/api/admin` 403.
@@ -141,8 +147,11 @@
 
 | 위험 | 대응 |
 |---|---|
+| 메서드 보안의 거부 예외를 `ApiErrors` 의 `@ExceptionHandler(Exception.class)` 가 먼저 잡아 500·ERROR 로그가 된다 | 첫 보호 API 에서 익명 401·회원 403 시험을 먼저 Red 로 둔다 |
+| package-private 컨트롤러 메서드에 붙인 표시가 실제로 강제되지 않는다(프록시가 못 가로챔) | 첫 보호 API 시험으로 확인. 안 되면 기동 점검이 표시 붙은 메서드의 공개 여부도 본다 |
+| 세션 스타터가 설치 컨텍스트(DataSource 없음)를 깬다 | 의존성을 넣은 직후 `LauncherTest`·E2E 로 확인 |
 | 지연 로드가 실제로 지연되지 않아 공개 API 마다 DB 를 친다 | 8절 「공개 API 는 질의하지 않는다」 시험 |
-| Spring Session 이 세션 속성을 Java 직렬화로 저장한다 | 세션에는 `SessionUser`(UUID·Instant) 하나만 넣는다. 이 저장소에서만 읽는다 |
+| Spring Session 이 세션 속성을 Java 직렬화로 저장한다 | JDK 타입(`String`·`Instant`)만 넣는다. 이 저장소에서만 읽는다 |
 | 로그인 응답 시간으로 계정 존재가 드러난다 | 비활성 계정도 「없는 계정」 경로(BCrypt 가짜 비교)로 보낸다. 시간 측정 시험은 흔들려서 두지 않는다 |
 | 애너테이션 템플릿이 enum 을 받지 못한다 | 계획 때 판의 문서로 확인. 안 되면 문자열 + 기동 점검 2번으로 오타를 막는다 |
 | `X-Forwarded-For` 위조로 횟수 제한 우회 | Phase 4 전까지 헤더를 믿지 않는다 |
