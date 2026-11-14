@@ -31,7 +31,14 @@ final class AuthFixture implements AutoCloseable {
 
 	private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
 
-	AuthFixture start(boolean secureCookies, String... args) throws Exception {
+	/** 횟수 제한을 보지 않는 시험용: 한도를 크게 준다(같은 계정으로 1분에 여러 번 로그인한다). */
+	AuthFixture start(boolean secureCookies) throws Exception {
+		return startWith(secureCookies, "--ondolithj.rate-limit.login-ip=100000",
+				"--ondolithj.rate-limit.login-account=100000", "--ondolithj.rate-limit.admin-ip=100000");
+	}
+
+	/** 횟수 제한 시험용: 주어진 인자만(없으면 기본 한도). */
+	AuthFixture startWith(boolean secureCookies, String... args) throws Exception {
 		pg.start();
 		Path dir = Files.createTempDirectory("auth");
 		ConfigFile config = new ConfigFile(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword(),

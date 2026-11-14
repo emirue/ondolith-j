@@ -38,18 +38,31 @@ class LoginController {
 
 	private final ActorQuery actors;
 
+	private final RateLimiter limiter;
+
+	private final RateLimitProperties limits;
+
 	LoginController(AuthenticationManager authentication, SessionAuthenticationStrategy sessionStrategy,
-			SecurityContextRepository contexts, ActorQuery actors) {
+			SecurityContextRepository contexts, ActorQuery actors, RateLimiter limiter, RateLimitProperties limits) {
 		this.authentication = authentication;
 		this.sessionStrategy = sessionStrategy;
 		this.contexts = contexts;
 		this.actors = actors;
+		this.limiter = limiter;
+		this.limits = limits;
 	}
 
 	@PublicApi
 	@PostMapping("/api/auth/login")
 	ResponseEntity<?> login(@Valid @RequestBody LoginRequest req, HttpServletRequest request, HttpServletResponse response) {
 		String email = req.email().strip().toLowerCase(Locale.ROOT);
+		// 비밀번호를 대조하기 전에 거른다(FR-209). ponytail: getRemoteAddr — CloudFront 뒤의 실제 IP 는 Phase 4 에서
+		// 믿을 프록시를 정해 바꾼다. X-Forwarded-For 를 그대로 믿으면 위조로 제한을 피한다
+		Optional<RateLimiter.Decision> blocked = limit(limiter, limits, request.getRemoteAddr(), email);
+		if (blocked.isPresent()) {
+			log.info("로그인 횟수 제한");
+			return tooMany(blocked.get());
+		}
 		Authentication result;
 		try {
 			result = authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email, req.password()));
@@ -86,6 +99,25 @@ class LoginController {
 		// 세션이 있으면 무효화한다 → SPRING_SESSION 행이 지워진다(FR-203). 없으면 만들지 않는다
 		new SecurityContextLogoutHandler().logout(request, response, null);
 		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * 막혔으면 그 결정. IP 를 먼저 보고, IP 에서 막히면 계정 키는 세지 않는다 — 한 IP 가 1분에 만드는 키 수를 묶는다.
+	 * 계정 키는 없는 계정도 똑같이 센다(셈으로 계정이 있는지 드러나지 않게).
+	 */
+	static Optional<RateLimiter.Decision> limit(RateLimiter limiter, RateLimitProperties limits, String ip, String email) {
+		RateLimiter.Decision byIp = limiter.hit("login-ip:" + ip, limits.loginIp());
+		if (!byIp.allowed()) {
+			return Optional.of(byIp);
+		}
+		RateLimiter.Decision byAccount = limiter.hit("login-account:" + email, limits.loginAccount());
+		return byAccount.allowed() ? Optional.empty() : Optional.of(byAccount);
+	}
+
+	static ResponseEntity<ProblemDetail> tooMany(RateLimiter.Decision d) {
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+			.header("Retry-After", Long.toString(d.retryAfterSeconds()))
+			.body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, "잠시 뒤 다시 시도하세요"));
 	}
 
 	private static ResponseEntity<ProblemDetail> failed() {

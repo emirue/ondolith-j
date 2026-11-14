@@ -1,8 +1,11 @@
 package dev.ondolithj.auth;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -18,10 +21,30 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import tools.jackson.databind.json.JsonMapper;
 
 /** 운영 컨텍스트의 로그인 부품(1-A 스펙 3절). 설치 컨텍스트는 이 패키지를 스캔하지 않는다 — 로그인·세션이 없다. */
 @Configuration
+@EnableConfigurationProperties(RateLimitProperties.class)
 class AuthConfig {
+
+	@Bean
+	RateLimiter rateLimiter() {
+		return new RateLimiter(Clock.systemUTC());
+	}
+
+	@Bean
+	AdminRateLimitFilter adminRateLimitFilter(RateLimiter limiter, RateLimitProperties limits, JsonMapper json) {
+		return new AdminRateLimitFilter(limiter, limits, json);
+	}
+
+	/** 보안 체인에만 넣는다(SecurityConfig). 서블릿 필터로도 등록되면 같은 요청을 두 번 센다. */
+	@Bean
+	FilterRegistrationBean<AdminRateLimitFilter> adminRateLimitFilterRegistration(AdminRateLimitFilter filter) {
+		FilterRegistrationBean<AdminRateLimitFilter> r = new FilterRegistrationBean<>(filter);
+		r.setEnabled(false);
+		return r;
+	}
 
 	@Bean
 	SecurityContextRepository sessionContextRepository(ActorQuery actors) {

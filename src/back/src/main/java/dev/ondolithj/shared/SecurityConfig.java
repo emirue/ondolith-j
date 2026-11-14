@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import dev.ondolithj.auth.AdminRateLimitFilter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.annotation.AnnotationTemplateExpressionDefaults;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.security.web.savedrequest.NullRequestCache;
@@ -30,8 +32,10 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	SecurityFilterChain api(HttpSecurity http, JsonMapper json, ObjectProvider<SecurityContextRepository> contexts)
-			throws Exception {
+	SecurityFilterChain api(HttpSecurity http, JsonMapper json, ObjectProvider<SecurityContextRepository> contexts,
+			ObjectProvider<AdminRateLimitFilter> adminLimit) throws Exception {
+		// 운영 컨텍스트: 관리자 경로 횟수 제한(1-A 스펙 4절)
+		adminLimit.ifAvailable(f -> http.addFilterBefore(f, AuthorizationFilter.class));
 		// 운영 컨텍스트: 세션에는 사용자 ID·authAt 만 두는 저장소(1-A 스펙 3.3). 설치 컨텍스트에는 없다
 		contexts.ifAvailable(r -> {
 			try {
