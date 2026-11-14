@@ -107,7 +107,7 @@
 |---|---|---|
 | `POST /api/auth/login` | 공개 | 204 / 401 / 422 / 429 |
 | `POST /api/auth/logout` | 공개(CSRF) | 204 |
-| `GET /api/me` | 공개 | `{"user": null}` 또는 `{"user": {"email", "display_name"}, "can": {"admin.access": true}}`. `can` 은 화면 표시용이다 — 보안 판정은 서버가 한다(D15 4.3) |
+| `GET /api/me` | 공개 | `{"user": null, "can": {...모두 false}}` 또는 `{"user": {"email", "display_name"}, "can": {"admin.access": true}}`. `can` 의 키는 코드의 권한 목록 전부. `can` 은 화면 표시용이다 — 보안 판정은 서버가 한다(D15 4.3) |
 | `GET /api/admin` | `admin.access` | 200 `{}`(1-B 가 채운다) / 401 / 403 / 429 |
 | 기존 `/api/health`·`/api/site`·`/api/install` | 공개 | 그대로 |
 

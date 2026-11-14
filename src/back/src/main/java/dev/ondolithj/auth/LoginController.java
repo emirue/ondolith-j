@@ -1,5 +1,8 @@
 package dev.ondolithj.auth;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.Content;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -52,8 +55,14 @@ class LoginController {
 		this.limits = limits;
 	}
 
+	/** 응답 코드는 OpenApiFileTest 가 문서를 확인한다. 애너테이션은 실행 jar 에 없어도 무시된다. */
 	@PublicApi
 	@PostMapping("/api/auth/login")
+	@ApiResponse(responseCode = "204", description = "로그인됨. 세션 쿠키와 새 CSRF 토큰", content = @Content)
+	@ApiResponse(responseCode = "401", description = "이메일 또는 비밀번호가 맞지 않음(원인과 관계없이 같다)", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "422", description = "입력 오류", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "429", description = "시도가 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<?> login(@Valid @RequestBody LoginRequest req, HttpServletRequest request, HttpServletResponse response) {
 		String email = req.email().strip().toLowerCase(Locale.ROOT);
 		// 비밀번호를 대조하기 전에 거른다(FR-209). ponytail: getRemoteAddr — CloudFront 뒤의 실제 IP 는 Phase 4 에서
@@ -95,6 +104,8 @@ class LoginController {
 
 	@PublicApi
 	@PostMapping("/api/auth/logout")
+	@ApiResponse(responseCode = "204", description = "로그아웃됨(세션이 없어도)", content = @Content)
+	@ApiResponse(responseCode = "403", description = "CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
 		// 세션이 있으면 무효화한다 → SPRING_SESSION 행이 지워진다(FR-203). 없으면 만들지 않는다
 		new SecurityContextLogoutHandler().logout(request, response, null);
@@ -119,6 +130,8 @@ class LoginController {
 			.header("Retry-After", Long.toString(d.retryAfterSeconds()))
 			.body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, "잠시 뒤 다시 시도하세요"));
 	}
+
+	private static final String PROBLEM = "application/problem+json";
 
 	private static ResponseEntity<ProblemDetail> failed() {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

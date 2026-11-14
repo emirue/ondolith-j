@@ -94,6 +94,20 @@
         "required" : [ "email", "password" ],
         "type" : "object"
       },
+      "Me" : {
+        "properties" : {
+          "can" : {
+            "additionalProperties" : {
+              "type" : "boolean"
+            },
+            "type" : "object"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/User"
+          }
+        },
+        "type" : "object"
+      },
       "ProblemDetail" : {
         "properties" : {
           "detail" : {
@@ -133,6 +147,17 @@
           }
         },
         "type" : "object"
+      },
+      "User" : {
+        "properties" : {
+          "display_name" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
       }
     }
   },
@@ -155,7 +180,37 @@
                 }
               }
             },
-            "description" : "OK"
+            "description" : "관리자 셸(1-B 가 채운다)"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "admin.access 권한 없음"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
           }
         },
         "tags" : [ "admin-controller" ]
@@ -175,15 +230,48 @@
           "required" : true
         },
         "responses" : {
-          "200" : {
+          "204" : {
+            "description" : "로그인됨. 세션 쿠키와 새 CSRF 토큰"
+          },
+          "401" : {
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
-                  "type" : "object"
+                  "$ref" : "#/components/schemas/ProblemDetail"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "이메일 또는 비밀번호가 맞지 않음(원인과 관계없이 같다)"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "CSRF 토큰 없음"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "입력 오류"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "시도가 너무 많음. Retry-After"
           }
         },
         "tags" : [ "login-controller" ]
@@ -193,8 +281,18 @@
       "post" : {
         "operationId" : "logout",
         "responses" : {
-          "200" : {
-            "description" : "OK"
+          "204" : {
+            "description" : "로그아웃됨(세션이 없어도)"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "CSRF 토큰 없음"
           }
         },
         "tags" : [ "login-controller" ]
@@ -297,6 +395,24 @@
           }
         },
         "tags" : [ "install-controller" ]
+      }
+    },
+    "/api/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Me"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
       }
     },
     "/api/site" : {

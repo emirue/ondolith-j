@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -76,6 +76,15 @@ class OpenApiFileTest {
 		for (String code : java.util.List.of("400", "403", "404", "409", "422", "500")) {
 			assertThat(responses.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
 				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		// 로그인·관리자 API 의 실제 응답 코드(1-A 스펙 6절)
+		JsonNode login = written.at("/paths/~1api~1auth~1login/post/responses");
+		assertThat(fieldNames(login)).containsExactlyInAnyOrder("204", "401", "403", "422", "429");
+		JsonNode admin = written.at("/paths/~1api~1admin/get/responses");
+		assertThat(fieldNames(admin)).containsExactlyInAnyOrder("200", "401", "403", "429");
+		for (JsonNode r : java.util.List.of(login.get("401"), login.get("429"), admin.get("401"), admin.get("403"))) {
+			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
+				.isEqualTo("#/components/schemas/ProblemDetail");
 		}
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
