@@ -62,7 +62,7 @@
 - Test: `src/back/src/test/java/dev/ondolithj/auth/GuardTest.java`(운영 컨텍스트, Testcontainers), `shared/SecurityDefaultsTest.java`
 
 **Interfaces:**
-- Produces: `enum Permission { ADMIN_ACCESS("admin.access"); String key(); static Optional<Permission> ofKey(String) }`. 권한(authority) 문자열은 **enum 이름**(`ADMIN_ACCESS`)이다.
+- Produces: `enum Permission { ADMIN_ACCESS("admin.access", false); String key(); boolean visitor(); static Optional<Permission> ofKey(String) }` — `visitor` 는 R9 의 방문자 권한 표시(1-A 에는 참인 것이 없다). 권한(authority) 문자열은 **enum 이름**(`ADMIN_ACCESS`)이다.
 - `@RequiresPermission(Permission value)` = `@PreAuthorize("hasAuthority('{value}')")` 메타 애너테이션(템플릿 빈 `AnnotationTemplateExpressionDefaults`). `@PublicApi` = `@PreAuthorize("permitAll()")`.
 - `GET /api/admin` → 200 `{}`, 클래스에 `@RequiresPermission(Permission.ADMIN_ACCESS)`, 클래스·메서드 package-private.
 - SecurityConfig: `AuthenticationEntryPoint` → 401 Problem Details(헤더 `WWW-Authenticate` 없음), `AccessDeniedHandler` → 403 Problem Details(CSRF 거부 포함), `requestCache(NullRequestCache)`. 두 컨텍스트 공통.
@@ -144,6 +144,7 @@
 
 - [ ] **Step 1: 실패하는 시험**
   - 회원(역할 없음) 로그인 → `/api/admin` 403 Problem Details.
+  - R9: `member`(또는 `anonymous`) 역할에 `admin.access` 를 넣어도 회원은 403(방문자 권한이 아닌 부여는 불러올 때 버린다).
   - `editor` 부여 → 다음 요청 200, 회수 → 다음 요청 403(로그아웃 없이).
   - 로그인 뒤 `is_active=false` → 다음 요청 401, `spring_session` 행 사라짐.
   - 로그인 뒤 `sessions_valid_from = sessions_valid_from + interval '1 microsecond'` → 401. 같은 값이면 200.
