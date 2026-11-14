@@ -5,6 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -26,10 +29,13 @@ public class AdminRateLimitFilter extends OncePerRequestFilter {
 		this.json = json;
 	}
 
+	// MVC 와 같은 방식(디코딩한 경로 조각)으로 맞춘다 — 날 URI 를 비교하면 /api/%61dmin 이 세지 않고 MVC 에는 닿았다
+	private static final RequestMatcher ADMIN = new OrRequestMatcher(PathPatternRequestMatcher.pathPattern("/api/admin"),
+			PathPatternRequestMatcher.pathPattern("/api/admin/**"));
+
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		String path = request.getRequestURI().substring(request.getContextPath().length());
-		return !(path.equals("/api/admin") || path.startsWith("/api/admin/"));
+		return !ADMIN.matches(request);
 	}
 
 	@Override

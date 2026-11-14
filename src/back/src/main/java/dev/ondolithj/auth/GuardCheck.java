@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -24,6 +26,7 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
@@ -56,11 +59,13 @@ public class GuardCheck implements SmartInitializingSingleton {
 
 	@Override
 	public void afterSingletonsInstantiated() {
-		List<HandlerMethod> handlers = beans.getBeansOfType(RequestMappingHandlerMapping.class).values().stream()
-			.flatMap(m -> m.getHandlerMethods().values().stream()).toList();
+		Map<RequestMappingInfo, HandlerMethod> mappings = new HashMap<>();
+		beans.getBeansOfType(RequestMappingHandlerMapping.class).values().forEach(m -> mappings.putAll(m.getHandlerMethods()));
+		List<HandlerMethod> handlers = List.copyOf(mappings.values());
 		Set<String> prefixes = Stream.concat(Stream.of(BOOT_ERROR), allowed.stream().map(Allowed::packagePrefix))
 			.collect(Collectors.toSet());
 		List<String> problems = new ArrayList<>(check(handlers, prefixes));
+		problems.addAll(checkAdminPaths(mappings));
 		Set<Permission> used = used(handlers);
 		DataSource ds = dataSource.getIfAvailable();
 		if (ds != null) {
@@ -91,12 +96,15 @@ public class GuardCheck implements SmartInitializingSingleton {
 				problems.add(name + ": @PreAuthorize 를 직접 쓰지 않는다(@RequiresPermission·@PublicApi)");
 				continue;
 			}
-			long marks = Stream.of(m, type).filter(e -> e.isAnnotationPresent(RequiresPermission.class)).count()
-					+ Stream.of(m, type).filter(e -> e.isAnnotationPresent(PublicApi.class)).count();
+			// 메타 애너테이션까지 센다 — 누가 만든 합성 애너테이션의 @PreAuthorize 가 클래스의 표시를 덮을 수 있다
+			long marks = Stream.of(m, type).filter(e -> AnnotatedElementUtils.hasAnnotation(e, RequiresPermission.class)).count()
+					+ Stream.of(m, type).filter(e -> AnnotatedElementUtils.hasAnnotation(e, PublicApi.class)).count();
+			long rules = Stream.of(m, type)
+				.mapToLong(e -> AnnotatedElementUtils.findAllMergedAnnotations(e, PreAuthorize.class).size()).sum();
 			if (marks == 0) {
 				problems.add(name + ": 권한 표시가 없다(@RequiresPermission 또는 @PublicApi)");
 			}
-			else if (marks > 1) {
+			else if (marks > 1 || rules > 1) {
 				problems.add(name + ": 권한 표시가 둘 이상이다(메서드·클래스 합쳐 하나)");
 			}
 			// 보안 프록시가 가로채지 못해 표시가 있어도 열린다(일회성 확인: 익명 200)
@@ -106,7 +114,24 @@ public class GuardCheck implements SmartInitializingSingleton {
 			else if (Modifier.isFinal(m.getModifiers())) {
 				problems.add(name + ": final 처리 메서드는 권한 검사가 걸리지 않는다");
 			}
+			else if (Modifier.isStatic(m.getModifiers())) {
+				problems.add(name + ": static 처리 메서드는 권한 검사가 걸리지 않는다");
+			}
 		}
+		return problems;
+	}
+
+	/** /api/admin/** 는 관리자 트리 진입 경계다(1-A 스펙 5절, D15 1.2) — 공개 표시를 달 수 없다. */
+	static List<String> checkAdminPaths(Map<RequestMappingInfo, HandlerMethod> mappings) {
+		List<String> problems = new ArrayList<>();
+		mappings.forEach((info, h) -> {
+			boolean admin = info.getPatternValues().stream().anyMatch(p -> p.equals("/api/admin") || p.startsWith("/api/admin/"));
+			boolean open = Stream.of(h.getMethod(), h.getBeanType())
+				.anyMatch(e -> AnnotatedElementUtils.hasAnnotation(e, PublicApi.class));
+			if (admin && open) {
+				problems.add(h.getBeanType().getName() + "#" + h.getMethod().getName() + ": /api/admin 경로에 @PublicApi 를 달 수 없다");
+			}
+		});
 		return problems;
 	}
 

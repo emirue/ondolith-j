@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -75,6 +76,11 @@ class LoginController {
 		Authentication result;
 		try {
 			result = authentication.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email, req.password()));
+		}
+		// 계정을 읽지 못한 것(DB 장애 등)은 비밀번호 실패가 아니다 — 500·ERROR 로그로 낸다.
+		// 그대로 다시 던지면 보안 필터가 401 「로그인이 필요합니다」로 바꾸므로 다른 예외로 감싼다
+		catch (InternalAuthenticationServiceException e) {
+			throw new IllegalStateException("로그인 중 계정을 읽지 못했습니다", e);
 		}
 		// BCrypt 72바이트를 넘는 비밀번호는 인코더가 IllegalArgumentException 을 던진다 — 500 이 아니라 같은 실패다
 		catch (AuthenticationException | IllegalArgumentException e) {

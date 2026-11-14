@@ -24,7 +24,7 @@ public class ActorQuery {
 	// R9: anonymous·member 의 부여는 방문자 권한만 센다 — 이 규칙 전에 들어간 부여까지 효력이 없다
 	private static final String SQL = """
 			SELECT u.email, u.display_name, u.is_active, u.sessions_valid_from,
-			       COALESCE(bool_or(r.is_superuser), false) AS superuser,
+			       COALESCE(bool_or(r.is_superuser) FILTER (WHERE r.key NOT IN ('anonymous', 'member')), false) AS superuser,
 			       array_remove(array_agg(DISTINCT p.key), NULL) AS perms
 			FROM users u
 			LEFT JOIN roles r ON r.key IN ('anonymous', 'member')

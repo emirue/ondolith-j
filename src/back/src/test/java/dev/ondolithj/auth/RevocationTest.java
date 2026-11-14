@@ -74,6 +74,19 @@ class RevocationTest {
 	}
 
 	@Test
+	void 모두가_갖는_역할의_슈퍼유저_표시도_효력이_없다_R9() throws Exception {
+		f.sql("UPDATE roles SET is_superuser = false WHERE key = 'admin'");
+		f.sql("UPDATE roles SET is_superuser = true WHERE key = 'member'");
+		try {
+			assertThat(member(email()).get("/api/admin").statusCode()).isEqualTo(403);
+		}
+		finally {
+			f.sql("UPDATE roles SET is_superuser = false WHERE key = 'member'");
+			f.sql("UPDATE roles SET is_superuser = true WHERE key = 'admin'");
+		}
+	}
+
+	@Test
 	void 비활성화하면_다음_요청이_401_이고_세션이_지워진다() throws Exception {
 		String email = email();
 		TestHttp http = member(email, "editor");

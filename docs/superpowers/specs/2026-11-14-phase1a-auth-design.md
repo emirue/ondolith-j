@@ -95,7 +95,7 @@
   - `@PublicApi` — `@PreAuthorize("permitAll()")` 메타 애너테이션.
   - `@PreAuthorize` 를 직접 쓰지 않는다(점검이 표현식을 해석하지 않게).
 - 기동 점검 — 하나라도 어긋나면 **기동을 멈춘다**(요청을 받기 전에):
-  1. `dev.ondolithj` 의 모든 요청 처리 메서드에 위 둘 중 하나가 정확히 하나 있다.
+  1. `dev.ondolithj` 의 모든 요청 처리 메서드에 위 둘 중 하나가 정확히 하나 있다. 메타 애너테이션까지 센 `@PreAuthorize` 도 메서드·클래스 합쳐 하나다(합성 애너테이션이 클래스의 표시를 덮지 못하게). `private`·`final`·`static` 처리 메서드는 거부한다 — 보안 프록시가 못 가로채 표시가 있어도 열린다(구현 중 확인). `dev.ondolithj` 밖의 처리기는 허용 목록(Boot 오류 처리기, 시험 전용 springdoc)에 없으면 거부한다. `/api/admin/**` 에는 `@PublicApi` 를 달 수 없다.
   2. (운영 컨텍스트) DB `permissions.key` 집합이 `Permission` enum 과 같다.
   3. 아무 메서드도 쓰지 않는 권한은 경고 로그(기동은 한다).
 - URL 층(`authorizeHttpRequests`)은 `permitAll` 로 둔다. 기본 거부는 1번 점검이 맡는다 — 표시 없는 API 는 앱이 뜨지 않는다. 없는 경로는 그대로 404(D-3).

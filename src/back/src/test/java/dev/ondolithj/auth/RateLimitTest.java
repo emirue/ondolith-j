@@ -46,6 +46,17 @@ class RateLimitTest {
 	}
 
 	@Test
+	void 퍼센트_인코딩한_관리자_경로도_센다() throws Exception {
+		try (AuthFixture f = new AuthFixture().startWith(false)) {
+			TestHttp http = f.http();
+			for (int i = 0; i < 60; i++) {
+				assertThat(http.get("/api/%61dmin").statusCode()).as("요청 %d", i + 1).isEqualTo(401);
+			}
+			problem429(http.get("/api/%61dmin"));
+		}
+	}
+
+	@Test
 	void 관리자_경로는_IP_당_60번까지이고_한_번만_센다() throws Exception {
 		try (AuthFixture f = new AuthFixture().startWith(false)) {
 			TestHttp http = f.http();

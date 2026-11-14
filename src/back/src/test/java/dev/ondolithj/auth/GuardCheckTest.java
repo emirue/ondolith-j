@@ -81,6 +81,27 @@ class GuardCheckTest {
 		}
 	}
 
+	static class Static {
+		@RequiresPermission(Permission.ADMIN_ACCESS)
+		public static String m() {
+			return "";
+		}
+	}
+
+	/** 누군가 만든 합성 애너테이션: 메서드의 @PreAuthorize 가 클래스의 @RequiresPermission 을 덮는다. */
+	@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+	@PreAuthorize("permitAll()")
+	@interface Sneaky {
+	}
+
+	@RequiresPermission(Permission.ADMIN_ACCESS)
+	static class Composed {
+		@Sneaky
+		public String m() {
+			return "";
+		}
+	}
+
 	static class Public {
 		@PublicApi
 		public String m() {
@@ -104,6 +125,18 @@ class GuardCheckTest {
 		// 프록시가 가로채지 못해 표시가 있어도 열린다(일회성 확인: 익명 200)
 		assertThat(problems(Private.class)).singleElement().asString().contains("private");
 		assertThat(problems(Final.class)).singleElement().asString().contains("final");
+		assertThat(problems(Static.class)).singleElement().asString().contains("static");
+		assertThat(problems(Composed.class)).singleElement().asString().contains("둘 이상");
+	}
+
+	@Test
+	void 관리자_경로에는_공개_표시를_달_수_없다() throws Exception {
+		java.lang.reflect.Method m = Public.class.getDeclaredMethod("m");
+		HandlerMethod h = new HandlerMethod(new Public(), m);
+		var admin = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths("/api/admin/x").build();
+		var other = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths("/api/x").build();
+		assertThat(GuardCheck.checkAdminPaths(java.util.Map.of(admin, h))).singleElement().asString().contains("/api/admin");
+		assertThat(GuardCheck.checkAdminPaths(java.util.Map.of(other, h))).isEmpty();
 	}
 
 	@Test
