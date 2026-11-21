@@ -22,7 +22,7 @@ export function OplogPage() {
   // 양의 정수가 아니면 1쪽
   const page = /^[1-9]\d*$/.test(params.get("page") ?? "") ? Number(params.get("page")) : 1;
   const oplog = useQuery({
-    queryKey: ["oplog", page],
+    queryKey: ["admin", "oplog", page],
     // 떠나면 지운다 — 로그아웃 뒤 같은 탭의 다른 계정에게 앞 사람의 행이 응답 전에 보이지 않게
     gcTime: 0,
     queryFn: async () => {

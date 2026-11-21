@@ -6,7 +6,7 @@ import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 export function SystemPage() {
   const heading = useFocusOnMount<HTMLHeadingElement>();
   const system = useQuery({
-    queryKey: ["system"],
+    queryKey: ["admin", "system"],
     // 떠나면 지운다 — 로그아웃 뒤 같은 탭의 다른 계정에게 앞 값이 응답 전에 보이지 않게
     gcTime: 0,
     queryFn: async () => {

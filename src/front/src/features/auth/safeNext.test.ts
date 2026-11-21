@@ -11,6 +11,10 @@ describe("safeNext — 로그인 뒤 갈 곳(열린 리디렉트 방지)", () =>
     ["javascript:alert(1)", "/"],
     ["admin", "/"],
     ["/a\n", "/"],
+    // 점 마디를 풀면 // 가 된다 — 라우터의 정규화에 기대지 않는다(1-B1 최종 검토 M-6)
+    ["/.//evil.test", "/"],
+    ["/a/..//evil.test", "/"],
+    ["/admin/./oplog?page=2", "/admin/oplog?page=2"],
     ["", "/"],
     [null, "/"],
   ])("%s → %s", (raw, expected) => {
