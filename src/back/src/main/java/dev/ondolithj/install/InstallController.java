@@ -5,8 +5,11 @@ import dev.ondolithj.shared.FieldErrors;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -22,8 +25,11 @@ class InstallController {
 
 	private final InstallService service;
 
-	InstallController(InstallService service) {
+	private final ContextSwitch contextSwitch;
+
+	InstallController(InstallService service, ContextSwitch contextSwitch) {
 		this.service = service;
+		this.contextSwitch = contextSwitch;
 	}
 
 	/** 응답 코드는 아래 switch 와 같아야 한다(OpenApiFileTest 가 문서를 확인한다). 애너테이션은 실행 jar 에 없어도 무시된다. */
@@ -42,13 +48,21 @@ class InstallController {
 			content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "500", description = "설정 파일을 쓸 수 없음 등",
 			content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	ResponseEntity<?> install(@Valid @RequestBody InstallRequest req) {
+	ResponseEntity<?> install(@Valid @RequestBody InstallRequest req, HttpServletResponse res) throws IOException {
 		Map<String, String> errors = req.check();
 		if (!errors.isEmpty()) {
 			throw new FieldErrors(errors);
 		}
 		return switch (service.install(req)) {
-			case InstallOutcome.Done d -> ResponseEntity.accepted().build();
+			case InstallOutcome.Done d -> {
+				// 202 를 다 보낸 뒤에 전환한다. 먼저 전환하면 설치 컨텍스트 닫기가 응답 쓰기와 경쟁해 연결이 응답 없이 끊긴다
+				res.setStatus(HttpStatus.ACCEPTED.value());
+				res.setContentLength(0);
+				res.setHeader(HttpHeaders.CONNECTION, "close");
+				res.flushBuffer();
+				contextSwitch.requestRunning(d.config());
+				yield null;
+			}
 			case InstallOutcome.ConfigNotWritable c -> problem(HttpStatus.INTERNAL_SERVER_ERROR, c.detail());
 			case InstallOutcome.DbFailed f -> problem(HttpStatus.BAD_REQUEST, f.detail());
 			case InstallOutcome.DbInUse u -> problem(HttpStatus.BAD_REQUEST, u.evidence());

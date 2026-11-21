@@ -35,8 +35,6 @@ class InstallService {
 
 	private final InstallTarget target;
 
-	private final ContextSwitch contextSwitch;
-
 	private final ReentrantLock lock = new ReentrantLock();
 
 	private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -46,10 +44,9 @@ class InstallService {
 	/** 마이그레이션 위치. 시험이 실패하는 마이그레이션을 끼울 때만 바꾼다. */
 	private final String[] migrationLocations;
 
-	InstallService(InstallTarget target, ContextSwitch contextSwitch,
+	InstallService(InstallTarget target,
 			@Value("${ondolithj.install.migration-locations:classpath:db/migration}") String[] migrationLocations) {
 		this.target = target;
-		this.contextSwitch = contextSwitch;
 		this.migrationLocations = migrationLocations;
 	}
 
@@ -110,8 +107,7 @@ class InstallService {
 			}
 			done = true;
 			log.info("설치 완료. 설정 파일: {}", file);
-			contextSwitch.requestRunning(config);
-			return new InstallOutcome.Done();
+			return new InstallOutcome.Done(config);
 		} finally {
 			if (reserved != null) {
 				try {

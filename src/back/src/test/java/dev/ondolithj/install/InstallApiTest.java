@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -422,5 +423,35 @@ class InstallApiTest {
 		assertThat(rows("SELECT to_regclass('public.half_done')::text")).containsOnlyNulls();
 		assertThat(rows("SELECT count(*) FROM users")).containsExactly("0");
 		assertThat(filesIn(config().getParent())).isEmpty();
+	}
+
+	/**
+	 * 전환(설치 컨텍스트 닫기)은 202 가 클라이언트에 다 간 뒤에 시작한다. 먼저 시작하면 닫기가 응답 쓰기와 경쟁해
+	 * 연결이 응답 없이 끊긴다(CI e2e 의 socket hang up). 스텁 전환이 클라이언트가 응답을 받을 때까지 기다린다.
+	 */
+	@Test
+	void 전환은_202_응답을_다_보낸_뒤에_시작한다() throws Exception {
+		ctx.close();
+		CountDownLatch received = new CountDownLatch(1);
+		CountDownLatch switched = new CountDownLatch(1);
+		AtomicBoolean sentFirst = new AtomicBoolean();
+		ctx = Launcher.startInstall(config(), cfg -> {
+			try {
+				sentFirst.set(received.await(5, TimeUnit.SECONDS));
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			switched.countDown();
+		}, "--server.port=0");
+		http = TestHttp.of(ctx);
+		confDir();
+		HttpResponse<String> r = install(valid());
+		received.countDown();
+		assertThat(r.statusCode()).isEqualTo(202);
+		assertThat(switched.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(sentFirst).as("전환 요청이 응답보다 먼저 왔다").isTrue();
+		// 닫히는 서버에 연결을 다시 쓰지 않게
+		assertThat(r.headers().firstValue("Connection")).hasValue("close");
 	}
 }
