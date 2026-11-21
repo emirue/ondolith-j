@@ -1,6 +1,7 @@
 # Phase 1-A 설계 — 인증·세션·권한 기반
 
 작성 2026-11-14. 사용자가 브레인스토밍에서 승인한 내용을 옮겼다(세션 저장 (가), 권한 검사 (A), 설계 전체).
+2026-11-21: Phase 1-B1 스펙(`2026-11-21-phase1b1-admin-shell-design.md`)에 맞춰 여섯 문장을 고쳤다 — 「1-B1 고침」 표시.
 근거: 요청서 `docs/request-core.md`, 결정 `docs/decisions.md`(「Phase 1 나누기」), ondolith 원문 D15(권한 모델)·D60(보안)·D10(FR-201~218).
 기능 상세의 단일 출처는 ondolith 원문이다. 이 문서는 SPA·Spring 에 맞게 바꾼 것과 Phase 1-A 의 경계를 적는다.
 
@@ -54,7 +55,7 @@
   3. 성공: 세션 ID 재발급(`ChangeSessionIdAuthenticationStrategy`)과 CSRF 토큰 교체(`CsrfAuthenticationStrategy`)를 Spring 클래스로 건다 — REST 컨트롤러 로그인에서는 Spring 이 이것을 자동으로 걸지 않는다. 세션에 사용자 ID 와 `authAt` 을 넣고 204.
      **`authAt` 은 앱 시계가 아니라, 비밀번호 해시와 같은 질의에서 읽은 그 계정의 `sessions_valid_from` 값이다**(D15 5.4, ondolith 2026-10-21 5차 점검). 앱 시각을 찍으면 회수(기준 시각을 앞으로 옮기는 트랜잭션)와 겹친 로그인이 회수 뒤에도 살아남고, 앱·DB 시계가 어긋나면 막 로그인한 세션이 거부된다.
   4. 실패: 원인과 관계없이 **같은 401**(상태·본문·헤더). 본문 `detail` 은 「이메일 또는 비밀번호가 맞지 않습니다」.
-- 로그: 성공·실패를 INFO 로 남긴다. 이메일·비밀번호는 남기지 않는다(사용자 ID 는 성공 때만).
+- 로그: 성공·실패를 INFO 로 남긴다. 이메일·비밀번호는 남기지 않는다(사용자 ID 는 성공 때만). **1-B1 고침**: 성공은 작업 로그 `operation_logs` 에도 `auth.login` 으로 남긴다. 실패는 앱 로그에만 둔다 — 익명 공격자가 지울 수 없는 표를 키우지 못하게(decisions Q13).
 
 ### 3.2 로그아웃 `POST /api/auth/logout`
 
@@ -85,21 +86,22 @@
 - 1분 고정 창. 창이 바뀌면 지난 창의 셈을 버린다(메모리는 1분 동안의 키 수까지만). 시계를 주입해 시험한다.
 - 기준값은 설정 속성(`ondolithj.rate-limit.*`)으로 바꾼다 — 사내망처럼 IP 가 하나로 뭉치는 곳이 있다(D15 4.3-2).
 - 넘으면 429 Problem Details + `Retry-After`(창이 끝날 때까지 초).
-- IP 는 `request.getRemoteAddr()`. `ponytail:` CloudFront 뒤의 실제 IP 는 Phase 4 에서 믿을 프록시를 정해 바꾼다. `X-Forwarded-For` 를 그대로 믿으면 위조로 제한을 피한다.
+- IP 는 클라이언트 IP 함수 하나(`ClientIp`)가 정하고, 횟수 제한과 작업 로그가 함께 쓴다(**1-B1 고침**, decisions Q15). 지금 값은 `request.getRemoteAddr()`. `ponytail:` CloudFront 뒤의 실제 IP 는 Phase 4 에서 믿을 프록시를 정해 그 함수 한 곳만 바꾼다. `X-Forwarded-For` 를 그대로 믿으면 위조로 제한을 피한다.
 
 ## 5. 권한 검사와 기동 점검
 
 - 권한 목록은 코드의 enum `Permission` 이 정하고 마이그레이션이 심는다(D15 P1). 관리 UI 로 늘리지 않는다.
-- 모든 API 메서드(클래스에 붙여도 된다)에 둘 중 하나를 붙인다:
+- 모든 API 메서드(클래스에 붙여도 된다)에 셋 중 하나를 붙인다(**1-B1 고침**: 둘 → 셋, decisions Q1):
   - `@RequiresPermission(Permission.ADMIN_ACCESS)` — `@PreAuthorize` 를 메타 애너테이션으로 쓴다. enum 을 받아 오타를 컴파일 때 막는다(Spring Security 의 애너테이션 템플릿. 판에서 되는지 계획 때 확인하고, 안 되면 문자열 + 기동 점검으로 막는다).
+  - `@AdminPermission(Permission.X)` — `admin.access` 와 X 를 함께 요구한다(`hasAuthority('ADMIN_ACCESS') and hasAuthority('{value}')`). 관리자 경로의 리소스 권한은 이것으로 단다.
   - `@PublicApi` — `@PreAuthorize("permitAll()")` 메타 애너테이션.
   - `@PreAuthorize` 를 직접 쓰지 않는다(점검이 표현식을 해석하지 않게).
 - 기동 점검 — 하나라도 어긋나면 **기동을 멈춘다**(요청을 받기 전에):
-  1. `dev.ondolithj` 의 모든 요청 처리 메서드에 위 둘 중 하나가 정확히 하나 있다. 메타 애너테이션까지 센 `@PreAuthorize` 도 메서드·클래스 합쳐 하나다(합성 애너테이션이 클래스의 표시를 덮지 못하게). `private`·`final`·`static` 처리 메서드는 거부한다 — 보안 프록시가 못 가로채 표시가 있어도 열린다(구현 중 확인). `dev.ondolithj` 밖의 처리기는 허용 목록(Boot 오류 처리기, 시험 전용 springdoc)에 없으면 거부한다. `/api/admin/**` 에는 `@PublicApi` 를 달 수 없다.
+  1. `dev.ondolithj` 의 모든 요청 처리 메서드에 위 셋 중 하나가 정확히 하나 있다. 메타 애너테이션까지 센 `@PreAuthorize` 도 메서드·클래스 합쳐 하나다(합성 애너테이션이 클래스의 표시를 덮지 못하게). `private`·`final`·`static` 처리 메서드는 거부한다 — 보안 프록시가 못 가로채 표시가 있어도 열린다(구현 중 확인). `dev.ondolithj` 밖의 처리기는 허용 목록(Boot 오류 처리기, 시험 전용 springdoc)에 없으면 거부한다. `/api/admin/**` 의 표시는 `@AdminPermission(…)` 또는 `@RequiresPermission(ADMIN_ACCESS)` 만 된다 — `@PublicApi`·다른 권한의 `@RequiresPermission` 은 기동을 멈춘다(**1-B1 고침**).
   2. (운영 컨텍스트) DB `permissions.key` 집합이 `Permission` enum 과 같다.
   3. 아무 메서드도 쓰지 않는 권한은 경고 로그(기동은 한다).
 - URL 층(`authorizeHttpRequests`)은 `permitAll` 로 둔다. 기본 거부는 1번 점검이 맡는다 — 표시 없는 API 는 앱이 뜨지 않는다. 없는 경로는 그대로 404(D-3).
-- `/api/admin/**` 의 메서드는 모두 `admin.access` 를 요구한다(관리자 트리 진입 경계, D15 1.2). 리소스별 권한은 그 위에 메서드마다 더한다(1-B).
+- `/api/admin/**` 의 메서드는 모두 `admin.access` 를 요구한다(관리자 트리 진입 경계, D15 1.2). 리소스별 권한은 `@AdminPermission` 이 `admin.access` 와 함께 요구한다(**1-B1 고침**).
 
 ## 6. API
 
@@ -108,7 +110,7 @@
 | `POST /api/auth/login` | 공개 | 204 / 401 / 422 / 429 |
 | `POST /api/auth/logout` | 공개(CSRF) | 204 |
 | `GET /api/me` | 공개 | `{"user": null, "can": {...모두 false}}` 또는 `{"user": {"email", "display_name"}, "can": {"admin.access": true}}`. `can` 의 키는 코드의 권한 목록 전부. `can` 은 화면 표시용이다 — 보안 판정은 서버가 한다(D15 4.3) |
-| `GET /api/admin` | `admin.access` | 200 `{}`(1-B 가 채운다) / 401 / 403 / 429 |
+| `GET /api/admin` | `admin.access` | 200 `{}` / 401 / 403 / 429. **1-B1 고침**: 1-B 도 `{}` 로 둔다 — 대시보드(FR-702)는 뒤로, 메뉴는 `/api/me` 의 `can` 으로 그린다 |
 | 기존 `/api/health`·`/api/site`·`/api/install` | 공개 | 그대로 |
 
 - 오류는 모두 Problem Details(`application/problem+json`): 401(로그인 안 함·로그인 실패), 403(권한 없음·CSRF 거부), 404, 422, 429. 401 에 `WWW-Authenticate` 를 붙이지 않는다(브라우저 로그인 창). 보안 필터가 내는 응답도 같은 형식으로 쓴다 — Phase 0 의 CSRF 403(Boot 기본 오류 JSON)을 여기서 맞춘다.
