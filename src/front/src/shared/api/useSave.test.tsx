@@ -77,6 +77,7 @@ describe("useSave", () => {
     renderWithQuery(<Probe send={send} />, "/", { notice: true });
     fireEvent.click(screen.getByRole("button"));
     await finish(204);
+    expect(screen.getByTestId("notice")).toHaveTextContent("저장했습니다");
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("notice")).toBeEmptyDOMElement();
   });

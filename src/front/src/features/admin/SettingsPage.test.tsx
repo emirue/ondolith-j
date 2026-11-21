@@ -52,6 +52,20 @@ describe("사이트 설정", () => {
     await waitFor(() => expect(f.mock.calls.filter(([req]) => req.url.endsWith("/api/site"))).toHaveLength(2));
   });
 
+  it("저장 뒤 /api/site 를 다시 읽지 못해도 폼과 입력값이 남는다", async () => {
+    let siteCalls = 0;
+    mockApi((req) => {
+      if (req.url.endsWith("/api/me")) return json(200, { user: { id: "u1", email: "op@ondolith.test", role: "operator" }, can: { "settings.update": true } });
+      if (req.url.endsWith("/api/site")) return ++siteCalls === 1 ? json(200, { name: "옛 이름", type: "cms" }) : json(500, {});
+      return new Response(null, { status: 204 });
+    });
+    renderWithQuery(<Routes><Route path="/admin/settings" element={<SettingsPage />} /></Routes>, "/admin/settings", { notice: true });
+    await submit("새 이름");
+    await waitFor(() => expect(siteCalls).toBe(2));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByLabelText("사이트 이름")).toHaveValue("새 이름");
+  });
+
   it("422 errors.name → 칸 옆 메시지, 알림 칸은 빈 칸", async () => {
     renderSettings(() => json(422, { status: 422, detail: "입력이 올바르지 않습니다", errors: { name: "100자 이하" } }));
     await submit("새 이름");
