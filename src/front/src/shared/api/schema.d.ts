@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/oplog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/settings": {
         parameters: {
             query?: never;
@@ -30,6 +46,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["save"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["info"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -136,6 +168,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Database: {
+            server_version?: string;
+        };
         Health: {
             state?: string;
             version?: string;
@@ -166,6 +201,36 @@ export interface components {
             };
             user?: components["schemas"]["User"];
         };
+        MigrationRow: {
+            description?: string;
+            /** Format: date-time */
+            installed_on?: string;
+            success?: boolean;
+            version?: string;
+        };
+        OplogItem: {
+            action?: string;
+            actor_email?: string;
+            /** Format: uuid */
+            actor_user_id?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: uuid */
+            id?: string;
+            ip?: string;
+            summary?: string;
+            target_id?: string;
+            target_type?: string;
+        };
+        OplogPage: {
+            items?: components["schemas"]["OplogItem"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            page_size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
         ProblemDetail: {
             detail?: string;
             errors?: {
@@ -185,6 +250,13 @@ export interface components {
         Site: {
             name?: string;
             type?: string;
+        };
+        SystemInfo: {
+            database?: components["schemas"]["Database"];
+            migrations?: components["schemas"]["MigrationRow"][];
+            /** Format: int32 */
+            pending_count?: number;
+            version?: string;
         };
         User: {
             display_name?: string;
@@ -230,6 +302,73 @@ export interface operations {
             };
             /** @description admin.access 권한 없음 */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description 관리자 경로 요청이 너무 많음. Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 한 쪽(100행). 끝을 넘으면 빈 items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OplogPage"];
+                };
+            };
+            /** @description page 가 정수가 아님 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description 로그인이 필요함 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description log.view 권한 없음 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description page 가 1 미만. errors.page */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -297,6 +436,53 @@ export interface operations {
             };
             /** @description 입력 오류. errors.name */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description 관리자 경로 요청이 너무 많음. Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description jar 버전·적용된 마이그레이션·대기 수·DB 서버 판 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SystemInfo"];
+                };
+            };
+            /** @description 로그인이 필요함 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description settings.view 권한 없음 */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
