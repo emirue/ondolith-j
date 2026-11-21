@@ -1,6 +1,7 @@
 package dev.ondolithj.install;
 
 import dev.ondolithj.config.ConfigFile;
+import dev.ondolithj.shared.SiteName;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -23,7 +24,7 @@ public record InstallRequest(
 		@Size(max = 255, message = "255자 이하") String dbPassword,
 		@NotBlank(message = "필수입니다") @Size(max = 63, message = "63자 이하") String dbName,
 		@NotNull(message = "필수입니다") @Pattern(regexp = "disable|require|verify-ca|verify-full", message = "disable·require·verify-ca·verify-full 중 하나") String dbSslmode,
-		@NotBlank(message = "필수입니다") @Size(max = 100, message = "100자 이하") String siteName,
+		@NotNull(message = "필수입니다") String siteName,
 		@Pattern(regexp = "cms|shop", message = "cms 또는 shop") String siteType,
 		@NotBlank(message = "필수입니다") @Size(max = 2048, message = "2048자 이하") @Pattern(regexp = "https?://[^\\s/?#]+[^\\s]*", message = "http·https 절대 주소") String siteUrl,
 		@NotBlank(message = "필수입니다") @Email(message = "이메일 형식이 아닙니다") @Size(max = 254, message = "254자 이하") String adminEmail,
@@ -45,6 +46,8 @@ public record InstallRequest(
 	/** 애너테이션으로 못 하는 검사. 칸 이름(snake_case) → 메시지. */
 	Map<String, String> check() {
 		Map<String, String> e = new LinkedHashMap<>();
+		// NBSP·영폭 공백만인 이름을 @NotBlank 는 통과시킨다 — A-201 과 같은 규칙으로 본다
+		SiteName.error(siteName).ifPresent(m -> e.put("site_name", m));
 		try {
 			ConfigFile.parseSiteUrl(siteUrl);
 		} catch (IllegalArgumentException ex) {

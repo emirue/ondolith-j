@@ -60,8 +60,6 @@
             "type" : "string"
           },
           "site_name" : {
-            "maxLength" : 100,
-            "minLength" : 0,
             "type" : "string"
           },
           "site_type" : {
@@ -132,6 +130,14 @@
           },
           "type" : {
             "format" : "uri",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SettingsRequest" : {
+        "properties" : {
+          "name" : {
             "type" : "string"
           }
         },
@@ -214,6 +220,77 @@
           }
         },
         "tags" : [ "admin-controller" ]
+      }
+    },
+    "/api/admin/settings" : {
+      "post" : {
+        "operationId" : "save",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "저장됨(값이 같아도)"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "본문이 JSON 이 아님"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "settings.update 권한 없음·CSRF 토큰 없음"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "입력 오류. errors.name"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "settings-controller" ]
       }
     },
     "/api/auth/login" : {
