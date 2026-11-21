@@ -9,6 +9,7 @@ import { UserMenu } from "@/features/auth/UserMenu";
 import { HomePage } from "@/features/home/HomePage";
 import { InstallPage } from "@/features/install/InstallPage";
 import { WaitingScreen } from "@/features/install/WaitingScreen";
+import { NoticeProvider } from "@/shared/ui/notice";
 
 type Screen = "install" | "waiting" | "home";
 
@@ -29,10 +30,10 @@ export function App() {
   return null;
 }
 
-/** 운영 상태의 화면. 주소로 고른다(1-A 스펙 7절). */
+/** 운영 상태의 화면. 주소로 고른다(1-A 스펙 7절). 저장 알림 칸은 머리글보다 위(FR-724). */
 function Running() {
   return (
-    <>
+    <NoticeProvider>
       <header className="flex justify-end p-4">
         <UserMenu />
       </header>
@@ -42,6 +43,6 @@ function Running() {
         <Route path="/admin" element={<AdminGate />}>{adminRoutes}</Route>
         <Route path="*" element={<main className="mx-auto max-w-lg p-6"><h1 className="text-2xl font-semibold">없는 화면입니다</h1></main>} />
       </Routes>
-    </>
+    </NoticeProvider>
   );
 }

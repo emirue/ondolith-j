@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { siteNameSchema } from "@/shared/lib/siteName";
 
 const bytes = (v: string) => new TextEncoder().encode(v).length;
 
@@ -27,7 +28,7 @@ export const installSchema = z
     db_password: z.string().max(255, "255자 이하"),
     db_name: z.string().min(1, "필수입니다").max(63, "63자 이하"),
     db_sslmode: z.enum(["disable", "require", "verify-ca", "verify-full"], { message: "선택하세요" }),
-    site_name: z.string().trim().min(1, "필수입니다").max(100, "100자 이하"),
+    site_name: siteNameSchema,
     site_type: z.enum(["cms", "shop"]),
     site_url: z.string().refine(isSiteUrl, "http·https 절대 주소"),
     admin_email: z.email("이메일 형식이 아닙니다").max(254, "254자 이하"),
