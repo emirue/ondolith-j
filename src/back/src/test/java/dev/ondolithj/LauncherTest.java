@@ -61,6 +61,13 @@ class LauncherTest {
 	}
 
 	@Test
+	void 설치_컨텍스트에는_작업_로그_기록기가_없다() {
+		try (var ctx = Launcher.startInstall(dir.resolve("ondolith-j.properties"), "--server.port=0")) {
+			assertThat(ctx.getBeanNamesForType(dev.ondolithj.shared.OperationLog.class)).isEmpty();
+		}
+	}
+
+	@Test
 	void 설치_컨텍스트가_준비되기_전에_온_전환_요청도_설치_컨텍스트를_닫는다() throws Exception {
 		AtomicInteger code = new AtomicInteger(-1);
 		Launcher.exitHandler = code::set;

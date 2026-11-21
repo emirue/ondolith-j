@@ -1,5 +1,6 @@
 package dev.ondolithj.auth;
 
+import dev.ondolithj.shared.ClientIp;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,7 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 관리자 경로 /api/admin/** 의 IP 당 분당 한도(D15 4.3-2). 보안 체인에만 넣는다 — 빈으로 두면 Boot 가 서블릿 필터로도
- * 등록해 두 번 센다(AuthConfig 가 서블릿 등록을 끈다). ponytail: getRemoteAddr — 실제 IP 판정은 Phase 4.
+ * 등록해 두 번 센다(AuthConfig 가 서블릿 등록을 끈다). IP 는 ClientIp 한 곳에서 정한다.
  */
 public class AdminRateLimitFilter extends OncePerRequestFilter {
 
@@ -41,7 +42,7 @@ public class AdminRateLimitFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		RateLimiter.Decision d = limiter.hit("admin-ip:" + request.getRemoteAddr(), limits.adminIp());
+		RateLimiter.Decision d = limiter.hit("admin-ip:" + ClientIp.of(request), limits.adminIp());
 		if (!d.allowed()) {
 			response.setStatus(429);
 			response.setHeader("Retry-After", Long.toString(d.retryAfterSeconds()));

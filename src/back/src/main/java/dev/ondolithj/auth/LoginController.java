@@ -1,5 +1,7 @@
 package dev.ondolithj.auth;
 
+import dev.ondolithj.shared.ClientIp;
+import dev.ondolithj.shared.OperationLog;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -46,14 +48,18 @@ class LoginController {
 
 	private final RateLimitProperties limits;
 
+	private final OperationLog operationLog;
+
 	LoginController(AuthenticationManager authentication, SessionAuthenticationStrategy sessionStrategy,
-			SecurityContextRepository contexts, ActorQuery actors, RateLimiter limiter, RateLimitProperties limits) {
+			SecurityContextRepository contexts, ActorQuery actors, RateLimiter limiter, RateLimitProperties limits,
+			OperationLog operationLog) {
 		this.authentication = authentication;
 		this.sessionStrategy = sessionStrategy;
 		this.contexts = contexts;
 		this.actors = actors;
 		this.limiter = limiter;
 		this.limits = limits;
+		this.operationLog = operationLog;
 	}
 
 	/** 응답 코드는 OpenApiFileTest 가 문서를 확인한다. 애너테이션은 실행 jar 에 없어도 무시된다. */
@@ -66,9 +72,9 @@ class LoginController {
 	@ApiResponse(responseCode = "429", description = "시도가 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<?> login(@Valid @RequestBody LoginRequest req, HttpServletRequest request, HttpServletResponse response) {
 		String email = req.email().strip().toLowerCase(Locale.ROOT);
-		// 비밀번호를 대조하기 전에 거른다(FR-209). ponytail: getRemoteAddr — CloudFront 뒤의 실제 IP 는 Phase 4 에서
-		// 믿을 프록시를 정해 바꾼다. X-Forwarded-For 를 그대로 믿으면 위조로 제한을 피한다
-		Optional<RateLimiter.Decision> blocked = limit(limiter, limits, request.getRemoteAddr(), email);
+		String ip = ClientIp.of(request);
+		// 비밀번호를 대조하기 전에 거른다(FR-209)
+		Optional<RateLimiter.Decision> blocked = limit(limiter, limits, ip, email);
 		if (blocked.isPresent()) {
 			log.info("로그인 횟수 제한");
 			return tooMany(blocked.get());
@@ -105,6 +111,8 @@ class LoginController {
 			csrf.getToken();
 		}
 		log.info("로그인 성공: 사용자 {}", user.id());
+		// 세션 저장 뒤 따로 남긴다 — 기록 실패는 로그인을 되돌리지 않는다(실패 경로는 남기지 않는다, 1-B1 스펙 4.2)
+		operationLog.record(actor.get(), OperationLog.Action.AUTH_LOGIN, actor.get().id().toString(), "", ip);
 		return ResponseEntity.noContent().build();
 	}
 
