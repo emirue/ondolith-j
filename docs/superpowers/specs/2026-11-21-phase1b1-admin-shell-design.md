@@ -16,7 +16,7 @@
 | 공용 부품: 저장 성공 알림 `role="status"`(FR-724), 두 번 보내기 방지(FR-727) | A-201 의 `site.name` 밖 칸(유형·가입·Turnstile·사업자 등) (Q5) |
 | A-201 사이트 이름 (`site.name`) | A-601 기간 조회(FR-712)와 그 시간대 (Q4·Q17) |
 | A-601 작업 로그 목록(기간 조건 없음, 쪽당 100) | 헬스의 버전 노출 변경 (Q12, 사용자 확인 필요) |
-| A-602 시스템 정보: jar 버전·Flyway 적용 목록·대기 수·DB 연결 상태. DSN 없음 | 실제 클라이언트 IP(CloudFront 뒤) 판정 — Phase 4 |
+| A-602 시스템 정보: jar 버전·Flyway 적용 목록·대기 수·DB 서버 판. DSN 없음 | 실제 클라이언트 IP(CloudFront 뒤) 판정 — Phase 4 |
 
 1-B1 이 끝나면: 운영자(`operator`)와 관리자가 `/admin` 에서 권한에 맞는 메뉴만 보고, 사이트 이름을 바꾸면 화면 위에 알림이 한 번 뜨고 작업 로그에 남으며, 작업 로그와 시스템 정보를 본다. 편집자(`editor`)는 관리자 트리에 들어오지만 세 메뉴가 모두 없다.
 
@@ -61,8 +61,8 @@
 ### 4.1 기록기 `shared/OperationLog`
 
 - 운영 컨텍스트에만 있다. 설치 컨텍스트는 `install` 패키지만 스캔하고 그 밖은 `@Import` 로 명시한 클래스만 들여오므로(`InstallApplication`) 기록기가 설치 쪽에 생기지 않는다 — `LauncherTest`·설치 E2E 가 지킨다.
-- 부르는 모양: `record(Actor actor, Action action, String targetId, String summary, HttpServletRequest request)`. `Action` 은 같은 파일의 enum 이고 동작 이름과 `target_type` 을 함께 정한다.
-- 순서: **본 작업이 커밋된 뒤** 문장 하나로 INSERT 한다. 실패하면 요청을 실패시키지 않고 ERROR 로그만 남긴다(원문 코드와 같다). `ponytail:` 일과 기록 사이에 프로세스가 죽으면 기록이 빠진다 — 돈 작업(Phase 3) 전에 같은 트랜잭션 기록으로 올릴지 다시 본다.
+- 부르는 모양: `record(Actor actor, Action action, String targetId, String summary, String ip)`. 호출자가 `ClientIp.of(request)` 로 IP 값만 넘긴다 — 기록기는 요청 객체를 받지 않는다(4.3). `Action` 은 같은 파일의 enum 이고 동작 이름과 `target_type` 을 함께 정한다. 로그인 지점은 이미 `ActorQuery` 로 `Actor` 를 읽는다.
+- 순서: **본 작업이 커밋된 뒤** 문장 하나로 INSERT 한다. 실패하면 요청을 실패시키지 않고 ERROR 로그만 남긴다(원문 코드와 같다). **그 로그에는 동작 이름과 SQLState 만 넣고 예외 메시지·스택을 넣지 않는다** — PostgreSQL 제약 위반 메시지의 「Failing row contains (…)」에 이메일·IP 가 들어 1-A 의 「로그에 이메일 없음」을 깬다. `ponytail:` 일과 기록 사이에 프로세스가 죽으면 기록이 빠진다 — 돈 작업(Phase 3) 전에 같은 트랜잭션 기록으로 올릴지 다시 본다.
 - `ip` 는 클라이언트 IP 함수 값. `inet` 으로 읽을 수 없는 값(영역 ID 가 붙은 IPv6 등)은 NULL 로 넣는다(`pg_input_is_valid`, PostgreSQL 16+, 구현 때 확인) — 캐스트 실패로 행을 잃지 않게.
 
 ### 4.2 남기는 동작 (1-B1)
@@ -99,7 +99,7 @@
 - **A-201** `POST /api/admin/settings`: 고정 레코드 `name` 하나 — 다른 칸(`type` 등)은 읽지 않는다(D86 2.5). 앞뒤 공백을 빼고(설치와 같은 `strip`) 1~100자, 비거나 공백만이면 422 `errors.name`. 저장은 문장 하나 — `INSERT ... ON CONFLICT (key) DO UPDATE ... WHERE settings.value IS DISTINCT FROM EXCLUDED.value` 가 행을 돌려주면 바뀐 것이고 그때만 기록한다(동시 저장에도 셈이 맞다). CSRF 필요.
   폼의 처음 값은 공개 `GET /api/site` 의 `name` 을 쓴다. `ponytail:` A-201 이 공개 칸만 가져 조회 API 를 따로 두지 않는다 — 비공개 칸(사업자·Turnstile)이 생기면 `GET /api/admin/settings`(`settings.update`, D19)를 더한다.
 - **A-601** `GET /api/admin/oplog`: `{"items": [{"id", "created_at", "actor_user_id", "actor_email", "action", "target_type", "target_id", "summary", "ip"}], "page": 1, "page_size": 100, "total": 3}`. `created_at DESC, id DESC`, `LIMIT 100 OFFSET (page-1)*100`(offset 은 long 으로 계산), 전체 건수를 센다(D86 7.13). 질의는 행 수와 관계없이 둘이다(목록·셈). `ip` 는 `host(ip)` — 넷마스크 없이. `page` 가 1 미만이면 422 `errors.page`, 끝을 넘으면 빈 `items`.
-- **A-602** `GET /api/admin/system`: `{"version": "0.1.0", "migrations": [{"version": "1", "description": "init", "installed_on": "...", "success": true}], "pending_count": 0, "database": {"connected": true, "server_version": "18.1"}}`. 칸은 이것뿐이다 — Flyway 정보 객체를 그대로 내지 않는다(`installed_by` 는 DB 계정 이름이다). DSN·호스트·포트·DB 계정은 어디에도 없다(D81 W1-43). `connected` 는 처리기 안에서 `SELECT 1` 이 되면 `true`, 예외면 `false`(그때 `server_version` 은 null). `server_version` 은 연결을 보이는 근거로 더했다. 한계는 12절 2. 헬스는 바꾸지 않는다(Q12 임시안).
+- **A-602** `GET /api/admin/system`: `{"version": "0.1.0", "migrations": [{"version": "1", "description": "init", "installed_on": "...", "success": true}], "pending_count": 0, "database": {"server_version": "18.1"}}`. 칸은 이것뿐이다 — Flyway 정보 객체를 그대로 내지 않는다(`installed_by` 는 DB 계정 이름이다). DSN·호스트·포트·DB 계정은 어디에도 없다(D81 W1-43). 원문의 「DB 연결 상태」는 `server_version`(`SHOW server_version`)으로 보인다 — 값이 있으면 연결된 것이다. `connected` 칸은 두지 않는다: 관리자 요청은 권한을 읽으려고 DB 를 먼저 쳐서, DB 가 끊기면 처리기에 닿기 전에 실패한다. `false` 가 나올 길이 없어 시험(Red)을 만들 수 없는 분기다(설계 검토에서 뺐다). 헬스는 바꾸지 않는다(Q12 임시안).
 - 모든 새 API 는 `/api/admin/**` 라 1-A 의 관리자 IP 60회/분과 CSRF 를 그대로 받는다. OpenAPI 문서에 실제 응답 코드를 적고 생성 시험이 확인한다.
 
 ## 6. 프런트
@@ -119,7 +119,7 @@
 - **확인 대화상자(FR-725)는 1-B2 로 미룬다.** 1-B1 에는 파괴적 동작이 없다(A-201 저장은 되돌릴 수 있다). 쓰는 곳 없이 만들면 흐름 시험이 없고, 1-B2 에서 같은 대화상자에 재인증 비밀번호 칸을 그리므로(Q16) 그때 한 번에 만든다.
 - 사이트 설정: 이름 칸 하나(설치 폼과 같은 zod 규칙: `trim`, 1~100자). 처음 값은 `/api/site`. `can['settings.update']` 가 `false` 면 폼 대신 「권한이 없습니다」. 저장 뒤 알림 「사이트 설정을 저장했습니다」, `site` 쿼리를 무효화한다.
 - 작업 로그: 표(시각·주체·동작·대상·요약·IP). 주체가 `''` 면 「시스템」, `actor_user_id` 가 NULL 이고 이메일이 있으면 「(삭제된 계정) 이메일」. 동작은 이름표(`auth.login` → 「로그인」, `settings.update` → 「사이트 설정 변경」), 모르는 키는 그대로. 시각은 브라우저 시간대. 「이전·다음」은 주소의 `?page=` 로(뒤로 가기가 된다).
-- 시스템 정보: 버전, DB 연결 상태와 서버 버전, 마이그레이션 표(버전·설명·적용 시각·성공), 대기 수.
+- 시스템 정보: 버전, DB 서버 판, 마이그레이션 표(버전·설명·적용 시각·성공), 대기 수.
 
 ## 7. 다른 문서에서 고친 것
 
@@ -134,11 +134,12 @@
   - 기동 점검: `@AdminPermission` 과 `@RequiresPermission` 이 함께 붙으면 멈춘다, 관리자 경로 `@PublicApi` 는 여전히 멈춘다, `@AdminPermission` 의 값은 「미사용 권한」 경고에서 빠진다.
   - V3: 권한 키 집합이 넷, `operator` 에 세 권한, `editor` 에는 없음. 앱의 행 UPDATE·DELETE·TRUNCATE 가 거부된다. `actor_user_id = NULL` 과 다른 칸을 함께 바꾸는 UPDATE 도 거부된다. `DELETE FROM users` 는 성공하고 그 행의 `actor_user_id` 가 NULL, `actor_email` 은 남으며, 그 뒤에도 행은 고칠 수 없다(D86 5.11).
   - 로그인 성공 → 그 계정의 `auth.login` 행 하나(주체·이메일·`user`/id·ip `127.0.0.1`). 로그인 실패 → 그 계정의 행이 늘지 않는다.
+  - 사이트 이름 규칙(설치와 A-201 이 같은 함수·같은 zod 규칙): 앞뒤의 공백(`\p{Z}`·`\s`, NBSP 포함)을 빼고, 공백·보이지 않는 문자(`\p{Z}`·`\p{C}`, 영폭 공백 U+200B 포함)만 남으면 422 「필수입니다」. NBSP 만·영폭 공백만인 이름이 서버·프런트 모두에서 거부된다(설치 쪽도 같은 시험).
   - A-201: `operator`·`admin` 204, `editor` 403, 익명 401, CSRF 없음 403. 1·100자 통과, 101자·빈 값·공백만 422 `errors.name`. 앞뒤 공백을 뺀 값이 `/api/site` 에 보인다. 같은 값으로 저장하면 행이 늘지 않고, 바꾸면 `summary = 'site.name'` 행 하나. 본문의 `type` 은 무시된다(`site.type` 그대로).
   - 비밀 검사(4.3): 로그인·저장 뒤 그 계정의 행 전체에 비밀번호·세션 쿠키·XSRF 토큰·DB 비밀번호가 없다.
-  - 기록 실패: 시험 DB 에 INSERT 를 거부하는 트리거를 걸면 로그인은 204, 저장은 204 이고 ERROR 로그가 남는다.
+  - 기록 실패: 시험 DB 에 INSERT 를 거부하는 트리거를 걸면 로그인은 204, 저장은 204 이고 ERROR 로그가 남는다. 그 로그에 이메일·IP 가 없다.
   - A-601: `operator` 200, `editor` 403. 표에 이미 있는 행(시험 계정의 `auth.login` 등)을 먼저 센 뒤 총 행 수가 101 이 되게 채우면 1쪽 100행·2쪽 1행·`total` 101, 최신이 먼저. `page=0` 422, `page=abc` 400. 질의 수가 행 수와 관계없이 같다(1-A 「공개 API 는 질의하지 않는다」 시험과 같은 방법).
-  - A-602: `operator` 200, `editor` 403. 적용 목록에 1·2·3 이 성공으로, `pending_count` 0, `connected` true. 응답 본문에 JDBC URL·DB 호스트:포트·DB 계정·DB 비밀번호가 없다.
+  - A-602: `operator` 200, `editor` 403. 적용 목록에 1·2·3 이 성공으로, `pending_count` 0, `server_version` 이 비지 않는다. 응답 본문에 JDBC URL·DB 호스트:포트·DB 계정·DB 비밀번호가 없다.
   - `/api/me` 의 `can`: `operator` 는 넷 다 `true`, `editor` 는 `admin.access` 만.
   - 바뀌는 기존 시험: `MigrationTest` 의 V2 시험은 `target("2")` 로 V2 시점을 본다, 실패 원복 시험의 기대 이력은 1·2·3. `OpenApiFileTest` 가 새 API 셋을 확인한다. 단언을 완화하지 않는다.
 - 프런트 시험(Vitest): `can` 에 따라 메뉴 항목이 그려지거나 DOM 에 없다. 사이트 설정의 204 → `role="status"` 알림, 422 → 칸 오류·알림 없음, 401 → 안내와 링크·입력 유지, 403·429 문구. 빠른 두 번 누름에 요청 하나, 「처리 중…」, 끝나면(성공·실패) 풀림. 성공 문구 없는 `useSave` 호출은 `@ts-expect-error` 로 타입 실패를 확인한다. 다른 화면에 갔다 오면 알림이 없다. 작업 로그의 「시스템」·「(삭제된 계정)」 표시와 쪽 이동. 시스템 정보 표시.
@@ -175,7 +176,7 @@
 
 ## 11. 검토 초점 — 시험이 다루지 않지만 사람이 쓸 때 문제가 될 것
 
-1. **보이지 않는 사이트 이름**: Java `strip` 은 NBSP(U+00A0)를 공백으로 보지 않고, 영폭 공백(U+200B)은 서버·zod 둘 다 지나간다. NBSP 만인 이름은 서버가 받고 프런트는 막으며, 영폭 공백만인 이름은 둘 다 받아 빈 제목이 된다.
+1. **보이지 않는 사이트 이름** — 설계 검토에서 시험으로 옮겼다(8절 「사이트 이름 규칙」). 남는 것: 보이는 글자 하나에 보이지 않는 글자를 많이 붙인 이름은 길이 상한(100)까지 받는다.
 2. **IP 표기**: 같은 사용자가 IPv4 와 IPv4-mapped IPv6(`::ffff:…`)로 오면 횟수 제한 키와 작업 로그 `ip` 가 다르게 보인다. 영역 ID 가 붙은 주소는 NULL 로 남는다.
 3. **쪽 밀림과 깊은 쪽**: 로그인이 이어지는 동안 쪽을 넘기면 앞쪽 행이 다음 쪽에 다시 보인다. 큰 `page` 는 OFFSET 이 표를 훑어 느리다.
 4. **동시 저장**: 두 관리자가 이름을 거의 같이 바꾸면 둘 다 「저장했습니다」를 보고 나중 값이 이긴다. 먼저 저장한 쪽 화면은 덮인 것을 모른다(행은 둘 다 남는다).
@@ -184,6 +185,6 @@
 ## 12. 열린 문제
 
 1. **Q12 버전 노출** — 사용자 확인 필요. 임시로 헬스는 그대로 버전을 공개하고 A-602 에도 보인다.
-2. **A-602 의 「DB 연결 상태」는 사실상 늘 `true` 다** — 관리자 요청은 권한을 읽으려고 DB 를 먼저 친다. DB 가 끊기면 처리기에 닿기 전에 실패해(500 일 것이다, 추정 — 돌려 보지 않았다) `false` 를 보일 수 없다. 결정대로 칸은 두되, 끊김 진단을 이 화면에 기대지 않는다. 필요하면 헬스(Q12 와 묶임)나 앱 로그로 한다.
+2. ~~A-602 의 「DB 연결 상태」~~ — 설계 검토에서 정했다: `connected` 칸을 두지 않고 `server_version` 으로 보인다(5절). 끊김 진단은 앱 로그로 한다.
 3. **프런트 묶음 버전** — NFR-305 「두 버전」. 프런트 판을 어디서 읽을지 정한 바가 없어 A-602 는 jar 버전만 보인다.
 4. **작업 로그를 일과 다른 트랜잭션에 쓴다** — 원문 코드와 같지만 감사 행이 빠질 수 있다. 돈 작업(Phase 3) 전에 정한다.
