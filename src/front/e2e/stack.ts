@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { expect as baseExpect, test as base, type Page } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
@@ -77,3 +77,23 @@ export const test = base.extend<{ stack: Stack }>({
 });
 
 export { expect } from "@playwright/test";
+
+export const ADMIN_EMAIL = "admin@ondolith.test";
+export const ADMIN_PASSWORD = "e2e-admin-pass";
+
+/** 설치 폼을 마우스로 채워 설치를 끝내고 홈(사이트 이름)까지 기다린다. */
+export async function installSite(page: Page, stack: Stack, site = "E2E 사이트") {
+  await page.goto("/");
+  await page.getByLabel("DB 호스트").fill(stack.dbHost);
+  await page.getByLabel("DB 포트").fill(String(stack.dbPort));
+  await page.getByLabel("DB 사용자").fill(stack.dbUser);
+  await page.getByLabel("DB 비밀번호").fill(stack.dbPassword);
+  await page.getByLabel("DB 이름").fill(stack.dbName);
+  await page.getByLabel("SSL 모드").selectOption("disable");
+  await page.getByLabel("사이트 이름").fill(site);
+  await page.getByLabel("관리자 이메일").fill(ADMIN_EMAIL);
+  await page.getByLabel("관리자 비밀번호").fill(ADMIN_PASSWORD);
+  await page.getByLabel("비밀번호 확인").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "설치" }).click();
+  await baseExpect(page.getByRole("heading", { name: site })).toBeVisible({ timeout: 60_000 });
+}

@@ -76,15 +76,86 @@
 
 ## Phase 0 구현 중 결정 (2026-11-13)
 
-구현하며 정한 것. 스펙에 반영했다. ★ 는 사용자 확인을 기다리는 것.
+구현하며 정한 것. 스펙에 반영했다. ★ 네 가지는 2026-11-14 사용자가 추천안대로 확정했다(보안 점검 근거는 각 줄).
 
-- ★ 설치의 「사용 중 DB」(FR-108)를 강화: 이력 표가 있으면 계정이 하나라도 있을 때 거부한다(원문 D19 는 같은 이메일일 때). 기존 사이트 DB 에 다른 이메일로 덮어 설치하면 사이트 설정이 바뀌고 슈퍼유저가 하나 더 생긴다. 설치 중 실패하면 만든 관리자를 지우므로 재시도는 막히지 않는다.
-- ★ React Router·Zustand 는 Phase 0 에 넣지 않는다. 화면이 주소가 아니라 `/api/health` 로 바뀌고 여러 화면이 함께 쓰는 UI 상태가 없다. 쓰는 Phase 에서 넣는다.
-- ★ Flyway 가 설치 로그에 비밀번호 없는 JDBC URL(호스트·포트·DB 이름)을 찍는다. D19 C5 「DSN 은 로그에 남기지 않는다」는 비밀번호가 든 DSN 을 겨눈 것으로 보고 두었다.
+- ✔ 설치의 「사용 중 DB」(FR-108)를 강화: 이력 표가 있으면 계정이 하나라도 있을 때 거부한다(원문 D19 는 같은 이메일일 때). 기존 사이트 DB 에 다른 이메일로 덮어 설치하면 사이트 설정이 바뀌고 슈퍼유저가 하나 더 생긴다. 설치 중 실패하면 만든 관리자를 지우므로 재시도는 막히지 않는다.
+- ✔ React Router·Zustand 는 Phase 0 에 넣지 않는다. 화면이 주소가 아니라 `/api/health` 로 바뀌고 여러 화면이 함께 쓰는 UI 상태가 없다. 쓰는 Phase 에서 넣는다.
+- ✔ Flyway 가 설치 로그에 비밀번호 없는 JDBC URL(호스트·포트·DB 이름)을 찍는다. D19 C5 「DSN 은 로그에 남기지 않는다」는 비밀번호가 든 DSN 을 겨눈 것으로 보고 두었다. 비밀번호(DB·관리자)가 로그에 없음은 `InstallApiTest` 가 확인한다.
 - `db_host` 는 `A-Z a-z 0-9 . _ : [ ] -` 만 받고, 설치 접속은 `PGSimpleDataSource` 에 값을 하나씩 넘긴다(pgjdbc 드라이버 옵션 주입 차단).
 - `site_url` 은 설치 검증과 설정 파일 읽기가 같은 규칙을 쓴다. 프런트는 URL 로 정규화해 보낸다(한글 도메인 → punycode).
 - Phase 0 인가는 `permitAll`, 기본 `/logout` 끔. Phase 1 에서 기본 거부로 바꾼다.
 - 요청 본문·검증 실패 값을 찍는 로거(`org.springframework.web.servlet.mvc.method.annotation`)는 INFO 로 고정한다(DEBUG 에서 비밀번호가 찍혔다). `InstallRequest`·`ConfigFile` 의 `toString` 은 비밀을 가린다.
 - TypeScript 5.9.3(openapi-typescript 가 `^5.x` 만 받음). OpenAPI 파일의 snake_case 는 생성 시험이 맞춘다.
 - Maven Wrapper 에 배포 파일 sha256 을 둔다(Maven Central sha512 로 대조).
-- ★ (2026-11-14) API 응답 코드는 Swagger 애너테이션(`@ApiResponse`)으로 적는다. `swagger-annotations-jakarta` 2.2.55(springdoc 3.2.0 과 같은 판, OSV 취약점 0)는 `provided` 로 두고 실행 jar 에서 뺀다(`spring-boot-maven-plugin` excludes) — 실행 중에는 애너테이션 클래스가 없어 무시된다. 생성 시험은 `ProblemDetail` 의 `properties` 칸을 실제 응답 모양(최상위 `errors`)으로 바꿔 적는다. CSRF 거부 403 은 보안 필터가 내는 Boot 기본 오류 JSON 이라 문서에 본문 없이 적었다 — Phase 1 에서 보안 설정을 바꿀 때 Problem Details 로 맞춘다.
+- ✔ (2026-11-14) API 응답 코드는 Swagger 애너테이션(`@ApiResponse`)으로 적는다. `swagger-annotations-jakarta` 2.2.55(springdoc 3.2.0 과 같은 판, OSV 취약점 0)는 `provided` 로 두고 실행 jar 에서 뺀다(`spring-boot-maven-plugin` excludes) — 실행 중에는 애너테이션 클래스가 없어 무시된다. 생성 시험은 `ProblemDetail` 의 `properties` 칸을 실제 응답 모양(최상위 `errors`)으로 바꿔 적는다. CSRF 거부 403 은 처음에 Boot 기본 오류 JSON 이라 본문 없이 적었고, Phase 1-A 에서 401·403 거부 처리기를 Problem Details 로 바꾸며 문서도 맞췄다. 실행 jar 에 springdoc·swagger 파일이 0개라 문서 경로(`/v3/api-docs`)는 운영에 없다.
+
+## Phase 1 나누기 (2026-11-14, 사용자 승인)
+
+ondolith Phase 1(D81, 작업 45개)은 서버가 HTML 템플릿을 그리는 구조를 전제로 해서, SPA 에 맞게 다시 나눈다. 하위 Phase 마다 스펙 → 계획 → TDD 로 돈다.
+
+| 순서 | 범위 |
+|---|---|
+| 1-A | 인증·권한 기반: 로그인·로그아웃, DB 세션, RBAC(스키마·시드·판정), 권한 표시 강제와 기동 점검, rate limit, 401·403·429 Problem Details 통일. `/login` 이 필요해 React Router 를 여기서 들인다. 스펙 `docs/superpowers/specs/2026-11-14-phase1a-auth-design.md` |
+| 1-B | 관리자 셸: 사이트 설정, 사용자·역할 관리(마지막 관리자 보호 포함), 재인증 15분 창, 작업 로그, 시스템 정보 |
+| 1-C | 페이지·메뉴와 공개 화면 |
+| 1-D | 테마(D-1) |
+| 1-E | 계정 부가: 회원가입·이메일 인증·내 계정·비밀번호 재설정·소셜(선택) |
+
+## ondolith 2026-11-14 변경 확인 (사용자 요청)
+
+ondolith 에 2026-11-14 커밋 36개(v0.6.0·v0.7.0)가 들어왔다. 이 저장소에 닿는 것만 적는다.
+
+| 원문 변경 | 여기서 |
+|---|---|
+| **D15 R9**(보안): `anonymous`·`member` 에는 방문자 권한만, 그 밖의 부여는 불러올 때 버린다 | 1-A 권한 불러오기에 넣는다(스펙 3.4, 계획 Task 5 시험). 부여 거절 422·「효력 없음」 표시는 1-B |
+| FR-723 역할·권한 빼기, 마지막 관리자의 관리자 역할 보호 | 1-B |
+| FR-724 저장 성공 알림, FR-725 파괴적 동작 확인 | 1-B(관리자 화면). FR-724 는 SPA 방식으로 다시 정한다 |
+| FR-720 관리자 메뉴 숨김, FR-721 파일 끌어다 놓기, FR-722 S3 자동 백업 | 해당 기능이 생기는 Phase(관리자 셸·업로드·백업) |
+| FR-710 일반 사이트가 빼 둔 쇼핑몰 화면·권한은 부팅 로그에 INFO 한 줄 | 커머스(Phase 3). 1-A 의 「미사용 권한」 경고와 같은 자리다 |
+| 설치 직후 폴더가 작업 디렉터리 기준이던 결함(FR-106) | 해당 없음 — 설치가 설정 파일의 절대 경로(`InstallTarget` 이 `toAbsolutePath`) 옆에 폴더를 정한다 |
+| 설치 직후 사이트 설정의 이름 칸이 비던 결함(FR-102) | 해당 없음 — 설치가 `site.name` 을 DB `settings` 에 바로 쓴다 |
+| Go·x/net 취약점, 사진 축소 메모리, 테마 활성화 경고 | 해당 없음(Go·서버 렌더링 테마 전용) — 사진 업로드가 생길 때 FR-514 의 메모리 검사를 다시 본다 |
+
+## Phase 1-A 구현 중 결정과 보안 점검 (2026-11-14)
+
+스펙 `docs/superpowers/specs/2026-11-14-phase1a-auth-design.md`, 계획 `docs/superpowers/plans/2026-11-14-phase1a-auth.md`. 사용자가 「자동으로」 진행을 맡겨 advisor 검토로 관문을 넘었다.
+
+구현하며 찾아 고친 것(시험이 잡았다):
+
+- **private·final 처리 메서드는 `@RequiresPermission` 이 있어도 익명에게 열렸다**(보안 프록시가 못 가로챈다, 일회성 시험으로 확인). 기동 점검이 그런 메서드를 거부한다.
+- **요청 처리 이벤트(`ServletRequestHandledEvent`)가 `getUserPrincipal()` 로 권한 지연 로드를 깨워, 공개 API 까지 요청마다 DB 를 읽었다.** `spring.mvc.publish-request-handled-events=false`.
+- 메서드 보안의 거부 예외를 `ApiErrors` 의 catch-all 이 500 으로 바꾸지 않게 다시 던진다.
+- `dev.ondolithj` 밖의 처리기(딸려 오는 의존성의 컨트롤러)는 허용 목록에 없으면 기동을 멈춘다. springdoc(시험 의존성)은 시험 자원의 자동 구성으로만 허용한다.
+
+정한 것:
+
+- `authAt` 은 로그인 때 비밀번호 해시와 같은 질의에서 읽은 `sessions_valid_from`(앱 시계 아님). 세션 속성은 JDK 타입(`String`·`Instant`)만.
+- `NullRequestCache` 는 이중 방어로 둔다 — 켜도 이 경로들에서는 세션이 생기지 않았다(망가뜨려 확인). 「로그인 전 세션 없음」 시험은 익명 세션 생성을 잡는다.
+- 관리자 횟수 제한 필터는 서블릿 등록을 끈다(`OncePerRequestFilter` 라 켜도 두 번 세지는 않았다).
+- 익명 `/api/me` 의 `can` 은 모든 권한 `false`.
+- 로그인 중 계정을 읽지 못하면(DB 장애) 401 이 아니라 500 + ERROR 로그(최종 검토).
+- R9: `anonymous`·`member` 의 `is_superuser` 표시도 세지 않는다(최종 검토).
+- 설치 202 뒤 전환: 전환(설치 컨텍스트 닫기)을 응답 전에 요청해, 닫기가 응답 쓰기와 경쟁하면 연결이 응답 없이 끊겼다(PR #3 CI e2e 의 `socket hang up`). 컨트롤러가 202 를 `Connection: close`·길이 0 으로 비운 뒤 전환한다(`InstallApiTest` 「전환은 202 응답을 다 보낸 뒤에 시작한다」). Phase 0 에서 원인을 못 찾은 「전환 시험이 한 번 200 을 받은 일」도 같은 경쟁이었을 수 있다(확인은 안 함).
+
+D86(ondolith 보안 점검 목록) 대조 — 1-A 범위:
+
+| D86 | 결과 |
+|---|---|
+| 1.1 세션 쿠키 속성·12시간 | ✓ `LoginTest`(쿠키 속성, DB 세션의 `maxInactiveInterval` 12시간) |
+| 1.2 로그인 뒤 세션 재발급 | ✓ 로그인 경로(가입·소셜·비밀번호 변경은 1-E) |
+| 1.3 로그아웃이 서버 세션 파기 | ✓ 행 삭제 시험 |
+| 1.4 매 요청 기준 시각·비활성 검사, 세션 파기, 속성 없으면 파기 | ✓ `RevocationTest` |
+| 1.5 BCrypt(기본 강도 10), 없는 계정도 같은 비교 | ✓ Spring `DaoAuthenticationProvider`, 비활성도 없는 계정 경로 |
+| 1.8 `next` 의 `//`·`\`·스킴·`javascript:` 거부 | ✓ `safeNext` 시험(서버는 리다이렉트하지 않는다) |
+| 1.11 로그인 IP 10/분·계정 5/분 | ✓ (재설정·가입·재인증 제한은 1-B·1-E) |
+| **1.12 프록시 뒤에서 IP 별 제한이 사이트 전체 제한이 된다** | **미해결 — Phase 4 배포 전 필수.** 지금은 `getRemoteAddr` 라, CloudFront 뒤에 두면 모든 요청이 CloudFront IP 로 보여 익명 한 명이 로그인을 막을 수 있다. 믿을 프록시에서 온 연결만 헤더의 IP 를 쓰게 한다 |
+| 1.19 로그인이 자격증명과 같은 질의의 기준 시각을 찍는다 | ✓ (자격증명 쓰기·회수 트랜잭션·`GREATEST` 는 1-B·1-E) |
+| 2.1 모든 처리기가 권한을 직접 확인, 기동 점검 | ✓ `GuardCheck`. 최종 검토가 찾은 우회(static 처리 메서드, 합성 애너테이션의 `@PreAuthorize`)를 막았다. 한계: `RequestMappingHandlerMapping` 의 처리기만 본다(함수형 라우트·actuator 는 지금 없다) |
+| 2.3 R1~R6·마지막 최고 관리자 | 1-B. R9 는 불러오기 쪽 ✓ |
+| 2.8 관리자 경로 60/분 | ✓ (1.12 의 한계 같음). 최종 검토가 찾은 퍼센트 인코딩 우회(`/api/%61dmin`)를 MVC 와 같은 경로 해석으로 막았다 |
+| 3.1 CSRF 가 두 컨텍스트 전체 | ✓ 공통 `SecurityConfig` |
+| 3.7 보안 헤더 | ✓ Phase 0 시험 그대로 |
+| 3.10 오류가 내부를 말하지 않는다 | ✓ 401·403·429 도 Problem Details |
+| 3.11 HSTS | Phase 4(CloudFront) |
+
+**1-B 로 넘기는 설계 문제**: 기동 점검의 「권한 표시는 메서드·클래스 합쳐 정확히 하나」는 스펙 5절의 「`/api/admin/**` 는 `admin.access` 를 요구하고 리소스별 권한은 그 위에 메서드마다 더한다」와 부딪힌다. 1-B 에서 메서드에 다른 권한을 붙이면 표시가 둘이 되어 기동이 멈추거나, 클래스 표시를 빼면 그 메서드가 `admin.access` 없이 뜬다. 1-B 스펙에서 「여러 권한을 모두 요구하는 표시」(예: `@RequiresPermission({ADMIN_ACCESS, PAGE_EDIT})`)와 「`/api/admin/**` 의 표시는 `ADMIN_ACCESS` 를 포함해야 한다」 점검 규칙을 함께 정한다.

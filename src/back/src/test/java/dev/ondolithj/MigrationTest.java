@@ -40,7 +40,8 @@ class MigrationTest {
 
 	@Test
 	void V1_이_네_표와_내장_역할을_만든다() throws SQLException {
-		Flyway f = flyway("classpath:db/migration");
+		Flyway f = Flyway.configure().dataSource(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword())
+			.locations("classpath:db/migration").target("1").cleanDisabled(false).load();
 		f.clean();
 		f.migrate();
 		assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'"))
@@ -55,6 +56,25 @@ class MigrationTest {
 		f.clean();
 		assertThatThrownBy(f::migrate).isInstanceOf(FlywayException.class);
 		assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_name = 'half_done'")).isEmpty();
-		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success")).containsExactly("1");
+		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1", "2");
+	}
+
+	@Test
+	void V2_가_권한과_세션_표를_만들고_admin_access_를_심는다() throws SQLException {
+		Flyway f = flyway("classpath:db/migration");
+		f.clean();
+		f.migrate();
+		assertThat(rows("SELECT key FROM permissions")).containsExactly("admin.access");
+		assertThat(rows("SELECT r.key FROM role_permissions rp JOIN roles r ON r.id = rp.role_id "
+				+ "JOIN permissions p ON p.id = rp.permission_id WHERE p.key = 'admin.access' ORDER BY r.key"))
+			.containsExactly("editor", "operator");
+		assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' "
+				+ "AND table_name IN ('spring_session', 'spring_session_attributes') ORDER BY table_name"))
+			.containsExactly("spring_session", "spring_session_attributes");
+		assertThatThrownBy(() -> rows("INSERT INTO permissions (key) VALUES ('Admin') RETURNING key"))
+			.isInstanceOf(SQLException.class);
+		assertThatThrownBy(() -> rows("INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id "
+				+ "FROM roles r, permissions p WHERE r.key = 'editor' AND p.key = 'admin.access' RETURNING id"))
+			.isInstanceOf(SQLException.class);
 	}
 }

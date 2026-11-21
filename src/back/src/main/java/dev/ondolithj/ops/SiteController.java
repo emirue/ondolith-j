@@ -1,5 +1,6 @@
 package dev.ondolithj.ops;
 
+import dev.ondolithj.auth.PublicApi;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +17,7 @@ class SiteController {
 		this.settings = settings;
 	}
 
+	@PublicApi
 	@GetMapping("/api/site")
 	Site site() {
 		return new Site(value("site.name"), value("site.type"));

@@ -54,7 +54,10 @@ class SecurityDefaultsTest {
 
 	@Test
 	void CSRF_헤더_없는_POST_는_403() throws Exception {
-		assertThat(http.postRaw("/api/install", "{}").statusCode()).isEqualTo(403);
+		HttpResponse<String> r = http.postRaw("/api/install", "{}");
+		assertThat(r.statusCode()).isEqualTo(403);
+		assertThat(r.headers().firstValue("Content-Type")).hasValueSatisfying(v -> assertThat(v).contains("problem+json"));
+		assertThat(r.body()).contains("\"status\":403");
 	}
 
 	@Test
