@@ -27,4 +27,12 @@ class SiteNameTest {
 		assertThat(SiteName.error("가".repeat(101))).contains("100자 이하");
 		assertThat(SiteName.error("가")).isEmpty();
 	}
+
+	@Test
+	void 가운데에_제어_문자가_있으면_거부한다() {
+		// NUL 은 PostgreSQL text 가 받지 않아 500 이 났다. 줄바꿈·탭도 사이트 이름에 쓸 일이 없다
+		for (String v : new String[] { "a\u0000b", "a\nb", "a\tb", "a\u007Fb" }) {
+			assertThat(SiteName.error(v)).as("[%s]", v).contains("쓸 수 없는 문자가 있습니다");
+		}
+	}
 }

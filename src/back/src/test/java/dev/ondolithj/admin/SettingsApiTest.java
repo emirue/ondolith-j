@@ -99,6 +99,13 @@ class SettingsApiTest {
 	}
 
 	@Test
+	void 제어_문자가_든_이름은_500_이_아니라_422() throws Exception {
+		HttpResponse<String> r = save(as(email(), "operator"), "a\u0000b");
+		assertThat(r.statusCode()).isEqualTo(422);
+		assertThat(json.readTree(r.body()).at("/errors/name").asString()).isEqualTo("쓸 수 없는 문자가 있습니다");
+	}
+
+	@Test
 	void JSON_이_아니면_400() throws Exception {
 		assertThat(as(email(), "operator").post("/api/admin/settings", "not json").statusCode()).isEqualTo(400);
 	}
