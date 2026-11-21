@@ -8,7 +8,12 @@ import { AdminLayout, adminRoutes } from "./AdminLayout";
 afterEach(() => vi.unstubAllGlobals());
 
 function renderLayout(can: Record<string, boolean>, route = "/admin") {
-  mockApi(() => json(200, { user: { id: "u1", email: "op@ondolith.test", role: "operator" }, can }));
+  mockApi((req) => {
+    const path = new URL(req.url).pathname;
+    if (path === "/api/admin/oplog") return json(200, { items: [], page: 1, page_size: 100, total: 0 });
+    if (path === "/api/admin/system") return json(200, { version: "t", database: { server_version: "18" }, pending_count: 0, migrations: [] });
+    return json(200, { user: { id: "u1", email: "op@ondolith.test", role: "operator" }, can });
+  });
   return renderWithQuery(
     <Routes>
       <Route path="/admin" element={<AdminLayout />}>{adminRoutes}</Route>

@@ -47,7 +47,7 @@ describe("useSave", () => {
     renderWithQuery(<Probe send={send} />, "/", { notice: true });
     fireEvent.click(screen.getByRole("button"));
     await finish(204);
-    const button = screen.getByRole("button", { name: "저장" });
+    const button = await screen.findByRole("button", { name: "저장" });
     expect(button).not.toHaveAttribute("aria-disabled");
     fireEvent.click(button);
     await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
