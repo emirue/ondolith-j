@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
-import { Route, Routes } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { Link, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, mockApi, renderWithQuery } from "@/test-api";
 import { SystemPage } from "./SystemPage";
@@ -55,5 +56,28 @@ describe("시스템 정보", () => {
   it("그 밖의 실패 → 「시스템 정보를 불러오지 못했습니다」", async () => {
     renderSystem(() => json(500, {}));
     expect(await screen.findByRole("alert")).toHaveTextContent("시스템 정보를 불러오지 못했습니다");
+  });
+
+  it("화면을 떠나면 캐시를 남기지 않는다 — 다시 들어오면 응답 전에 앞 값이 보이지 않는다", async () => {
+    let hang = false;
+    const f = mockApi(() =>
+      hang ? new Promise<Response>(() => {}) : json(200, { version: "t", database: { server_version: "18" }, pending_count: 0, migrations: [] }),
+    );
+    renderWithQuery(
+      <Routes>
+        <Route path="/admin/system" element={<><SystemPage /><Link to="/away">나가기</Link></>} />
+        <Route path="/away" element={<Link to="/admin/system">돌아가기</Link>} />
+      </Routes>,
+      "/admin/system",
+    );
+    const u = userEvent.setup();
+    await screen.findByRole("table", { name: "마이그레이션" });
+    hang = true;
+    await u.click(screen.getByRole("link", { name: "나가기" }));
+    await new Promise((r) => setTimeout(r, 10));
+    await u.click(await screen.findByRole("link", { name: "돌아가기" }));
+    await screen.findByRole("heading", { name: "시스템 정보" });
+    await vi.waitFor(() => expect(f).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("table")).toBeNull();
   });
 });

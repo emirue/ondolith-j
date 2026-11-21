@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
+import { Link, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, mockApi, renderWithQuery } from "@/test-api";
 import { OplogPage } from "./OplogPage";
@@ -77,6 +77,12 @@ describe("작업 로그", () => {
     expect(pages(f)).toEqual(["1", "2"]);
   });
 
+  it("total 100, 1쪽(100행) → 「다음」 없음", async () => {
+    renderOplog(() => json(200, { items: [row({})], page: 1, page_size: 100, total: 100 }));
+    await screen.findByRole("table", { name: "작업 로그" });
+    expect(screen.queryByRole("link", { name: "다음" })).toBeNull();
+  });
+
   it("양의 정수가 아닌 ?page= 는 1쪽으로 본다", async () => {
     const f = renderOplog(() => json(200, { items: [], page: 1, page_size: 100, total: 0 }), "/admin/oplog?page=abc");
     await screen.findByRole("table", { name: "작업 로그" });
@@ -93,5 +99,28 @@ describe("작업 로그", () => {
   it("그 밖의 실패 → 「작업 로그를 불러오지 못했습니다」", async () => {
     renderOplog(() => json(500, {}));
     expect(await screen.findByRole("alert")).toHaveTextContent("작업 로그를 불러오지 못했습니다");
+  });
+
+  it("화면을 떠나면 캐시를 남기지 않는다 — 다시 들어오면 앞 사람의 행이 응답 전에 보이지 않는다", async () => {
+    let hang = false;
+    const f = mockApi(() =>
+      hang ? new Promise<Response>(() => {}) : json(200, { items: [row({})], page: 1, page_size: 100, total: 1 }),
+    );
+    renderWithQuery(
+      <Routes>
+        <Route path="/admin/oplog" element={<><OplogPage /><Link to="/away">나가기</Link></>} />
+        <Route path="/away" element={<Link to="/admin/oplog">돌아가기</Link>} />
+      </Routes>,
+      "/admin/oplog",
+    );
+    const u = userEvent.setup();
+    await screen.findByRole("table", { name: "작업 로그" });
+    hang = true;
+    await u.click(screen.getByRole("link", { name: "나가기" }));
+    await new Promise((r) => setTimeout(r, 10));
+    await u.click(await screen.findByRole("link", { name: "돌아가기" }));
+    await screen.findByRole("heading", { name: "작업 로그" });
+    await vi.waitFor(() => expect(f).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("table")).toBeNull();
   });
 });
