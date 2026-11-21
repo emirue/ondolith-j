@@ -109,6 +109,44 @@ class GuardCheckTest {
 		}
 	}
 
+	static class AdminOnly {
+		@AdminPermission(Permission.SETTINGS_VIEW)
+		public String m() {
+			return "";
+		}
+	}
+
+	@RequiresPermission(Permission.ADMIN_ACCESS)
+	static class AdminAndClass {
+		@AdminPermission(Permission.SETTINGS_VIEW)
+		public String m() {
+			return "";
+		}
+	}
+
+	static class OtherPermission {
+		@RequiresPermission(Permission.SETTINGS_VIEW)
+		public String m() {
+			return "";
+		}
+	}
+
+	static class LogView {
+		@AdminPermission(Permission.LOG_VIEW)
+		public String m() {
+			return "";
+		}
+	}
+
+	static HandlerMethod handler(Class<?> type) throws Exception {
+		return new HandlerMethod(type.getDeclaredConstructor().newInstance(), type.getDeclaredMethod("m"));
+	}
+
+	static List<String> adminPathProblems(Class<?> type) throws Exception {
+		var admin = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths("/api/admin/x").build();
+		return GuardCheck.checkAdminPaths(java.util.Map.of(admin, handler(type)));
+	}
+
 	static List<String> problems(Class<?> type) throws Exception {
 		Method m = Arrays.stream(type.getDeclaredMethods()).filter(x -> x.getName().equals("m")).findFirst().orElseThrow();
 		Object bean = type.getDeclaredConstructor().newInstance();
@@ -127,6 +165,8 @@ class GuardCheckTest {
 		assertThat(problems(Final.class)).singleElement().asString().contains("final");
 		assertThat(problems(Static.class)).singleElement().asString().contains("static");
 		assertThat(problems(Composed.class)).singleElement().asString().contains("둘 이상");
+		assertThat(problems(AdminOnly.class)).isEmpty();
+		assertThat(problems(AdminAndClass.class)).singleElement().asString().contains("둘 이상");
 	}
 
 	@Test
@@ -137,6 +177,20 @@ class GuardCheckTest {
 		var other = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths("/api/x").build();
 		assertThat(GuardCheck.checkAdminPaths(java.util.Map.of(admin, h))).singleElement().asString().contains("/api/admin");
 		assertThat(GuardCheck.checkAdminPaths(java.util.Map.of(other, h))).isEmpty();
+	}
+
+	@Test
+	void 관리자_경로에는_admin_access_를_요구하는_표시만_단다() throws Exception {
+		assertThat(adminPathProblems(OtherPermission.class)).singleElement().asString().contains("/api/admin")
+			.contains("OtherPermission#m");
+		assertThat(adminPathProblems(ClassLevel.class)).isEmpty();
+		assertThat(adminPathProblems(AdminOnly.class)).isEmpty();
+		assertThat(adminPathProblems(Public.class)).singleElement().asString().contains("@PublicApi");
+	}
+
+	@Test
+	void 쓰는_권한에_AdminPermission_의_값도_센다() throws Exception {
+		assertThat(GuardCheck.used(List.of(handler(LogView.class)))).containsExactly(Permission.LOG_VIEW);
 	}
 
 	@Test
@@ -165,6 +219,13 @@ class GuardCheckTest {
 	@Test
 	void 패키지_밖의_처리기는_허용_목록에_없으면_기동이_멈춘다() {
 		assertThatThrownBy(install(OutsideConfig.class)::run).hasStackTraceContaining("fixture.guard.Outside");
+	}
+
+	@Test
+	void 관리자_경로에_admin_access_가_빠진_표시가_있으면_기동이_멈춘다() {
+		// 허용 빈이 있으니 「패키지 밖」 때문이 아니다
+		assertThatThrownBy(install(fixture.guard.WrongAdminConfig.class, fixture.guard.AllowOutsideConfig.class)::run)
+			.hasStackTraceContaining("/api/admin").hasStackTraceContaining("WrongAdminMark");
 	}
 
 	@Test

@@ -9,7 +9,16 @@ import java.util.Optional;
  */
 public enum Permission {
 
-	ADMIN_ACCESS("admin.access", false);
+	ADMIN_ACCESS("admin.access", false),
+
+	/** 시스템 정보 조회(A-602). */
+	SETTINGS_VIEW("settings.view", false),
+
+	/** 사이트 설정 변경(A-201). */
+	SETTINGS_UPDATE("settings.update", false),
+
+	/** 작업 로그 열람(A-601). */
+	LOG_VIEW("log.view", false);
 
 	private final String key;
 
