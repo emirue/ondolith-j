@@ -1,6 +1,6 @@
 import { expect as baseExpect, test as base, type Page } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -48,6 +48,10 @@ export const test = base.extend<{ stack: Stack }>({
     if (await portOpen(8080)) throw new Error("127.0.0.1:8080 을 이미 누가 쓰고 있다");
     const name = `ondolith-e2e-db-${process.pid}-${info.workerIndex}-${Date.now()}`;
     const work = mkdtempSync(path.join(tmpdir(), "ondolith-e2e-"));
+    // jar 출력은 test-results/ 아래 파일로 남긴다(CI 는 실패하면 올린다). 경로는 콘솔에 찍지 않는다
+    const log = info.outputPath("jar.log");
+    mkdirSync(path.dirname(log), { recursive: true });
+    const logFd = openSync(log, "w");
     let app: ChildProcess | undefined;
     try {
       docker("run", "-d", "--rm", "--name", name, "-p", "127.0.0.1::5432", "-e", "POSTGRES_USER=app",
@@ -57,7 +61,9 @@ export const test = base.extend<{ stack: Stack }>({
         docker("exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "app");
         return true;
       });
-      app = spawn("java", ["-jar", jar, "--server.port=8080", "--server.address=127.0.0.1"], { cwd: work, stdio: "ignore" });
+      // 기동 정보 줄은 jar 절대 경로와 OS 사용자 이름을 찍는다 — 로그 파일에 홈 경로가 남지 않게 끈다
+      app = spawn("java", ["-jar", jar, "--server.port=8080", "--server.address=127.0.0.1", "--spring.main.log-startup-info=false"],
+        { cwd: work, stdio: ["ignore", logFd, logFd] });
       await until("jar 가 health 에 응답", 90, async () => (await fetch("http://127.0.0.1:8080/api/health")).ok);
       await use({ dbHost: "127.0.0.1", dbPort, dbUser: "app", dbPassword: DB_PASS, dbName: "app" });
     } finally {
@@ -72,6 +78,7 @@ export const test = base.extend<{ stack: Stack }>({
         // 이미 없음
       }
       rmSync(work, { recursive: true, force: true });
+      closeSync(logFd);
     }
   },
 });
@@ -96,4 +103,13 @@ export async function installSite(page: Page, stack: Stack, site = "E2E 사이�
   await page.getByLabel("비밀번호 확인").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "설치" }).click();
   await baseExpect(page.getByRole("heading", { name: site })).toBeVisible({ timeout: 60_000 });
+}
+
+/** `/login?next=/admin` 에서 관리자로 로그인하고 「관리자」 제목까지 기다린다. */
+export async function loginAdmin(page: Page) {
+  await page.goto("/login?next=/admin");
+  await page.getByLabel("이메일").fill(ADMIN_EMAIL);
+  await page.getByLabel("비밀번호").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "로그인" }).click();
+  await baseExpect(page.getByRole("heading", { name: "관리자", exact: true })).toBeVisible();
 }
