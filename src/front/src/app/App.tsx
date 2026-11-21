@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { Route, Routes } from "react-router";
 import { fetchHealth } from "@/shared/api/health";
+import { adminRoutes } from "@/features/admin/AdminLayout";
 import { AdminGate } from "@/features/auth/AdminGate";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { UserMenu } from "@/features/auth/UserMenu";
@@ -38,7 +39,7 @@ function Running() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin" element={<AdminGate />} />
+        <Route path="/admin" element={<AdminGate />}>{adminRoutes}</Route>
         <Route path="*" element={<main className="mx-auto max-w-lg p-6"><h1 className="text-2xl font-semibold">없는 화면입니다</h1></main>} />
       </Routes>
     </>
