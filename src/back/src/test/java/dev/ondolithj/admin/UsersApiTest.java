@@ -49,6 +49,10 @@ class UsersApiTest {
 		f.pg.withCommand("postgres", "-c", "fsync=off", "-c", "shared_preload_libraries=pg_stat_statements");
 		f.start(false);
 		f.sql("CREATE EXTENSION pg_stat_statements");
+		// user.create 를 받은 비-superuser(Q21). 한 번만 넣는다 — key 는 UNIQUE 다
+		f.sql("INSERT INTO roles (key, name) VALUES ('probe_create', '시험')");
+		f.sql("INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p "
+				+ "WHERE r.key = 'probe_create' AND p.key IN ('admin.access', 'user.create')");
 	}
 
 	@AfterAll
@@ -265,6 +269,22 @@ class UsersApiTest {
 		assertThat(one("SELECT count(*) FROM users WHERE email = ?", other)).isZero();
 		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action <> 'auth.login'",
 				op.id())).isZero();
+	}
+
+	/** Q21: 1-E 전에는 만든 사람이 비밀번호를 안다 — 더 넓은 부여자가 그 계정에 역할을 주면 권한이 오른다. */
+	@Test
+	void 비superuser_가_user_create_를_받아도_계정을_만들면_403_이고_행이_늘지_않는다() throws Exception {
+		Login probe = login("probe_create");
+		String other = email();
+		HttpResponse<String> r = create(probe.http(), body(other, "새 사용자", PASSWORD));
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(403);
+		assertThat(json.readTree(r.body()).get("detail").asString()).isEqualTo("1-E 전에는 관리자만 계정을 만들 수 있습니다");
+		assertThat(one("SELECT count(*) FROM users WHERE email = ?", other)).isZero();
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.denied' "
+				+ "AND target_type = 'user' AND target_id IS NULL AND summary = 'user.create superuser_only'", probe.id()))
+			.isEqualTo(1);
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action <> 'auth.login'",
+				probe.id())).isEqualTo(1);
 	}
 
 	@Test

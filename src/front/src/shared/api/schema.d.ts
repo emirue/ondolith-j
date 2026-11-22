@@ -1109,7 +1109,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description user.create 권한 없음·CSRF 토큰 없음 */
+            /** @description user.create 권한 없음·superuser 아님(1-E 전, Q21)·CSRF 토큰 없음 */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1232,7 +1232,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description 권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·CSRF 토큰 없음 */
+            /** @description 권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·요청자가 덮지 못하는 권한을 가진 계정(R2, Q20)·CSRF 토큰 없음 */
             403: {
                 headers: {
                     [name: string]: unknown;

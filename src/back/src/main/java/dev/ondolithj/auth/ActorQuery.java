@@ -1,6 +1,8 @@
 package dev.ondolithj.auth;
 
 import java.sql.Array;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -62,18 +64,26 @@ public class ActorQuery {
 			if (authAt.isBefore(validFrom)) {
 				return null;
 			}
-			boolean superuser = rs.getBoolean("superuser");
-			Set<Permission> perms = EnumSet.noneOf(Permission.class);
-			if (superuser) {
-				perms = EnumSet.allOf(Permission.class);
-			}
-			else {
-				Array keys = rs.getArray("perms");
-				for (Object k : (Object[]) keys.getArray()) {
-					Permission.ofKey((String) k).ifPresent(perms::add);
-				}
-			}
-			return new Actor(id, rs.getString("email"), rs.getString("display_name"), authAt, superuser, Set.copyOf(perms));
+			return new Actor(id, rs.getString("email"), rs.getString("display_name"), authAt, rs.getBoolean("superuser"),
+					permissions(rs));
 		}).optional();
+	}
+
+	/** 활성 여부·기준 시각을 보지 않은 유효 권한(Q20 활성화의 R2). load 와 같은 질의라 R9 가 한 곳에 남는다. 없으면 빈 값. */
+	public Optional<Set<Permission>> permissions(UUID id) {
+		return jdbc.sql(SQL).param(id).query((rs, n) -> permissions(rs)).optional();
+	}
+
+	/** superuser 면 코드의 권한 전부. */
+	private static Set<Permission> permissions(ResultSet rs) throws SQLException {
+		if (rs.getBoolean("superuser")) {
+			return Set.copyOf(EnumSet.allOf(Permission.class));
+		}
+		Set<Permission> perms = EnumSet.noneOf(Permission.class);
+		Array keys = rs.getArray("perms");
+		for (Object k : (Object[]) keys.getArray()) {
+			Permission.ofKey((String) k).ifPresent(perms::add);
+		}
+		return Set.copyOf(perms);
 	}
 }

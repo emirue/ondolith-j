@@ -118,6 +118,8 @@ class OpenApiFileTest {
 		assertThat(fieldNames(deactivate)).containsExactlyInAnyOrder("204", "401", "403", "404", "409", "429");
 		JsonNode activate = written.at("/paths/~1api~1admin~1users~1{id}~1activate/post/responses");
 		assertThat(fieldNames(activate)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		// Q20: 활성화의 403 에 R2
+		assertThat(activate.at("/403/description").asString()).contains("R2");
 		for (JsonNode r : java.util.List.of(deactivate, activate)) {
 			assertThat(r.at("/204/content").isMissingNode()).isTrue();
 			for (String code : java.util.List.of("401", "403", "404", "429")) {
@@ -136,6 +138,8 @@ class OpenApiFileTest {
 		assertThat(fieldNames(list)).containsExactlyInAnyOrder("200", "400", "401", "403", "422", "429");
 		JsonNode create = written.at("/paths/~1api~1admin~1users/post/responses");
 		assertThat(fieldNames(create)).containsExactlyInAnyOrder("201", "400", "401", "403", "409", "422", "429");
+		// Q21: 1-E 전에는 superuser 만 만든다
+		assertThat(create.at("/403/description").asString()).contains("superuser 아님");
 		for (JsonNode r : java.util.List.of(list.get("400"), list.get("422"), create.get("409"), create.get("422"))) {
 			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
 				.isEqualTo("#/components/schemas/ProblemDetail");

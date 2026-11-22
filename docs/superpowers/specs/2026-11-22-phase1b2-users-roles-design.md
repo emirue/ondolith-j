@@ -88,13 +88,15 @@
 - **A-401** `GET /api/admin/users?page=1&q=` — 원문 코드 값(문서에 없음): 쪽당 50, 한 행 더 읽어 `has_next`, 전체 건수는 세지 않는다. `q` 는 앞뒤 공백을 뺀 뒤 이메일·표시 이름의 **일부**를 `ILIKE` 로 찾고, `%`·`_`·`\` 는 글자 그대로 찾게 이스케이프한다(원문 `SearchUsers`). 정렬은 `created_at DESC, id`. 역할 키는 같은 질의의 `array_agg` 로 — 질의는 행 수와 관계없이 하나다(D86 7.3). 비밀번호 해시·기준 시각은 싣지 않는다(D13). `page` 는 A-601 과 같다(1 미만 422 `errors.page`, 정수가 아니면 400, offset 은 long). `q` 는 200자를 넘으면 422 `errors.q`(쪽 상한처럼 입력 상한을 둔다, D15 SC-4).
 - **A-402 상세** `GET /api/admin/users/{id}`: `user.update`(D19 — 목록의 `user.view` 와 다르다. 운영자는 목록만 본다). 사용자 칸과 가진 역할, A-405 부여 칸에 쓸 「줄 수 있는 역할」 목록(`is_assignable`)을 함께 낸다. 질의 셋(사용자·가진 역할·줄 수 있는 역할), 행 수와 무관.
 - **생성** `POST /api/admin/users`: `user.create`. 재인증 대상이 아니다.
+  - **1-E 전에는 superuser 만 만든다(Q21, 최종 검토 I-2).** 처리기 첫 검사가 `actor.superuser()` 이고, 아니면 403 「1-E 전에는 관리자만 계정을 만들 수 있습니다」·`user.denied user.create superuser_only`(`target_id` NULL — 아직 계정이 없다)다. 만든 사람이 초기 비밀번호를 알아, 더 넓은 부여자가 그 계정에 역할을 주면 만든 사람의 권한이 오르기 때문이다(15절 1). 1-E 에서 계정 주인이 메일 링크로 비밀번호를 정하게 되면 풀고 `user.create` 권한으로 돌린다(`ponytail:` 주석). `@Valid` 는 처리기 앞이라 본문이 틀리면 이 검사보다 422 가 먼저다.
   - 본문 `{email, display_name, password}` — 고정 레코드. 역할·활성 상태·기준 시각은 받지 않는다(D19).
   - 이메일: 설치와 같은 검사(형식·254자), 앞뒤 공백을 빼고 소문자로 저장. 중복은 DB `UNIQUE` 가 막고 409 「이미 사용 중인 이메일입니다」(먼저 세지 않는다 — 동시 생성 둘이 다 지나간다).
   - 표시 이름: 1~50자(Q9). 사이트 이름과 같은 규칙 — 앞뒤 공백(NBSP 포함)을 빼고, 공백·보이지 않는 문자만이면 「필수입니다」, 제어 문자가 있으면 「쓸 수 없는 문자가 있습니다」(1-B1 의 U+0000 → 500 교훈). 같은 함수에 상한만 인자로 준다(서버 `SiteName`, 프런트 `siteName.ts`).
   - 비밀번호: 설치와 같은 두 검사 — 10자 이상, UTF-8 72바이트 이하. 두 검사를 한 함수로 모아 설치와 함께 쓴다. 확인 칸은 프런트에만 있다(9절) — 원문 A-402 입력표에 확인 칸이 없고, 서버 레코드에 칸을 늘리지 않는다.
   - 저장: `email_verified_at = now()`(관리자가 보증한 주소, D19), 역할 없음. 201 `{"id": "<uuid>"}`.
 - **비활성** `POST /api/admin/users/{id}/deactivate`·**활성** `…/activate`: `user.update`. 본문 없음.
-  - 순서: 재인증(3.1) → 대상 없음 404(남기지 않음) → 자기 계정 403 「자기 계정에는 이 작업을 할 수 없습니다」(남김) → R6 → (비활성만) 마지막 관리자(5절) → 쓰기 → 기록.
+  - 순서: 재인증(3.1) → 대상 없음 404(남기지 않음) → 자기 계정 403 「자기 계정에는 이 작업을 할 수 없습니다」(남김) → R6 → (활성만) R2 → (비활성만) 마지막 관리자(5절) → 쓰기 → 기록.
+  - **활성화의 R2(Q20, 최종 검토 I-2)**: 요청자의 유효 권한이 대상의 유효 권한을 모두 덮지 않으면 403 「권한이 없습니다」·`user.denied user.activate r2` 이고 대상은 비활성 그대로다. R6 은 superuser 보유자만 지켜, `user.update` 만 가진 비-superuser 가 자기보다 넓은 잠긴 계정을 다시 여는 길이 남았다. 판정은 A-405 의 R2 와 같은 `covers()` 이고, 대상 권한은 `ActorQuery` 가 인증과 같은 질의(R9 포함)로 **활성 여부를 보지 않고** 읽는다. superuser 대상이면 「권한 전부」지만 그 경우는 R6 이 먼저 막는다. 판정은 처리기에서만 한다 — 판정 뒤 대상이 역할을 받는 경쟁은 「활성화 먼저, 부여 나중」이라는 합법 순서와 끝 상태가 같아 쓰기 문장의 `WHERE` 에 넣지 않는다(R6 의 `WHERE` 는 그대로). 비활성화에는 걸지 않는다 — 내리는 방향이고, 탈취 대응을 좁히지 않는다.
   - R6 은 처리기에서 보고, **한 번 더 본다**(1-B2 구현 중 고침, 결정 문서). 처리기가 본 뒤 대상이 보유자가 되면 비-superuser 의 요청이 지나가는 틈이 있어서다. 비활성화는 5절 잠금 아래에서 대상 보유 여부를 다시 읽을 때 R6 을 마지막 관리자보다 먼저 보고, 걸리면 롤백하고 403(`user.denied user.deactivate r6`)이다. 활성화는 잠금이 없으므로 쓰기 문장이 판정한다(아래).
   - R6: 대상이 superuser 역할 보유자(활성 여부 무관)인데 요청자가 superuser 가 아니면 403(남김). **비활성과 활성 둘 다에 건다**(Q19). 활성화는 막아 둔 계정을 다시 여는 일이다(D19 재인증 행, 원문 코드). 1-E 전에는 비활성화가 유일한 탈취 대응이라(Q11), 비-superuser 가 superuser 보유자를 다시 열면 막은 효과가 사라진다. D15·D19 의 R6 목록(비활성·삭제·재설정)보다 넓다(ondolith-j 결정).
   - 비활성 쓰기: `UPDATE users SET is_active = false, sessions_valid_from = GREATEST(now(), sessions_valid_from + interval '1 microsecond'), updated_at = now() WHERE id = ?`. 그 계정의 모든 세션이 다음 요청에서 거부되고, 재활성화가 옛 세션을 살리지 않는다(Q11, D86 1.19).
@@ -148,10 +150,10 @@
 |---|---|---|---|---|
 | `/api/admin/reauth` | POST | `@RequiresPermission(ADMIN_ACCESS)` | `{password}` | 204 / 401 / 403(재인증 `type`·CSRF) / 422 / 429 |
 | `/api/admin/users` (A-401) | GET | `@AdminPermission(USER_VIEW)` | `page`(기본 1), `q`(선택) | 200 `{items: [{id, email, display_name, is_active, roles: [key], created_at}], page, page_size: 50, has_next}` / 400 / 401 / 403 / 422 / 429 |
-| `/api/admin/users` (A-402 생성) | POST | `@AdminPermission(USER_CREATE)` | `{email, display_name, password}` | 201 `{id}` / 400 / 401 / 403 / 409 / 422 / 429 |
+| `/api/admin/users` (A-402 생성) | POST | `@AdminPermission(USER_CREATE)` | `{email, display_name, password}` | 201 `{id}` / 400 / 401 / 403(권한·superuser 아님(Q21)·CSRF) / 409 / 422 / 429 |
 | `/api/admin/users/{id}` (A-402) | GET | `@AdminPermission(USER_UPDATE)` | — | 200 `{id, email, display_name, is_active, created_at, roles: [{id, key, name, is_superuser}], assignable_roles: [{id, key, name, is_superuser}]}` / 401 / 403 / 404 / 429 |
 | `/api/admin/users/{id}/deactivate` | POST | `@AdminPermission(USER_UPDATE)` | — | 204 / 401 / 403(권한·재인증·자기 계정·R6·CSRF) / 404 / 409 / 429 |
-| `/api/admin/users/{id}/activate` | POST | `@AdminPermission(USER_UPDATE)` | — | 204 / 401 / 403(권한·재인증·자기 계정·R6·CSRF) / 404 / 429 |
+| `/api/admin/users/{id}/activate` | POST | `@AdminPermission(USER_UPDATE)` | — | 204 / 401 / 403(권한·재인증·자기 계정·R6·R2(Q20)·CSRF) / 404 / 429 |
 | `/api/admin/roles` (A-403) | GET | `@AdminPermission(ROLE_VIEW)` | — | 200(6절) / 401 / 403 / 429 |
 | `/api/admin/roles/{id}/permissions` (A-404) | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5·CSRF) / 404 / 422(칸 null·모르는 키·R9) / 429 |
 | `/api/admin/roles/{id}/permissions/revoke` | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5) / 404 / 422(칸 null·모르는 키) / 429 |
@@ -176,10 +178,10 @@
 | `user.revoke_role` | A-405 빼기 204 | `user` / 대상 id | 역할 키 | 역할 빼기 |
 | `role.grant_permission` | A-404 부여 204 | `role` / 역할 id | 권한 키 | 역할에 권한 부여 |
 | `role.revoke_permission` | A-404 빼기 204 | `role` / 역할 id | 권한 키 | 역할에서 권한 빼기 |
-| `user.denied` | 자기 계정·R1·R2·R3·R6·마지막 관리자 거절 | `user` / 대상 id | `<시도한 동작> [역할 키] <규칙>` 예: `user.deactivate r6`, `user.activate r6`, `user.revoke_role admin last_admin` | 사용자 작업 거절 |
+| `user.denied` | 자기 계정·R1·R2(A-405, 활성화 Q20)·R3·R6·마지막 관리자·생성의 superuser 아님(Q21) 거절 | `user` / 대상 id(생성 거절은 NULL) | `<시도한 동작> [역할 키] <규칙>` 예: `user.deactivate r6`, `user.activate r6`, `user.activate r2`, `user.create superuser_only`, `user.revoke_role admin last_admin` | 사용자 작업 거절 |
 | `role.denied` | R4·R5·R9·모르는 권한 키 거절 | `role` / 역할 id | `<시도한 동작> [권한 키] <규칙>` 예: `role.grant_permission user.view r4`, `role.grant_permission unknown_permission` | 역할 작업 거절 |
 
-- 이름은 V3 CHECK(`^[a-z][a-z0-9]*\.[a-z][a-z0-9_]*$`)를 통과한다. 규칙 토큰은 `self`·`r1`·`r2`·`r3`·`r4`·`r5`·`r6`·`r9`·`last_admin`·`unknown_permission` 뿐이다.
+- 이름은 V3 CHECK(`^[a-z][a-z0-9]*\.[a-z][a-z0-9_]*$`)를 통과한다. 규칙 토큰은 `self`·`r1`·`r2`·`r3`·`r4`·`r5`·`r6`·`r9`·`last_admin`·`unknown_permission`·`superuser_only` 뿐이다(V3 의 `summary` CHECK 는 길이만 본다. `target_id` 는 NULL 을 받는다).
 - **칸 출처(1-B1 4.3 그대로)**: `summary` 에는 코드 상수, enum 으로 검증된 권한 키, DB 에서 읽은 역할 키(V1 CHECK 형식)만 넣는다. **모르는 권한 키 거절 행에 그 키를 넣지 않는다** — 요청 본문 문자열이다. `target_id` 는 경로에서 읽은 UUID 를 `toString` 한 값이다.
 - 남기지 않는 것: 권한 없음 403, 재인증 403, 404, 이메일 중복 409, `is_assignable` 422, 재인증 성공·실패(D19 오류표 그대로).
 - **원문 코드와 다른 곳**: 원문 코드는 A-402 의 자기 계정·R6·마지막 관리자 거절을 기록하지 않고, 동작 이름을 `user.update`·`role.assign` 으로 뭉친다. 문서(D19 「남김」, D15 5.1 「위반 요청은 403이고 작업 로그에 남긴다」)를 따르고, A-601 에서 무엇이 있었는지 보이게 동작을 나눈다. 같은 값으로 다시 하는 성공(이미 비활성, 이미 부여)도 남기는 것은 원문 코드와 같다(D13 「전 작업이 작업 로그 대상」).
@@ -232,9 +234,9 @@
   - `ReauthTargetsTest`(3.4): 분류되지 않은 POST 처리기가 있으면 실패한다. 시험용 관리자 POST 를 하나 더 넣어 실제로 실패하는 것을 확인한다(1-B1 의 `--spring.main.sources` 방식).
   - **사용자(첫 Red)**: 로그인해 둔 세션 S → 비활성화 → 활성화 → S 로 `GET /api/admin` 이 401 이다(기준 시각 이동). 이동을 빼면 200 이 되어 실패한다.
   - A-401: 운영자 200, 편집자 403. 51명이면 1쪽 50·`has_next` true, 2쪽 1·false. `q` 가 이메일·표시 이름의 일부를 찾고, `_`·`%` 는 글자 그대로다. 질의 수가 행 수와 무관하다(1-B1 과 같은 `pg_stat_statements` 방법). 응답에 `password_hash`·기준 시각 칸이 없다.
-  - A-402 생성: 관리자 201·작업 로그 `user.create`, 운영자 403. 이메일 중복(대소문자 다름 포함) 409, 표시 이름 0·51자·공백만·NBSP 만·U+0000 422, 50자 통과, 비밀번호 9자·73바이트 422. 만든 계정은 `email_verified_at` 이 있고 역할이 없으며, 그 비밀번호로 로그인된다. 본문의 `is_active: false`·`roles` 는 무시된다. 동시에 같은 이메일 둘 → 201 하나·409 하나.
+  - A-402 생성: 관리자 201·작업 로그 `user.create`, 운영자 403. Q21 — `admin.access`·`user.create` 를 준 비-superuser 가 만들면 403·`user.denied user.create superuser_only` 행(`target_id` NULL)이고 계정이 늘지 않는다(`UsersApiTest` 「비superuser_가_user_create_를_받아도_계정을_만들면_403_이고_행이_늘지_않는다」). 이메일 중복(대소문자 다름 포함) 409, 표시 이름 0·51자·공백만·NBSP 만·U+0000 422, 50자 통과, 비밀번호 9자·73바이트 422. 만든 계정은 `email_verified_at` 이 있고 역할이 없으며, 그 비밀번호로 로그인된다. 본문의 `is_active: false`·`roles` 는 무시된다. 동시에 같은 이메일 둘 → 201 하나·409 하나.
   - A-402 상세: 관리자 200, 운영자 403(`user.view` 만으로는 안 된다). 경로 `not-a-uuid`·`123` 404 Problem Details. 없는 UUID 404.
-  - 비활성·활성: 자기 계정 403(경로를 대문자로 써도)·`user.denied … self` 행. R6 — 시험용 역할에 `admin.access`·`user.update` 를 준 사용자가 superuser 보유자를 비활성화하면 403·`r6` 행. 이미 비활성인 계정 비활성화 204. 활성화의 R6(Q19) — 같은 시험용 역할 사용자가 비활성 superuser 보유자를 활성화하면 403·`user.denied user.activate r6` 행이고 `is_active` 는 false 그대로다. superuser 가 하면 204. R6 줄을 빼면 이 시험이 실패한다.
+  - 비활성·활성: 자기 계정 403(경로를 대문자로 써도)·`user.denied … self` 행. R6 — 시험용 역할에 `admin.access`·`user.update` 를 준 사용자가 superuser 보유자를 비활성화하면 403·`r6` 행. 이미 비활성인 계정 비활성화 204. 활성화의 R6(Q19) — 같은 시험용 역할 사용자가 비활성 superuser 보유자를 활성화하면 403·`user.denied user.activate r6` 행이고 `is_active` 는 false 그대로다. superuser 가 하면 204. R6 줄을 빼면 이 시험이 실패한다. 활성화의 R2(Q20) — 같은 요청자가 비활성 `operator` 계정을 활성화하면 403·`user.denied user.activate r2` 이고 비활성 그대로다. 과잉 차단은 없다 — 같은 시험 역할의 계정·역할 없는 계정은 204(`UserStatusTest` 「R2_좁은_요청자가_더_넓은_비활성_계정을_활성화하면_403_r2_이고_비활성_그대로」·「요청자가_덮는_비활성_계정은_활성화된다」·「역할_없는_비활성_계정은_활성화된다」).
   - **마지막 관리자**: ① 함수 직접 — 트랜잭션 안에서 「대상이 유일한 활성 보유자」면 거절, 비활성 보유자의 회수·이미 비활성인 대상은 통과. 처리기가 본 뒤에 보유자가 된 대상(함수를 부르기 직전에 `admin` 을 준다)도 잠금 아래에서 다시 읽어 거절한다. `member` 역할에 `is_superuser` 를 켜 둔 DB 에서도 셈이 늘지 않는다(술어 하나). ② **동시 요청** — 활성 관리자 A·B 둘. 시험 연결이 **각 요청이 쓸 행**을 먼저 `FOR UPDATE` 로 잡아 둔다 — 비활성화는 대상의 `users` 행, 역할 빼기는 대상의 그 `user_roles` 행이다. 「A 가 B 를 비활성화」·「B 가 A 를 비활성화」를 함께 보내고, `pg_locks` 에서 앱 연결 둘이 기다리는 것을 본 뒤 푼다(잠금이 있으면 먼저 온 쪽은 행을, 다른 쪽은 `roles` 행을 기다린다). 정확히 하나 204, 하나 409·`last_admin` 행이고 활성 관리자가 1명 남는다. 교차 판(「A 가 B 를 비활성화」·「B 가 A 의 admin 역할을 빼기」, 잡는 행은 B 의 `users` 행과 A 의 `user_roles` 행)도 같다. **`FOR UPDATE` 줄을 빼고 돌려 두 시험이 실패하는 것을 확인한다**(D15 5.2) — 잠금이 없으면 둘 다 셈 2 를 본 뒤 시험이 잡은 행을 기다렸다가 둘 다 성공한다.
   - **역할(첫 Red)**: 관리자가 자기에게 역할을 주면 403 이고 `user.denied user.grant_role <키> r1` 행이 하나다.
   - A-405: R3 — `role.assign`·`admin.access` 를 가진 비-superuser 가 `admin` 역할을 주면 403·`r3`. R2 — 그 사용자가 자기에게 없는 권한이 든 `operator` 를 주면 403·`r2`. 판정 함수 단위 시험 — 비-superuser 와 `admin` 역할이면 false 다(빈 집합으로 통과하지 않는다). `anonymous` 를 주면 422 `errors.role_id`. 이미 가진 역할을 다시 주면 204·행 하나 그대로. 빼기: 갖지 않은 역할 404, 자기 역할 403. 준 뒤 다음 요청부터 그 사람의 `/api/me` `can` 이 바뀐다. 비활성 계정에 `editor` 를 주고 빼면 각각 204 이고 `user.grant_role`·`user.revoke_role` 행이 남으며 `is_active` 는 false 그대로다(Q18). 비-superuser 가 비활성 계정에 `admin` 을 주면 403·`r3`.
@@ -265,7 +267,7 @@
 | 1.18 재설정 강제 | 1-E(Q11) |
 | 1.19 회수 트랜잭션·`GREATEST` | 비활성화의 기준 시각 이동(4절), 첫 Red |
 | 2.1 처리기 권한·기동 점검 | 새 처리기 모두 `@AdminPermission`, 재인증은 `@RequiresPermission(ADMIN_ACCESS)`. M-7 경로 변형 거부 |
-| 2.3 R1~R6·superuser 유일·마지막 관리자 | R1~R6·R9 거절과 기록(4·6절), 마지막 관리자 잠금(5절)과 동시 시험 |
+| 2.3 R1~R6·superuser 유일·마지막 관리자 | R1~R6·R9 거절과 기록(4·6절), 마지막 관리자 잠금(5절)과 동시 시험. 계정 경로의 상승(최종 검토 I-2): 활성화에 R2(Q20), 1-E 전 생성은 superuser 만(Q21) |
 | 2.4 A-404·A-405 폼이 실제 라우트에 닿는다 | E2E 가 실제 jar 로 부여·빼기 |
 | 2.4a 재인증을 거치고 성공·R 위반을 기록 | 8절 표, 재인증이 첫 검사(3.1) |
 | 2.5 대량 할당 | 요청 본문은 모두 고정 레코드. 생성은 역할·활성·기준 시각을 받지 않는다 |
@@ -295,7 +297,7 @@
 
 ## 15. 검토 초점 — 시험이 다루지 않지만 사람이 쓸 때 문제가 될 것
 
-1. **만든 계정의 비밀번호**: 관리자가 정한 초기 비밀번호를 사용자에게 전하는 길은 시스템 밖이다. 1-E 전에는 사용자가 바꿀 수도, 관리자가 재설정할 수도 없다. 샌 비밀번호를 막는 수단은 비활성화뿐이다.
+1. **만든 계정의 비밀번호**: 관리자가 정한 초기 비밀번호를 사용자에게 전하는 길은 시스템 밖이다. 1-E 전에는 사용자가 바꿀 수도, 관리자가 재설정할 수도 없다. 샌 비밀번호를 막는 수단은 비활성화뿐이다. 만든 사람이 비밀번호를 알아, 더 넓은 부여자가 그 계정에 역할을 주면 권한이 오른다. 1-E 전에는 생성을 superuser로 제한한다(Q21).
 2. **로그인 직후 15분**: 로그인이 창을 열어서(Q2), 막 로그인한 탈취 세션은 비밀번호를 다시 묻지 않고 계정·역할을 바꾼다. 원문이 받아들인 위험이다(D18).
 3. **요청 중 비활성화된 요청자**: B 의 요청이 인증을 지난 뒤 A 가 B 를 비활성화해도, B 의 그 요청은 끝까지 간다. 활성 관리자 ≥ 1 은 지켜지지만 「방금 막은 사람의 마지막 한 번」은 남는다.
 4. **역할 권한 부여의 파급**: `operator` 에 권한 하나를 주면 그 역할의 모든 보유자가 다음 요청부터 갖는다. 역할 화면은 보유자 수를 보이지 않는다.
@@ -305,6 +307,8 @@
 
 - **Q18 → (a)**: 입구는 A-402 상세 하나, 비활성 대상도 받는다. 이메일 입구는 계정 존재를 묻는 길과 판정 갈래를 늘린다. 틀렸을 때 비용은 POST 하나와 폼 하나.
 - **Q19 → (a)**: 활성화에도 R6. 비활성화가 유일한 탈취 대응인 동안 비-superuser 가 막아 둔 관리자 계정을 다시 열지 못하게. R3(역할 경로)와 R6(계정 경로)가 함께 권한 상승을 막는다.
+- **Q20 → 활성화에 R2**(최종 검토 I-2): 좁은 요청자가 자기보다 넓은 잠긴 계정을 다시 열지 못하게. 비활성화에는 걸지 않는다. 4절.
+- **Q21 → 1-E 전 생성은 superuser 만**(최종 검토 I-2): 만든 사람이 초기 비밀번호를 알아 생기는 상승을 막는다. 1-E 에서 계정 주인이 비밀번호를 정하게 되면 푼다. 4절.
 
 아래는 결정 전에 적은 선택지다.
 

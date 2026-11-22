@@ -247,6 +247,37 @@ class UserStatusTest {
 		assertThat(active(holder)).isTrue();
 	}
 
+	/** Q20: 활성화에 R2 — 좁은 요청자가 자기보다 넓은 잠긴 계정을 다시 열지 못한다. 비활성화는 걸지 않는다(내리는 방향). */
+	@Test
+	void R2_좁은_요청자가_더_넓은_비활성_계정을_활성화하면_403_r2_이고_비활성_그대로() throws Exception {
+		Login probe = login("probe_users");
+		UUID wider = f.user(email(), "operator");
+		f.sql("UPDATE users SET is_active = false WHERE id = ?", wider);
+		refused(activate(probe.http(), wider), 403, "권한이 없습니다");
+		assertThat(active(wider)).isFalse();
+		assertThat(rows(probe.id())).containsExactly("user.denied|" + wider + "|user.activate r2");
+	}
+
+	@Test
+	void 요청자가_덮는_비활성_계정은_활성화된다() throws Exception {
+		Login probe = login("probe_users");
+		UUID same = f.user(email(), "probe_users");
+		f.sql("UPDATE users SET is_active = false WHERE id = ?", same);
+		assertThat(activate(probe.http(), same).statusCode()).isEqualTo(204);
+		assertThat(active(same)).isTrue();
+		assertThat(rows(probe.id())).containsExactly("user.activate|" + same + "|");
+	}
+
+	@Test
+	void 역할_없는_비활성_계정은_활성화된다() throws Exception {
+		Login probe = login("probe_users");
+		UUID none = f.user(email());
+		f.sql("UPDATE users SET is_active = false WHERE id = ?", none);
+		assertThat(activate(probe.http(), none).statusCode()).isEqualTo(204);
+		assertThat(active(none)).isTrue();
+		assertThat(rows(probe.id())).containsExactly("user.activate|" + none + "|");
+	}
+
 	@Test
 	void 이미_비활성이어도_204_이고_기록한다() throws Exception {
 		Login admin = login("admin");

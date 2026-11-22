@@ -52,7 +52,8 @@ class UsersController {
 
 	private static final String NOT_FOUND = "사용자를 찾을 수 없습니다";
 
-	private static final String R6 = "권한이 없습니다";
+	// R6·R2 거절의 detail
+	private static final String DENIED = "권한이 없습니다";
 
 	private static final int PAGE_SIZE = 50;
 
@@ -120,13 +121,16 @@ class UsersController {
 
 	private final LastAdmin lastAdmin;
 
+	private final ActorQuery actorQuery;
+
 	private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-	UsersController(JdbcClient jdbc, OperationLog operationLog, Reauth reauth, LastAdmin lastAdmin) {
+	UsersController(JdbcClient jdbc, OperationLog operationLog, Reauth reauth, LastAdmin lastAdmin, ActorQuery actorQuery) {
 		this.jdbc = jdbc;
 		this.operationLog = operationLog;
 		this.reauth = reauth;
 		this.lastAdmin = lastAdmin;
+		this.actorQuery = actorQuery;
 	}
 
 	@AdminPermission(Permission.USER_VIEW)
@@ -166,12 +170,19 @@ class UsersController {
 	@ApiResponse(responseCode = "201", description = "만듦. 역할 없음, 이메일은 인증된 것으로 둔다")
 	@ApiResponse(responseCode = "400", description = "본문이 JSON 이 아님", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "로그인이 필요함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "user.create 권한 없음·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "user.create 권한 없음·superuser 아님(1-E 전, Q21)·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "409", description = "이미 사용 중인 이메일", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "422", description = "입력 오류. errors.email·errors.display_name·errors.password", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<Created> create(@Valid @RequestBody CreateUser req, @AuthenticationPrincipal Actor actor,
 			HttpServletRequest request) {
+		// Q21: 만든 사람이 초기 비밀번호를 안다 — 더 넓은 부여자가 그 계정에 역할을 주면 만든 사람의 권한이 오른다.
+		// ponytail: 1-E 에서 계정 주인이 메일 링크로 비밀번호를 정하게 되면 이 제한을 풀고 user.create 권한으로 돌린다
+		if (!actor.superuser()) {
+			operationLog.record(actor, Action.USER_DENIED, null, Action.USER_CREATE.key() + " superuser_only",
+					ClientIp.of(request));
+			throw new Refused(HttpStatus.FORBIDDEN, "1-E 전에는 관리자만 계정을 만들 수 있습니다");
+		}
 		Map<String, String> errors = new HashMap<>();
 		SiteName.error(req.displayName(), 50).ifPresent(m -> errors.put("display_name", m));
 		Password.error(req.password()).ifPresent(m -> errors.put("password", m));
@@ -225,7 +236,7 @@ class UsersController {
 		refuse(id, actor, Action.USER_DEACTIVATE, request);
 		// 위에서 읽은 보유 여부로 건너뛰지 않는다 — 잠금 아래서 다시 읽는다(스펙 5절). 기록은 커밋·롤백 뒤
 		switch (lastAdmin.run(id, actor.superuser(), () -> jdbc.sql(DEACTIVATE).param(id).update())) {
-			case R6 -> deny(actor, Action.USER_DEACTIVATE, id, "r6", R6, request);
+			case R6 -> deny(actor, Action.USER_DEACTIVATE, id, "r6", DENIED, request);
 			case REFUSED -> {
 				operationLog.record(actor, Action.USER_DENIED, id.toString(),
 						Action.USER_DEACTIVATE.key() + " last_admin", ClientIp.of(request));
@@ -243,19 +254,25 @@ class UsersController {
 	@PostMapping("/api/admin/users/{id}/activate")
 	@ApiResponse(responseCode = "204", description = "활성화함(이미 활성이어도). 옛 세션은 살아나지 않는다", content = @Content)
 	@ApiResponse(responseCode = "401", description = "로그인이 필요함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·요청자가 덮지 못하는 권한을 가진 계정(R2, Q20)·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "없는 사용자·UUID 가 아닌 경로", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<Void> activate(@PathVariable UUID id, @AuthenticationPrincipal Actor actor,
 			HttpServletRequest request) {
 		reauth.require(request);
 		refuse(id, actor, Action.USER_ACTIVATE, request);
+		// R2(Q20): 요청자가 대상의 유효 권한을 모두 덮어야 다시 연다. 비활성 계정이라 활성 여부를 보지 않고 읽는다.
+		// 이 판정 뒤 대상이 역할을 받는 경쟁은 「활성화 먼저, 부여 나중」과 끝 상태가 같아 WHERE 에 넣지 않는다
+		if (!RolesController.covers(actor, actorQuery.permissions(id)
+			.orElseThrow(() -> new Refused(HttpStatus.NOT_FOUND, NOT_FOUND)))) {
+			deny(actor, Action.USER_ACTIVATE, id, "r2", DENIED, request);
+		}
 		// R6 을 쓰기 문장 안에서 다시 본다 — 위의 판정 뒤에 대상이 보유자가 되는 틈을 닫는다(잠금이 없는 쪽)
 		int n = jdbc.sql("UPDATE users u SET is_active = true, updated_at = now() WHERE u.id = ? AND (? OR NOT "
 				+ ActorQuery.HOLDS_SUPERUSER + ")").params(id, actor.superuser()).update();
 		if (n == 0) {
 			if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM users WHERE id = ?)").param(id).query(Boolean.class).single()) {
-				deny(actor, Action.USER_ACTIVATE, id, "r6", R6, request);
+				deny(actor, Action.USER_ACTIVATE, id, "r6", DENIED, request);
 			}
 			throw new Refused(HttpStatus.NOT_FOUND, NOT_FOUND);
 		}
@@ -273,7 +290,7 @@ class UsersController {
 		// R6: 비활성·활성 둘 다(Q19) — 막아 둔 superuser 보유자를 비-superuser 가 다시 열지 못하게.
 		// 이 판정 뒤에 대상이 보유자가 될 수 있어 쓰기 때 한 번 더 본다(비활성은 LastAdmin 잠금 아래, 활성은 UPDATE 의 WHERE)
 		if (holder && !actor.superuser()) {
-			deny(actor, action, id, "r6", R6, request);
+			deny(actor, action, id, "r6", DENIED, request);
 		}
 	}
 
