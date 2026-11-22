@@ -183,6 +183,25 @@ class InstallApiTest {
 	}
 
 	@Test
+	void NBSP_만이거나_영폭_공백만인_사이트_이름은_422_이고_DB_는_그대로() throws Exception {
+		confDir();
+		for (String bad : new String[] { "  ", "​" }) {
+			HttpResponse<String> r = install(with("site_name", bad));
+			assertThat(r.statusCode()).as("[%s]", bad).isEqualTo(422);
+			assertThat(r.body()).as("[%s]", bad).contains("\"site_name\"");
+		}
+		// 마이그레이션 전에 거부한다 — users 표가 없으니 계정도 0
+		assertThat(rows("SELECT to_regclass('public.users')::text")).containsOnlyNulls();
+	}
+
+	@Test
+	void 사이트_이름은_앞뒤의_공백과_NBSP_를_빼고_저장한다() throws Exception {
+		confDir();
+		assertThat(install(with("site_name", " 새 사이트 ")).statusCode()).isEqualTo(202);
+		assertThat(rows("SELECT value FROM settings WHERE key = 'site.name'")).containsExactly("새 사이트");
+	}
+
+	@Test
 	void 비밀번호_확인이_다르면_422() throws Exception {
 		HttpResponse<String> r = install(with("admin_password_confirm", "different-pass-0"));
 		assertThat(r.statusCode()).isEqualTo(422);

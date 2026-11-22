@@ -23,6 +23,8 @@ class MeTest {
 		f = new AuthFixture().start(false);
 		f.user("admin@ondolith.test", "admin");
 		f.user("member@ondolith.test");
+		f.user("operator@ondolith.test", "operator");
+		f.user("editor@ondolith.test", "editor");
 	}
 
 	@AfterAll
@@ -62,5 +64,22 @@ class MeTest {
 	@Test
 	void 회원은_관리자_권한이_false_이다() throws Exception {
 		assertThat(me(as("member@ondolith.test")).at("/can/admin.access").asBoolean(true)).isFalse();
+	}
+
+	@Test
+	void 운영자는_관리자_권한_넷이_모두_true_이다() throws Exception {
+		JsonNode can = me(as("operator@ondolith.test")).get("can");
+		for (String key : new String[] { "admin.access", "settings.view", "settings.update", "log.view" }) {
+			assertThat(can.get(key).asBoolean(false)).as(key).isTrue();
+		}
+	}
+
+	@Test
+	void 편집자는_admin_access_만_true_이다() throws Exception {
+		JsonNode can = me(as("editor@ondolith.test")).get("can");
+		assertThat(can.get("admin.access").asBoolean(false)).isTrue();
+		for (String key : new String[] { "settings.view", "settings.update", "log.view" }) {
+			assertThat(can.get(key).asBoolean(true)).as(key).isFalse();
+		}
 	}
 }

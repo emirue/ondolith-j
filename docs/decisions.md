@@ -110,7 +110,7 @@ ondolith 에 2026-11-14 커밋 36개(v0.6.0·v0.7.0)가 들어왔다. 이 저장
 | **D15 R9**(보안): `anonymous`·`member` 에는 방문자 권한만, 그 밖의 부여는 불러올 때 버린다 | 1-A 권한 불러오기에 넣는다(스펙 3.4, 계획 Task 5 시험). 부여 거절 422·「효력 없음」 표시는 1-B |
 | FR-723 역할·권한 빼기, 마지막 관리자의 관리자 역할 보호 | 1-B |
 | FR-724 저장 성공 알림, FR-725 파괴적 동작 확인 | 1-B(관리자 화면). FR-724 는 SPA 방식으로 다시 정한다 |
-| FR-720 관리자 메뉴 숨김, FR-721 파일 끌어다 놓기, FR-722 S3 자동 백업 | 해당 기능이 생기는 Phase(관리자 셸·업로드·백업) |
+| FR-720 관리자 메뉴 숨김, FR-721 파일 끌어다 놓기, FR-722 S3 자동 백업 | 해당 기능이 생기는 Phase(업로드·백업). FR-720 은 관리자 셸(1-B)이 아니라 고정 화면 A-207·A-209 가 생기는 Phase 로 옮긴다(2026-11-21, 「Phase 1-B 결정」 Q6) |
 | FR-710 일반 사이트가 빼 둔 쇼핑몰 화면·권한은 부팅 로그에 INFO 한 줄 | 커머스(Phase 3). 1-A 의 「미사용 권한」 경고와 같은 자리다 |
 | 설치 직후 폴더가 작업 디렉터리 기준이던 결함(FR-106) | 해당 없음 — 설치가 설정 파일의 절대 경로(`InstallTarget` 이 `toAbsolutePath`) 옆에 폴더를 정한다 |
 | 설치 직후 사이트 설정의 이름 칸이 비던 결함(FR-102) | 해당 없음 — 설치가 `site.name` 을 DB `settings` 에 바로 쓴다 |
@@ -159,3 +159,129 @@ D86(ondolith 보안 점검 목록) 대조 — 1-A 범위:
 | 3.11 HSTS | Phase 4(CloudFront) |
 
 **1-B 로 넘기는 설계 문제**: 기동 점검의 「권한 표시는 메서드·클래스 합쳐 정확히 하나」는 스펙 5절의 「`/api/admin/**` 는 `admin.access` 를 요구하고 리소스별 권한은 그 위에 메서드마다 더한다」와 부딪힌다. 1-B 에서 메서드에 다른 권한을 붙이면 표시가 둘이 되어 기동이 멈추거나, 클래스 표시를 빼면 그 메서드가 `admin.access` 없이 뜬다. 1-B 스펙에서 「여러 권한을 모두 요구하는 표시」(예: `@RequiresPermission({ADMIN_ACCESS, PAGE_EDIT})`)와 「`/api/admin/**` 의 표시는 `ADMIN_ACCESS` 를 포함해야 한다」 점검 규칙을 함께 정한다.
+  - **해결(2026-11-21, 「Phase 1-B 결정」 Q1)**: 배열 대신 관리자 전용 표시 `@AdminPermission(Permission.X)`(`hasAuthority('ADMIN_ACCESS') and hasAuthority('{value}')`, 인자는 enum 하나)를 더한다. `/api/admin/**` 의 표시는 `@AdminPermission(…)` 또는 `@RequiresPermission(ADMIN_ACCESS)` 만 되고, 「정확히 하나」 규칙은 그대로다. 배열을 고르지 않은 근거: Spring Security 7.1 문서의 배열 템플릿 예는 `String[]` 뿐이고, 템플릿이 속성 값을 문자열로 바꿔 넣어 enum 배열은 따옴표 없는 쉼표 문자열이 되는 것으로 보인다(추정 — 동작 미확인).
+
+## Phase 1-B 결정 (2026-11-21, 역할 에이전트 결정 — 사용자 확인 전)
+
+사용자가 제품·보안 역할 에이전트에게 위임해 정했다. 사용자가 확인하면 이 제목의 「사용자 확인 전」을 고친다. 스펙 `docs/superpowers/specs/2026-11-21-phase1b1-admin-shell-design.md`(1-B1).
+
+- **나누기**: 1-B1 기반·설정·조회(표시 규칙, V3 작업 로그, IP 함수, 관리자 셸, A-201·A-601·A-602) → 1-B2 사용자·역할(재인증, A-401~405, R1~R6·R9, 마지막 관리자, FR-723, V4). 재인증은 그것을 처음 쓰는 1-B2 에 둔다. 승인된 1-B 다섯 행은 모두 남고, 행 안의 하위 동작만 줄였다.
+- Q1 복수 권한 표시: `@AdminPermission(Permission.X)` 를 더하고, 관리자 경로는 `@AdminPermission` 또는 `@RequiresPermission(ADMIN_ACCESS)` 만 받는다.
+- Q2 재인증 시각: 로그인·재인증 성공 때 세션 셋째 속성 `ondolithj.reauth_at`(`Instant`, 앱 시계). 선택 속성이라 없거나 타입이 다르면 「창 닫힘」이고 세션은 유지된다(1-B2).
+- Q3 알림·확인·두 번 보내기: 클라이언트만. 성공 문구는 공용 변경 함수의 필수 인자, 확인은 화면 안 대화상자(1-B2 에서 만든다), 보내는 동안 단추 잠금, 65초 시한 없음.
+- Q4 작업 로그: 기록 + A-601 화면(쪽당 100, 전체 건수). 기간 조회(FR-712)는 뒤로. `log.view` 를 원문 Phase 2 보다 먼저 `operator` 에 심는다.
+- Q5 A-201: `site.name` 만(1~100자, 공백만 거부). 바뀐 키 이름만 작업 로그에, 바뀐 것이 없으면 남기지 않는다.
+- Q6 메뉴 숨김(FR-720)·대시보드(FR-702): 둘 다 1-B 밖. 대시보드는 빈 셸.
+- Q7 역할 생성·삭제·이름 변경: 1-B 밖. 내장 역할 다섯만(원문 구현에도 없다).
+- Q8 A-403 조회 권한: `role.view`(D11 의 `role.manage` 가 아니다).
+- Q9 표시 이름: 수정 동작은 1-B 밖, 생성 칸만 1~50자 필수.
+- Q10 마지막 관리자: `roles WHERE is_superuser FOR UPDATE` 로 직렬화한 뒤 **활성** 보유자만 센다(원문 D15 SQL 은 비활성도 센다 — 원문 코드와 같은 쪽을 골랐다).
+- Q11 타인 비밀번호 재설정 강제: 1-B 밖, 메일과 함께 1-E. `user.reset_password` 를 심지 않는다.
+- Q12 버전 노출: **사용자 확인 필요, 임시로 지금 그대로**(헬스가 버전을 보이고 A-602 에도 보인다). 추천은 헬스에서 빼고 A-602·`--version` 에만 — 승인된 NFR-305 통과 기준을 바꾸므로 사용자 몫이다.
+- Q13 로그인 기록: 성공만 `operation_logs`(`auth.login`), 실패는 앱 로그 INFO. 원문 D15 7절은 실패도 남기라 한다 — 지울 수 없는 표를 익명 공격자가 키우지 못하게 다르게 했다.
+- Q14 사용자 삭제: 비활성만, 삭제는 뒤로. 단 `operation_logs` 의 SET NULL 예외 트리거는 지금 둔다.
+- Q15 작업 로그 `ip`: 지금 `getRemoteAddr`. 클라이언트 IP 함수 하나를 횟수 제한과 함께 쓰고 Phase 4 에서 그 한 곳만 고친다.
+- Q16 재인증 신호: 창이 닫혀 있으면 403 + 재인증 전용 `type` → 같은 대화상자에 비밀번호 칸 → 별도 `POST /api/admin/reauth`(계정당 5회/분) → 원 요청을 클라이언트가 다시 보낸다. 원문은 재인증을 폼 칸으로 받는다 — 비밀번호가 닿는 처리기를 하나로 모으려고 다르게 했다(1-B2).
+- Q17 기간 조회 시간대: 1-B 대상 없음. 그때의 기본안은 JVM 기본 시간대(원문 「서버 시간대」).
+- 설계 검토(2026-11-21, advisor): A-602 는 `connected` 칸 없이 DB 서버 판으로 연결을 보인다(false 경로가 없어 시험할 수 없다). 사이트 이름은 설치와 A-201 이 같은 규칙 — 앞뒤 공백(NBSP 포함)을 빼고, 공백·보이지 않는 문자만이면 거부.
+
+1-B 에서 미룬 하위 동작과 갈 곳(Phase 1 이 끝나도 잊지 않게):
+
+| 미룬 것 | 갈 곳 | 이유 |
+|---|---|---|
+| 사용자 삭제 `user.delete`(Q14, FR-704 「삭제」) | Phase 3(커머스) | 주문 RESTRICT 거부와 함께 시험한다. SET NULL 트리거는 1-B1 에 있다 |
+| 표시 이름 수정(Q9) | 1-E(내 정보 FR-211 과 같은 상한) | |
+| 타인 비밀번호 재설정 강제 `user.reset_password`(Q11) | 1-E(메일) | SMTP 없이는 늘 409 |
+| 역할 생성·삭제·이름 변경(Q7) | Phase 2(게시판별 권한이 생길 때) | 원문 구현에도 없다 |
+| 사이트 유형 전환(Q5) | Phase 3(커머스) | 바꿔서 달라지는 라우트가 그때 생긴다 |
+| 대시보드 위젯(FR-702) | 보여 줄 지표가 생기는 Phase(2 이후) | 원문 「빈 셸이어도 완료」 |
+| 관리자 메뉴 숨김(FR-720) | 고정 화면 A-207·A-209 가 생기는 Phase | |
+| 작업 로그 기간 조회(FR-712)와 시간대(Q17) | Phase 3(원문 배정) | |
+
+## Phase 1-B1 구현 중 결정과 보안 점검 (2026-11-21)
+
+스펙 `docs/superpowers/specs/2026-11-21-phase1b1-admin-shell-design.md`, 계획 `docs/superpowers/plans/2026-11-21-phase1b1-admin-shell.md`. Task 마다 개발 에이전트가 순서대로 맡았다.
+
+구현하며 찾아 고친 것(시험이 잡았다):
+
+- **사이트 이름에 U+0000 이 들면 PostgreSQL 이 거부해 A-201 이 500 이었다.** 제어 문자(`\p{Cc}`)가 하나라도 있으면 422 「쓸 수 없는 문자가 있습니다」. 설치도 같은 함수라 함께 막힌다. 프런트 zod 도 같은 규칙·순서(필수 → 제어 문자 → 100자, 첫 위반 하나만)다(`SiteNameTest`, `SettingsApiTest` 「제어_문자가_든_이름은_500_이_아니라_422」, `siteName.test`).
+- **영역 ID 가 붙은 IPv6(`fe80::1%eth0`)에서 행을 잃었다.** `CASE WHEN pg_input_is_valid(?, 'inet') THEN ?::inet END` 는 바인드 값이 상수로 접혀 22P02 가 났다. `WITH v AS MATERIALIZED (SELECT ?::text AS ip) INSERT … SELECT` 로 바꿨다. PostgreSQL 이 이 CTE 도 접게 바뀌면 `OperationLogTest` 「inet_으로_읽을_수_없는_IP_도_행은_남고_ip_는_NULL」이 드러낸다.
+- **로그아웃·로그인은 `me`·`admin` 쿼리만 지운다.** 그래서 같은 탭에서 다시 들어오면 응답 전에 앞 사람의 작업 로그·시스템 정보가 보였다. 두 쿼리에 `gcTime: 0` 을 넣어 화면을 떠나면 캐시를 지운다. 대가는 쪽을 오갈 때마다 요청 하나다(`OplogPage.test`·`SystemPage.test` 「화면을 떠나면 캐시를 남기지 않는다」).
+- **저장 뒤 `/api/site` 다시 읽기가 실패하면 폼과 입력이 사라졌다.** 값이 있으면 오류보다 먼저 본다(`SettingsPage.test` 「저장 뒤 /api/site 를 다시 읽지 못해도 폼과 입력값이 남는다」).
+- **E2E 의 jar 출력을 파일(`jar.log`, CI 는 실패 때 산출물)로 남기자 Boot 기동 줄이 jar 절대 경로와 OS 사용자 이름을 찍었다.** `--spring.main.log-startup-info=false` 를 넣었다. 빼면 `check-public.sh` 가 홈 경로 두 줄을 잡는다. 산출물에는 그 밖에 가짜 설치 값, 일회용 서버의 세션·XSRF, 시험 소스 경로가 든다. 모두 가짜·일회용이다(CI 주석).
+
+정한 것:
+
+- 작업 로그 쪽 번호
+  - 화면의 `?page=` 는 양의 정수(`^[1-9]\d*$`)가 아니면 1쪽으로 본다.
+  - 서버는 `page=0` 이면 422 `errors.page`, `abc`·`2147483648` 이면 400 Problem Details, `2147483647` 이면 200 과 빈 `items` 다(offset 은 long).
+  - 「다음」은 `page * page_size < total` 일 때만 보인다.
+- 조회 화면(A-601·A-602)
+  - 403 이면 「권한이 없습니다」다.
+  - 그 밖의 실패는 `role="alert"` 「…를 불러오지 못했습니다」다.
+  - 제목(h2)은 모든 분기에서 같은 자리에 남는다.
+- 작업 로그 표
+  - 주체: 이메일이 비면 「시스템」, `actor_user_id` 가 NULL 이고 이메일이 있으면 「(삭제된 계정) 이메일」이다.
+  - 대상: `target_type target_id` 로 보이고, 빈 값은 뺀다.
+- `useSave`
+  - 성공은 `response.ok` 로 판정한다(스펙은 204). A-201 은 204 뿐이라 결과가 같다.
+  - 파일은 `useSave.tsx` 다(스펙은 `.ts`). 오류 칸 `SaveAlert` 를 함께 내보내기 때문이다.
+- 422 는 칸 옆 메시지(`aria-invalid`·`aria-describedby`)만 보이고 `role="alert"` 알림은 띄우지 않는다. 계획의 「422 → fieldErrors(알림 없음)」로 해석했다.
+- 하위 화면 제목 h2 가 초점을 받는다(`tabIndex={-1}`). `main` 은 관리자 셸 하나뿐이다.
+- 시험 컨트롤러는 운영 컨텍스트에 `--spring.main.sources=fixture.guard.AdminProbeConfig` 인자로 넣는다. Boot 가 추가 소스로 묶는 것을 확인했고, `AutoConfiguration.imports` 대안은 쓰지 않았다.
+- A-601 의 질의 수는 `pg_stat_statements` 로 센다. `postgres:18-alpine` 에 들어 있고 `shared_preload_libraries` 로 올라간다.
+- 「구현 때 확인」의 결과
+  - Flyway 12.4.0: `MigrationInfo` 의 `getVersion().getVersion()`·`getInstalledOn()`(`java.util.Date`)·`getState().isFailed()`(javap).
+  - `@RequestParam int` 변환 실패: `ApiErrors` 가 상속한 처리기가 400 `application/problem+json` 을 낸다.
+  - zod 4: `z.string().overwrite(strip).superRefine(…)` 하나로 쓴다.
+  - JS `trim` 은 NBSP 는 빼지만 U+200B 는 남긴다. 그래서 공용 `stripSiteName` 을 쓴다.
+  - `actions/upload-artifact` v7.0.2: 태그 SHA 가 계획 값과 같다.
+
+D86(ondolith 보안 점검 목록) 대조 — 1-B1 범위:
+
+| D86 | 결과 |
+|---|---|
+| **1.12 프록시 뒤에서 IP 별 제한이 사이트 전체 제한이 된다** | **미해결 — Phase 4 배포 전 필수.** 작업 로그 `ip` 도 같은 한계다. 고칠 곳은 `ClientIp` 하나(횟수 제한 둘과 기록기가 함께 쓴다) |
+| 2.1 처리기 권한·기동 점검 | ✓ `AdminPermissionTest`(그 권한만·`admin.access` 만 403, 둘 다 200, 익명 401). `GuardCheckTest` 「관리자_경로에_admin_access_가_빠진_표시가_있으면_기동이_멈춘다」(실제 기동), 「관리자_경로에는_admin_access_를_요구하는_표시만_단다」, 「쓰는_권한에_AdminPermission_의_값도_센다」 |
+| 2.5 대량 할당 | ✓ `SettingsApiTest` 「본문의_다른_칸은_읽지_않는다」(`type` 을 보내도 `site.type` 그대로) |
+| 2.8 관리자 60/분 | 새 API 셋은 1-A 필터의 `/api/admin/**` 패턴에 든다. 새 경로를 직접 친 횟수 시험은 없다(`RateLimitTest` 는 `/api/admin`·`/api/%61dmin`) |
+| 3.1 CSRF | ✓ `SettingsApiTest` 「운영자와_관리자는_204_편집자는_403_익명은_401_CSRF_없으면_403」 |
+| 3.10 오류가 내부를 말하지 않는다 | ✓ 400 은 `OplogApiTest` 「쪽_번호_검사」가 `application/problem+json` 을 단언. 401·403·422 는 1-A 공통 처리 그대로(새 API 로 본문 모양을 단언하지는 않는다) |
+| 4.15 A-201 저장이 작업 로그에 남고 D19 대로 검사 | ✓ `SettingsApiTest` 「바뀌면_행_하나_같은_값이면_행이_늘지_않는다」(`summary = 'site.name'`), 「길이는_1자에서_100자까지_앞뒤_공백은_빼고_잰다」 |
+| 5.10 시크릿이 로그·화면에 없음 | ✓ `SettingsApiTest` 「작업_로그_행에_비밀번호_세션_토큰_DB_비밀번호가_없다」, `SystemApiTest` 「본문에_DSN_호스트_포트_DB_계정_비밀번호가_없다」 |
+| 5.11 append-only | ✓ `MigrationTest` 「V3_의_작업_로그는_고치거나_지울_수_없고_사용자_삭제만_actor_를_비운다」(UPDATE·DELETE·TRUNCATE·actor 와 다른 칸을 함께 바꾸는 UPDATE 거부, 사용자 삭제 뒤에도 고칠 수 없음). 한계: 앱이 표 소유자라 `DROP TRIGGER` 는 된다(원문과 같다) |
+| 6.6 로그에 DSN·비밀번호 없음 | ✓ `OperationLogTest`·`SettingsApiTest` 「기록이_실패해도 … ERROR_줄에_이메일과_IP_가_없다」(출력 전체에서 이메일·거부 값이 없다), A-602 는 고정 칸만 |
+| 7.3 목록 질의 한 번 | ✓ `OplogApiTest` 「쪽마다_100행_최신이_먼저_질의는_행_수와_관계없이_둘」(목록·셈) |
+| 7.13·7.16 셈·무한 증가 | ✓ 셈은 같은 시험의 `total` 101. 무한 증가는 설계 성질이다 — 지우지 않고, `LIMIT 100` 과 `created_at DESC` 인덱스로 읽는다(시험 없음). 깊은 쪽은 OFFSET 이 표를 훑어 느리다 |
+| 1.11·1.13·2.3·2.4·2.4a·2.7·2.10 | 1-B2 |
+
+시험(2026-11-21, 커밋 전 작업 트리 = d528dc9 + 이 문서): `nice -n 19 mise run test` → 셸 100 통과(check-public 17·measure 62·pre-commit 4·summarize 17)·백엔드 135 통과(실패 0, 오류 0, skip 0)·프런트 74 통과·typecheck 0, exit 0. E2E 는 이번에 다시 돌리지 않았다 — Task 8(d528dc9)에서 `mise run e2e` 7 통과. 메모리 측정은 1-B2 뒤(스펙 8절).
+
+최종 검토에 넘긴 것(고치지 않았다):
+
+- 서버 422 뒤 초점을 칸으로 옮기지 않는다. 화면 낭독기가 서버 칸 오류를 바로 듣지 못한다. 422 에도 `role="alert"` 를 띄워야 한다고 보면 고칠 곳은 `SaveAlert` 하나다.
+- 작업 로그에서 「다음」을 누르면 새 쪽이 올 때까지 표와 쪽 nav 가 빠져 초점이 body 로 간다. 스펙에 쪽 이동 초점 규칙이 없다.
+- Vite 로그에 React Router 경고 「Matched leaf route at location "/admin" does not have an element」가 찍힌다. 빈 index 라우트로 보인다(추정). 동작은 시험대로다.
+- 전체 시험에서 `SwitchTest` 가 한 번 5분 넘게 멈췄다(PG 연결 대기, 다시 돌려 통과). 로컬 `postgres:18-alpine` 이미지가 amd64 라 에뮬레이션으로 도는 것과의 관계는 확인하지 않았다.
+
+### 1-B1 최종 검토 (2026-11-21, 새 검토자) — 판정 With fixes, Critical 0 · Important 1 · Minor 11
+
+고친 것:
+
+- **I-1** 계정에 묶인 쿼리의 캐시 보호가 쿼리마다 `gcTime: 0` 을 기억해야 하는 방식이었다. 관리자 데이터 키를 `["admin", …]` 아래로 옮겨, 로그인·로그아웃이 이미 지우는 키에 묶었다(`adminCache.test.tsx` Red→Green). 다른 탭에서 계정이 바뀌는 경우를 위해 `gcTime: 0` 은 그대로 둔다. **1-B2 의 관리자 쿼리도 모두 `["admin", …]` 아래에 둔다.**
+- **M-6(보안이라 올려 고침)** `safeNext` 가 `/.//evil.test`·`/a/..//evil.test` 를 통과시켰다(라우터의 정규화가 막고 있었다). 점 마디를 푼 뒤에도 같은 검사를 한다(`safeNext.test.ts` Red→Green).
+
+미룬 Minor와 갈 곳:
+
+| 항목 | 갈 곳 |
+|---|---|
+| M-1 서버 422 뒤 첫 오류 칸으로 초점(`useSave` 공용) | **1-B2 첫 폼 전**(서버만 아는 오류가 생긴다) |
+| M-2 422 에 `role="alert"` 를 띄우지 않는다 — 검토자가 개발자 해석을 지지. 스펙 6절 문장만 고친다 | 1-B2 스펙 |
+| M-3 쪽을 넘기면 초점이 body 로 — 쪽이 바뀌면 h2 로 | 1-B2(사용자 목록이 같은 쪽 나누기를 쓴다) |
+| M-4 `/admin` index 라우트 경고 — `<Route index element={null} />` | 1-B2 |
+| M-5 사용자가 남아 있어도 `SET actor_user_id = NULL` 이 통과한다(원문과 같다, 이메일 스냅샷은 남는다). 시험 이름·SQL 주석이 사실보다 넓다 | 1-B2(문구 바로잡기, 트리거 강화는 판단) |
+| M-7 관리자 경로 판정이 패턴 문자열 비교 — `/api/{x}/…` 꼴 매핑을 기동 점검이 거부 | 1-B2 |
+| M-8 서버(Java 25)와 브라우저의 유니코드 판이 다르면 「필수입니다」 판정이 갈린다(U+11B60). 결과는 칸 옆 422 | 한계로 둔다 |
+| M-9 작업 로그 화면의 401 이 로그인 안내 없이 「불러오지 못했습니다」, 범위 밖 `?page=` 의 「이전」 | 1-B2 |
+| M-10 `/api/me` 실패가 사이트 설정에서 「권한이 없습니다」로 보인다 | 1-B2 |
+| M-11 로컬 `postgres:18-alpine` 이 amd64(에뮬레이션). 1-A 측정의 DB 유휴 약 2배와 `SwitchTest` 멈춤의 원인 후보(확인 안 함) | 1-B2 측정 때 플랫폼·다이제스트를 고정하고 다시 잰다 |

@@ -24,6 +24,18 @@ describe("관리자 문", () => {
     expect(await screen.findByTestId("location")).toHaveTextContent("/login?next=%2Fadmin");
   });
 
+  it("하위 주소에서 401 이면 next 가 그 주소(쿼리까지)를 담는다", async () => {
+    mockApi(() => json(401, { status: 401, detail: "로그인이 필요합니다" }));
+    renderWithQuery(
+      <Routes>
+        <Route path="/admin/*" element={<AdminGate />} />
+        <Route path="*" element={<LocationProbe />} />
+      </Routes>,
+      "/admin/oplog?page=2",
+    );
+    expect(await screen.findByTestId("location")).toHaveTextContent(/^\/login\?next=%2Fadmin%2Foplog%3Fpage%3D2$/);
+  });
+
   it("권한이 없으면(403) 권한이 없다고 보인다", async () => {
     mockApi(() => json(403, { status: 403, detail: "권한이 없습니다" }));
     renderAdmin();

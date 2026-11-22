@@ -93,16 +93,16 @@ public class GuardCheck implements SmartInitializingSingleton {
 				continue;
 			}
 			if (m.isAnnotationPresent(PreAuthorize.class) || type.isAnnotationPresent(PreAuthorize.class)) {
-				problems.add(name + ": @PreAuthorize 를 직접 쓰지 않는다(@RequiresPermission·@PublicApi)");
+				problems.add(name + ": @PreAuthorize 를 직접 쓰지 않는다(@RequiresPermission·@AdminPermission·@PublicApi)");
 				continue;
 			}
 			// 메타 애너테이션까지 센다 — 누가 만든 합성 애너테이션의 @PreAuthorize 가 클래스의 표시를 덮을 수 있다
-			long marks = Stream.of(m, type).filter(e -> AnnotatedElementUtils.hasAnnotation(e, RequiresPermission.class)).count()
-					+ Stream.of(m, type).filter(e -> AnnotatedElementUtils.hasAnnotation(e, PublicApi.class)).count();
+			long marks = Stream.of(RequiresPermission.class, AdminPermission.class, PublicApi.class)
+				.mapToLong(a -> Stream.of(m, type).filter(e -> AnnotatedElementUtils.hasAnnotation(e, a)).count()).sum();
 			long rules = Stream.of(m, type)
 				.mapToLong(e -> AnnotatedElementUtils.findAllMergedAnnotations(e, PreAuthorize.class).size()).sum();
 			if (marks == 0) {
-				problems.add(name + ": 권한 표시가 없다(@RequiresPermission 또는 @PublicApi)");
+				problems.add(name + ": 권한 표시가 없다(@RequiresPermission·@AdminPermission·@PublicApi)");
 			}
 			else if (marks > 1 || rules > 1) {
 				problems.add(name + ": 권한 표시가 둘 이상이다(메서드·클래스 합쳐 하나)");
@@ -121,15 +121,23 @@ public class GuardCheck implements SmartInitializingSingleton {
 		return problems;
 	}
 
-	/** /api/admin/** 는 관리자 트리 진입 경계다(1-A 스펙 5절, D15 1.2) — 공개 표시를 달 수 없다. */
+	/**
+	 * /api/admin/** 는 관리자 트리 진입 경계다(1-A 스펙 5절, D15 1.2) — 공개 표시를 달 수 없고,
+	 * @RequiresPermission 은 ADMIN_ACCESS 만 된다. 다른 권한은 @AdminPermission 으로 admin.access 와 함께 요구한다(1-B1 스펙 3절).
+	 */
 	static List<String> checkAdminPaths(Map<RequestMappingInfo, HandlerMethod> mappings) {
 		List<String> problems = new ArrayList<>();
 		mappings.forEach((info, h) -> {
 			boolean admin = info.getPatternValues().stream().anyMatch(p -> p.equals("/api/admin") || p.startsWith("/api/admin/"));
 			boolean open = Stream.of(h.getMethod(), h.getBeanType())
 				.anyMatch(e -> AnnotatedElementUtils.hasAnnotation(e, PublicApi.class));
+			String name = h.getBeanType().getName() + "#" + h.getMethod().getName();
 			if (admin && open) {
-				problems.add(h.getBeanType().getName() + "#" + h.getMethod().getName() + ": /api/admin 경로에 @PublicApi 를 달 수 없다");
+				problems.add(name + ": /api/admin 경로에 @PublicApi 를 달 수 없다");
+			}
+			RequiresPermission r = requires(h);
+			if (admin && r != null && r.value() != Permission.ADMIN_ACCESS) {
+				problems.add(name + ": /api/admin 경로의 @RequiresPermission 은 ADMIN_ACCESS 만 된다(@AdminPermission 을 쓴다)");
 			}
 		});
 		return problems;
@@ -138,15 +146,25 @@ public class GuardCheck implements SmartInitializingSingleton {
 	static Set<Permission> used(Collection<HandlerMethod> handlers) {
 		Set<Permission> used = EnumSet.noneOf(Permission.class);
 		for (HandlerMethod h : handlers) {
-			RequiresPermission r = AnnotatedElementUtils.findMergedAnnotation(h.getMethod(), RequiresPermission.class);
-			if (r == null) {
-				r = AnnotatedElementUtils.findMergedAnnotation(h.getBeanType(), RequiresPermission.class);
-			}
+			RequiresPermission r = requires(h);
 			if (r != null) {
 				used.add(r.value());
 			}
+			AdminPermission a = AnnotatedElementUtils.findMergedAnnotation(h.getMethod(), AdminPermission.class);
+			if (a == null) {
+				a = AnnotatedElementUtils.findMergedAnnotation(h.getBeanType(), AdminPermission.class);
+			}
+			if (a != null) {
+				used.add(a.value());
+			}
 		}
 		return used;
+	}
+
+	/** 메서드 먼저, 없으면 클래스. */
+	private static RequiresPermission requires(HandlerMethod h) {
+		RequiresPermission r = AnnotatedElementUtils.findMergedAnnotation(h.getMethod(), RequiresPermission.class);
+		return r != null ? r : AnnotatedElementUtils.findMergedAnnotation(h.getBeanType(), RequiresPermission.class);
 	}
 
 	/** DB 의 권한 키 집합이 코드의 권한 목록과 같아야 한다(D15 P1: 코드가 정하고 마이그레이션이 심는다). */

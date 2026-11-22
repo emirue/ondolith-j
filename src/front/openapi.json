@@ -1,6 +1,14 @@
 {
   "components" : {
     "schemas" : {
+      "Database" : {
+        "properties" : {
+          "server_version" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Health" : {
         "properties" : {
           "state" : {
@@ -60,8 +68,6 @@
             "type" : "string"
           },
           "site_name" : {
-            "maxLength" : 100,
-            "minLength" : 0,
             "type" : "string"
           },
           "site_type" : {
@@ -108,6 +114,82 @@
         },
         "type" : "object"
       },
+      "MigrationRow" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "installed_on" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "success" : {
+            "type" : "boolean"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OplogItem" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "actor_email" : {
+            "type" : "string"
+          },
+          "actor_user_id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "ip" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "target_id" : {
+            "type" : "string"
+          },
+          "target_type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OplogPage" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OplogItem"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "page_size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ProblemDetail" : {
         "properties" : {
           "detail" : {
@@ -137,12 +219,41 @@
         },
         "type" : "object"
       },
+      "SettingsRequest" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Site" : {
         "properties" : {
           "name" : {
             "type" : "string"
           },
           "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SystemInfo" : {
+        "properties" : {
+          "database" : {
+            "$ref" : "#/components/schemas/Database"
+          },
+          "migrations" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MigrationRow"
+            },
+            "type" : "array"
+          },
+          "pending_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "version" : {
             "type" : "string"
           }
         },
@@ -214,6 +325,203 @@
           }
         },
         "tags" : [ "admin-controller" ]
+      }
+    },
+    "/api/admin/oplog" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 1,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OplogPage"
+                }
+              }
+            },
+            "description" : "한 쪽(100행). 끝을 넘으면 빈 items"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "page 가 정수가 아님"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "log.view 권한 없음"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "page 가 1 미만. errors.page"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "oplog-controller" ]
+      }
+    },
+    "/api/admin/settings" : {
+      "post" : {
+        "operationId" : "save",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "저장됨(값이 같아도)"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "본문이 JSON 이 아님"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "settings.update 권한 없음·CSRF 토큰 없음"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "입력 오류. errors.name"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "settings-controller" ]
+      }
+    },
+    "/api/admin/system" : {
+      "get" : {
+        "operationId" : "info",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SystemInfo"
+                }
+              }
+            },
+            "description" : "jar 버전·적용된 마이그레이션·대기 수·DB 서버 판"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "settings.view 권한 없음"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "system-controller" ]
       }
     },
     "/api/auth/login" : {

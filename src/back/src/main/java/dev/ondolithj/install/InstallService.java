@@ -1,6 +1,7 @@
 package dev.ondolithj.install;
 
 import dev.ondolithj.config.ConfigFile;
+import dev.ondolithj.shared.SiteName;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -186,7 +187,7 @@ class InstallService {
 							"INSERT INTO users (email, password_hash) VALUES (?, ?) RETURNING id");
 					PreparedStatement role = c.prepareStatement(
 							"INSERT INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE key = 'admin'")) {
-				settings.setString(1, req.siteName().strip());
+				settings.setString(1, SiteName.strip(req.siteName()));
 				settings.setString(2, req.type());
 				settings.executeUpdate();
 				user.setString(1, email);

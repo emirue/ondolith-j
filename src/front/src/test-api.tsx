@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter, useLocation } from "react-router";
 import { vi } from "vitest";
+import { NoticeProvider } from "@/shared/ui/notice";
 
 type Handler = (req: Request) => Response | Promise<Response>;
 
@@ -16,12 +17,15 @@ export function mockApi(handler: Handler) {
 export const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** 쿼리 클라이언트와 메모리 라우터로 감싼다. route 는 시작 주소. */
-export function renderWithQuery(ui: ReactElement, route = "/") {
+/**
+ * 쿼리 클라이언트와 메모리 라우터로 감싼다. route 는 시작 주소.
+ * notice 면 알림 제공자도 — 늘 감싸면 다른 화면의 role="status" 와 겹친다.
+ */
+export function renderWithQuery(ui: ReactElement, route = "/", { notice = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>{notice ? <NoticeProvider>{ui}</NoticeProvider> : ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }

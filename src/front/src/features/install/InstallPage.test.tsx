@@ -71,6 +71,19 @@ describe("설치 화면", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("password authentication failed");
   });
 
+  it("사이트 이름이 NBSP·영폭 공백뿐이면 보내기 전에 칸 옆에 「필수입니다」", async () => {
+    const f = mockApi(() => new Response(null, { status: 202 }));
+    renderWithQuery(<InstallPage onSubmitted={() => {}} />);
+    const u = await fillValid();
+    for (const name of ["\u00A0\u00A0", "\u200B"]) {
+      await u.clear(screen.getByLabelText("사이트 이름"));
+      await u.type(screen.getByLabelText("사이트 이름"), name);
+      await u.click(screen.getByRole("button", { name: "설치" }));
+      expect(await screen.findByText("필수입니다")).toHaveAttribute("id", "site_name-error");
+    }
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("비밀번호 확인이 다르면 보내기 전에 칸 옆에 알린다", async () => {
     const f = mockApi(() => new Response(null, { status: 202 }));
     renderWithQuery(<InstallPage onSubmitted={() => {}} />);
