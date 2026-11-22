@@ -95,9 +95,10 @@
   - 저장: `email_verified_at = now()`(관리자가 보증한 주소, D19), 역할 없음. 201 `{"id": "<uuid>"}`.
 - **비활성** `POST /api/admin/users/{id}/deactivate`·**활성** `…/activate`: `user.update`. 본문 없음.
   - 순서: 재인증(3.1) → 대상 없음 404(남기지 않음) → 자기 계정 403 「자기 계정에는 이 작업을 할 수 없습니다」(남김) → R6 → (비활성만) 마지막 관리자(5절) → 쓰기 → 기록.
+  - R6 은 처리기에서 보고, **한 번 더 본다**(1-B2 구현 중 고침, 결정 문서). 처리기가 본 뒤 대상이 보유자가 되면 비-superuser 의 요청이 지나가는 틈이 있어서다. 비활성화는 5절 잠금 아래에서 대상 보유 여부를 다시 읽을 때 R6 을 마지막 관리자보다 먼저 보고, 걸리면 롤백하고 403(`user.denied user.deactivate r6`)이다. 활성화는 잠금이 없으므로 쓰기 문장이 판정한다(아래).
   - R6: 대상이 superuser 역할 보유자(활성 여부 무관)인데 요청자가 superuser 가 아니면 403(남김). **비활성과 활성 둘 다에 건다**(Q19). 활성화는 막아 둔 계정을 다시 여는 일이다(D19 재인증 행, 원문 코드). 1-E 전에는 비활성화가 유일한 탈취 대응이라(Q11), 비-superuser 가 superuser 보유자를 다시 열면 막은 효과가 사라진다. D15·D19 의 R6 목록(비활성·삭제·재설정)보다 넓다(ondolith-j 결정).
   - 비활성 쓰기: `UPDATE users SET is_active = false, sessions_valid_from = GREATEST(now(), sessions_valid_from + interval '1 microsecond'), updated_at = now() WHERE id = ?`. 그 계정의 모든 세션이 다음 요청에서 거부되고, 재활성화가 옛 세션을 살리지 않는다(Q11, D86 1.19).
-  - 활성 쓰기: `is_active = true` 만. 기준 시각은 건드리지 않는다(이미 비활성화 때 옮겼다). 잠금이 필요 없다(늘리는 방향, Q10).
+  - 활성 쓰기: `is_active = true`(와 `updated_at`)만. 기준 시각은 건드리지 않는다(이미 비활성화 때 옮겼다). 잠금이 필요 없다(늘리는 방향, Q10). R6 은 같은 문장의 `WHERE` 에서 다시 본다 — `UPDATE users u … WHERE u.id = ? AND (<요청자 superuser> OR NOT <superuser 보유 술어>)`. 0행이면 대상이 있는지 한 번 읽어, 있으면 403(`user.denied user.activate r6`), 없으면 404 다.
   - 이미 그 상태여도 204 이고 기록한다(원문 코드와 같다 — 성공 응답마다 남긴다).
   - 자기 계정·대상 비교는 `UUID` 값끼리(D86 2.10). 대문자 경로도 같은 사람이다.
 - 요청자의 superuser 여부는 `Actor` 에 칸 `superuser` 를 더해 싣는다. `ActorQuery` 가 이미 같은 질의에서 계산한다(R9 대로 `anonymous`·`member` 의 표시는 세지 않는다). 「권한 전부를 가졌다」로 대신하지 않는다 — A-404 로 모든 권한을 받은 역할이 superuser 가 되면 안 된다.
@@ -113,6 +114,7 @@
   ```
   **거절 조건: 대상이 활성이고 superuser 역할 보유자이며, 활성 보유자 수 ≤ 1.** 거절이면 롤백하고 409. 아니면 같은 트랜잭션에서 쓰고 커밋한다.
 - **대상의 활성·보유 여부는 잠금을 얻은 뒤 같은 트랜잭션에서 다시 읽는다.** 비활성화와 역할 빼기는 대상이 보유자가 아니어 보여도 늘 이 함수를 거친다 — 처리기에서 먼저 읽은 값으로 잠금을 건너뛰면, 「R 이 X(보유자 아님) 비활성화 시작 → A 가 X 에게 `admin` 부여 → X 가 A 비활성화(셈 2, 통과) → R 의 쓰기가 X 비활성화」로 활성 관리자가 0 이 된다(설계 검토). 잠금 아래의 쓰기가 0행이면(그 사이 대상이 사라졌거나 역할이 이미 빠졌다) 204 가 아니라 404 다.
+- 잠금 아래 순서(1-B2 구현): 대상 없음(404) → R6(대상이 보유자인데 요청자가 superuser 아님, 롤백하고 403) → 마지막 관리자(409) → 쓰기(0행이면 404) → 커밋. 함수는 요청자의 superuser 여부를 인자로 받는다. superuser 역할 빼기는 R3 이 이미 요청자를 superuser 로 거른 뒤라 R6 에 걸리지 않는다.
 - **「superuser 보유」 술어는 하나다.** `ActorQuery`(R9 대로 `anonymous`·`member` 의 `is_superuser` 를 세지 않는다), R6 의 대상 판정, 이 셈이 같은 SQL 조각을 쓴다. 셈이 인증보다 넓으면 인증이 인정하지 않는 보유자가 세어져 진짜 마지막 관리자가 통과한다. 위 SQL 의 `r.is_superuser` 에 `AND r.key NOT IN ('anonymous', 'member')` 가 붙는 꼴이다.
 - 식으로 답이 나오는 경우: 비활성 보유자의 역할 빼기는 통과(셈에 들지 않는다). 이미 비활성인 계정의 비활성화는 통과(대상이 활성이 아니다). 보유자가 아닌 계정은 늘 통과.
 - **기록은 트랜잭션 밖에서 한다** — 성공 행은 커밋 뒤, 409 거절 행(남김, D19)은 롤백 뒤. 기록 실패가 일을 되돌리지 않는다(1-B1 4.1).
@@ -128,16 +130,17 @@
   - superuser 역할은 `permissions` 가 비고 화면이 「모든 권한(편집할 수 없음)」으로 보인다.
   - 질의 둘(역할+부여 집계, 권한 목록), 행 수와 무관. 정렬은 `key`.
 - **A-404 부여** `POST /api/admin/roles/{id}/permissions` `{"permission": "user.view"}`, **빼기** `…/permissions/revoke` 같은 본문: `role.manage`.
-  - 부여 순서: 재인증 → 역할 없음 404 → 모르는 키 422 `errors.permission` 「알 수 없는 권한입니다」(남김) → R5 superuser 역할 403 「이 역할의 권한은 변경할 수 없습니다」(남김) → R9 `anonymous`·`member` 에 방문자 권한 밖 422 `errors.permission` 「모두가 갖는 역할에는 방문자 권한만 줄 수 있습니다」(남김) → R4 403 「보유하지 않은 권한은 부여할 수 없습니다」(남김) → `INSERT … ON CONFLICT DO NOTHING` → 204, 기록.
+  - 부여 순서: 재인증 → `permission` 이 null·빠짐이면 422 `errors.permission` 「필수입니다」(남기지 않음) → 역할 없음 404 → 모르는 키 422 `errors.permission` 「알 수 없는 권한입니다」(남김) → R5 superuser 역할 403 「이 역할의 권한은 변경할 수 없습니다」(남김) → R9 `anonymous`·`member` 에 방문자 권한 밖 422 `errors.permission` 「모두가 갖는 역할에는 방문자 권한만 줄 수 있습니다」(남김) → R4 403 「보유하지 않은 권한은 부여할 수 없습니다」(남김) → `INSERT … ON CONFLICT DO NOTHING` → 204, 기록.
   - 1-B 에는 방문자 권한이 없어 두 역할로의 부여는 모두 422 다. 자기가 속한 역할도 거부하지 않는다(R4 가 막는다, D19).
-  - 빼기 순서: 재인증 → 404 → 모르는 키 422(남김) → R5(남김) → R4(남김) → 삭제, 0행이면 404 「그런 부여가 없습니다」 → 204, 기록. **R9 는 빼기에 걸지 않는다** — 잘못 들어간 것을 빼는 길이다(D13).
+  - 빼기 순서: 재인증 → 칸 null 422(부여와 같다) → 404 → 모르는 키 422(남김) → R5(남김) → R4(남김) → 삭제, 0행이면 404 「그런 부여가 없습니다」 → 204, 기록. **R9 는 빼기에 걸지 않는다** — 잘못 들어간 것을 빼는 길이다(D13).
 - **A-405 부여** `POST /api/admin/users/{id}/roles` `{"role_id": "<uuid>"}`, **빼기** `…/roles/revoke` 같은 본문: `role.assign`.
-  - 부여 순서: 재인증 → 사용자·역할 없음 404 → `is_assignable = false` 422 `errors.role_id` 「줄 수 없는 역할입니다」(공통 규약 「읽었지만 받을 수 없음」, 남기지 않음) → R1 자기 계정 403 「자기 계정의 역할은 변경할 수 없습니다」(남김) → R3 superuser 역할인데 요청자가 superuser 아님 403 「이 역할은 관리자만 부여할 수 있습니다」(남김) → R2 403 「보유하지 않은 권한이 포함된 역할입니다」(남김) → `INSERT … ON CONFLICT DO NOTHING`(이미 있으면 그대로, 멱등) → 204, 기록.
+  - 부여 순서: 재인증 → `role_id` 가 null·빠짐이면 422 `errors.role_id` 「필수입니다」(남기지 않음) → 사용자·역할 없음 404 → `is_assignable = false` 422 `errors.role_id` 「줄 수 없는 역할입니다」(공통 규약 「읽었지만 받을 수 없음」, 남기지 않음) → R1 자기 계정 403 「자기 계정의 역할은 변경할 수 없습니다」(남김) → R3 superuser 역할인데 요청자가 superuser 아님 403 「이 역할은 관리자만 부여할 수 있습니다」(남김) → R2 403 「보유하지 않은 권한이 포함된 역할입니다」(남김) → `INSERT … ON CONFLICT DO NOTHING`(이미 있으면 그대로, 멱등) → 204, 기록.
   - 대상 계정이 비활성일 때: 거부하지 않는다. 역할과 활성 상태는 별개다(D19 거부 조건, Q18). superuser 역할은 대상이 비활성이어도 R3 대로 superuser 만 준다. 비활성 보유자는 마지막 관리자 셈에 들지 않으므로 부여·빼기 모두 잠금 판정을 바꾸지 않는다.
-  - 빼기 순서: 부여와 같은 R1·R3·R2(D13) → 갖지 않았으면 404 「그 사용자는 이 역할을 갖고 있지 않습니다」 → superuser 역할이면 5절의 잠금 아래서 지운다(409 「마지막 관리자의 역할은 회수할 수 없습니다」, 남김) → 204, 기록.
+  - 빼기 순서: 재인증 → 칸 null 422(부여와 같다) → 사용자·역할 없음 404 → 부여와 같은 R1·R3·R2(D13) → 갖지 않았으면 404 「그 사용자는 이 역할을 갖고 있지 않습니다」 → superuser 역할이면 5절의 잠금 아래서 지운다(409 「마지막 관리자의 역할은 회수할 수 없습니다」, 남김) → 204, 기록.
   - 이메일로 대상을 찾는 입구(원문 A-403 의 폼)는 두지 않는다(Q18). 입구는 A-402 상세의 `user_id` 하나다. `role.assign` 은 있고 `user.update` 가 없는 역할은 부여 화면이 없다 — 화면이 열리지 않는 쪽으로 실패하고 API 는 그대로 된다. `ponytail:` 설치처가 그런 역할을 쓰면 A-403 에 이메일 입구(활성 회원만, 부여만)를 더한다. 원문의 「부여 현황 GET `role.assign`」도 그때 본다.
   - 세션 부수효과는 없다. 권한은 요청마다 DB 에서 읽으므로 다음 요청부터 반영된다(1-A).
 - body 의 `role_id` 가 UUID 가 아니면 본문을 읽을 수 없는 것이라 400 이다(경로 변수만 404).
+- 칸 null 의 422 는 재인증 바로 뒤, 대상·역할 조회(404) 앞이다(A-404·A-405 넷 모두, 1-B2 구현 중 정함). 칸이 없으면 찾을 것이 없다.
 
 ## 7. API
 
@@ -150,17 +153,17 @@
 | `/api/admin/users/{id}/deactivate` | POST | `@AdminPermission(USER_UPDATE)` | — | 204 / 401 / 403(권한·재인증·자기 계정·R6·CSRF) / 404 / 409 / 429 |
 | `/api/admin/users/{id}/activate` | POST | `@AdminPermission(USER_UPDATE)` | — | 204 / 401 / 403(권한·재인증·자기 계정·R6·CSRF) / 404 / 429 |
 | `/api/admin/roles` (A-403) | GET | `@AdminPermission(ROLE_VIEW)` | — | 200(6절) / 401 / 403 / 429 |
-| `/api/admin/roles/{id}/permissions` (A-404) | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5·CSRF) / 404 / 422(모르는 키·R9) / 429 |
-| `/api/admin/roles/{id}/permissions/revoke` | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5) / 404 / 422(모르는 키) / 429 |
+| `/api/admin/roles/{id}/permissions` (A-404) | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5·CSRF) / 404 / 422(칸 null·모르는 키·R9) / 429 |
+| `/api/admin/roles/{id}/permissions/revoke` | POST | `@AdminPermission(ROLE_MANAGE)` | `{permission}` | 204 / 400 / 401 / 403(권한·재인증·R4·R5) / 404 / 422(칸 null·모르는 키) / 429 |
 | `/api/admin/users/{id}/roles` (A-405) | POST | `@AdminPermission(ROLE_ASSIGN)` | `{role_id}` | 204 / 400 / 401 / 403(권한·재인증·R1·R2·R3) / 404 / 422 / 429 |
-| `/api/admin/users/{id}/roles/revoke` | POST | `@AdminPermission(ROLE_ASSIGN)` | `{role_id}` | 204 / 400 / 401 / 403(권한·재인증·R1·R2·R3) / 404 / 409 / 429 |
+| `/api/admin/users/{id}/roles/revoke` | POST | `@AdminPermission(ROLE_ASSIGN)` | `{role_id}` | 204 / 400 / 401 / 403(권한·재인증·R1·R2·R3) / 404 / 409 / 422(칸 null) / 429 |
 | `/api/auth/login` (동작 추가) | POST | 공개 | 그대로 | 그대로. 성공하면 `reauth_at` 도 찍는다 |
 | `/api/me` (키 추가) | GET | 공개 | — | `can` 키가 열이 된다(1-B1 넷 + 여섯) |
 
 - 새 API 는 **열하나**: 조회 GET 셋(A-401·A-402 상세·A-403), 상태 변경 POST 여덟(A-402 셋, A-404 둘, A-405 둘, 재인증 하나).
 - 모두 `/api/admin/**` 라 관리자 IP 60회/분·CSRF 를 받는다. JSON 은 snake_case, 오류는 Problem Details, 422 는 최상위 `errors`. 403·404·409 의 `detail` 은 원문 D19 의 문구를 코드 상수로 쓴다 — 요청 값이 섞이지 않는다. OpenAPI 문서에 실제 응답 코드를 적고 생성 시험이 확인한다.
-- **경로 UUID**: 형식이 틀리면 404 「찾을 수 없습니다」(D86 2.7). 비교는 `UUID` 값끼리라 대소문자 표기로 우회할 수 없다(D86 2.10). Spring 의 문자열→UUID 변환이 표준이 아닌 짧은 꼴(`0-0-0-0-1`)도 받는지는 구현 때 확인 — 받더라도 값으로 비교하므로 우회는 아니다.
-- **M-7**: 기동 점검이 `/api/` **바로 다음 마디**에 `{`·`*` 가 든 매핑(`/api/{area}/x`·`/api/*/x`·`/api/**`)을 거부한다. 그런 매핑은 `/api/admin/x` 요청을 받지만 관리자 경로로 세지 않는다. 더 깊은 마디의 변수(`/api/admin/users/{id}`)는 그대로 된다.
+- **경로 UUID**: 형식이 틀리면 404 「찾을 수 없습니다」(D86 2.7). 비교는 `UUID` 값끼리라 대소문자 표기로 우회할 수 없다(D86 2.10). Spring 의 문자열→UUID 변환이 표준이 아닌 짧은 꼴(`0-0-0-0-1`)도 받는지는 구현 때 확인 — 받더라도 값으로 비교하므로 우회는 아니다 — 받는다(`UUID.fromString`, 1-B2 구현에서 확인). 공백 마디(`/api/admin/users/%20`)도 404 다 — Spring 의 변환이 공백을 null 로 내 `MissingPathVariableException` 400 이 나던 것을 `ApiErrors` 가 「변환 뒤 없음」일 때만 404 로 바꾼다.
+- **M-7**: 기동 점검이 `/api/` **바로 다음 마디**에 `{`·`*`·`?` 가 든 매핑(`/api/{area}/x`·`/api/*/x`·`/api/**`·`/api/admi?/x`)을 거부한다. `?` 는 1-B2 구현 중 더했다 — `PathPattern` 에서 `?` 도 한 글자 와일드카드다. 그런 매핑은 `/api/admin/x` 요청을 받지만 관리자 경로로 세지 않는다. 더 깊은 마디의 변수(`/api/admin/users/{id}`)는 그대로 된다.
 
 ## 8. 작업 로그 동작
 
@@ -287,6 +290,7 @@
 | R 위반 행이 요청 본문 문자열을 담는다 | 칸 출처 고정(8절), 모르는 키 시험 |
 | 측정 이미지 다이제스트가 지워지거나 그 아키텍처가 없다 | 하네스 실패(exit 2)로 멈춘다. 결과로 남기지 않는다 |
 | V3 주석을 고쳐 설치처 Flyway 검증이 멈춘다 | V3 는 고치지 않는다(2절) |
+| 프런트 빌드가 「chunk 500kB 넘음」 경고를 낸다(1-B2 구현: index JS 481→530kB, 확인 대화상자 AlertDialog 가 처음 번들에 든다) | 경고뿐이고 빌드는 된다. 코드 분할은 범위 밖 — 첫 화면 내려받기가 문제 되면 관리자 화면을 `lazy` 로 나눈다 |
 | 사용자가 남아 있는데 누가 `actor_user_id` 만 NULL 로 바꾸면 A-601 이 그 행을 「(삭제된 계정) 이메일」로 잘못 보인다(M-5) | 앱 코드에 그런 문장이 없다. 원문과 같은 한계로 둔다. 이메일 스냅샷은 바뀌지 않는다 |
 
 ## 15. 검토 초점 — 시험이 다루지 않지만 사람이 쓸 때 문제가 될 것

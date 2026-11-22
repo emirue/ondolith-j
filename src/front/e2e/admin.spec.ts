@@ -1,7 +1,7 @@
 import { expect, installSite, loginAdmin, test } from "./stack";
 
 /** 1-B1: 관리자 셸 흐름(실제 jar, 스펙 8절 E2E). 시험마다 새 jar 라 로그인 횟수 제한은 시험마다 새로 센다. */
-test("관리자 셸 흐름: 메뉴 셋 → 이름 저장 → 알림 → 홈 → 작업 로그 → 시스템 정보", async ({ page, stack }) => {
+test("관리자 셸 흐름: 메뉴 다섯 → 이름 저장 → 알림 → 홈 → 작업 로그 → 시스템 정보", async ({ page, stack }) => {
   await installSite(page, stack);
   await loginAdmin(page);
   const menu = page.getByRole("navigation", { name: "관리자 메뉴" });
