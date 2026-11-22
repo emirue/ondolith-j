@@ -2,6 +2,7 @@
 
 작성 2026-11-14. 사용자가 브레인스토밍에서 승인한 내용을 옮겼다(세션 저장 (가), 권한 검사 (A), 설계 전체).
 2026-11-21: Phase 1-B1 스펙(`2026-11-21-phase1b1-admin-shell-design.md`)에 맞춰 여섯 문장을 고쳤다 — 「1-B1 고침」 표시.
+2026-11-22: Phase 1-B2 스펙(`2026-11-22-phase1b2-users-roles-design.md`)에 맞춰 여섯 문장을 고쳤다 — 「1-B2 고침」 표시.
 근거: 요청서 `docs/request-core.md`, 결정 `docs/decisions.md`(「Phase 1 나누기」), ondolith 원문 D15(권한 모델)·D60(보안)·D10(FR-201~218).
 기능 상세의 단일 출처는 ondolith 원문이다. 이 문서는 SPA·Spring 에 맞게 바꾼 것과 Phase 1-A 의 경계를 적는다.
 
@@ -52,7 +53,7 @@
   2. `AuthenticationManager.authenticate`.
      **비활성 계정은 「없는 계정」으로 조회한다** — `DaoAuthenticationProvider` 는 비활성 검사를 비밀번호 대조 전에 해서, 그대로 두면 비활성 계정만 BCrypt 를 건너뛰어 응답 시간으로 존재가 드러난다.
      BCrypt 72바이트를 넘는 비밀번호에서 인코더가 던지는 예외도 실패로 다룬다(500 이 아니다).
-  3. 성공: 세션 ID 재발급(`ChangeSessionIdAuthenticationStrategy`)과 CSRF 토큰 교체(`CsrfAuthenticationStrategy`)를 Spring 클래스로 건다 — REST 컨트롤러 로그인에서는 Spring 이 이것을 자동으로 걸지 않는다. 세션에 사용자 ID 와 `authAt` 을 넣고 204.
+  3. 성공: 세션 ID 재발급(`ChangeSessionIdAuthenticationStrategy`)과 CSRF 토큰 교체(`CsrfAuthenticationStrategy`)를 Spring 클래스로 건다 — REST 컨트롤러 로그인에서는 Spring 이 이것을 자동으로 걸지 않는다. 세션에 사용자 ID 와 `authAt` 을 넣고 204. **1-B2 고침**: 재인증 창을 여는 `reauth_at`(앱 시계, 3.3)도 찍는다 — 로그인이 비밀번호 확인이다(decisions Q2).
      **`authAt` 은 앱 시계가 아니라, 비밀번호 해시와 같은 질의에서 읽은 그 계정의 `sessions_valid_from` 값이다**(D15 5.4, ondolith 2026-10-21 5차 점검). 앱 시각을 찍으면 회수(기준 시각을 앞으로 옮기는 트랜잭션)와 겹친 로그인이 회수 뒤에도 살아남고, 앱·DB 시계가 어긋나면 막 로그인한 세션이 거부된다.
   4. 실패: 원인과 관계없이 **같은 401**(상태·본문·헤더). 본문 `detail` 은 「이메일 또는 비밀번호가 맞지 않습니다」.
 - 로그: 성공·실패를 INFO 로 남긴다. 이메일·비밀번호는 남기지 않는다(사용자 ID 는 성공 때만). **1-B1 고침**: 성공은 작업 로그 `operation_logs` 에도 `auth.login` 으로 남긴다. 실패는 앱 로그에만 둔다 — 익명 공격자가 지울 수 없는 표를 키우지 못하게(decisions Q13).
@@ -63,9 +64,9 @@
 
 ### 3.3 세션에 담는 것
 
-- 담는다: 속성 둘 — `ondolithj.user_id`(`String`, UUID), `ondolithj.auth_at`(`java.time.Instant`). **JDK 타입만** 넣는다 — Spring Session 은 속성을 Java 직렬화로 저장하므로, 우리 클래스를 넣으면 다음 판에서 모양이 바뀔 때 jar 교체 뒤 세션을 못 읽는다((가)를 고른 이유가 jar 교체 뒤 로그인 유지다). 속성이 없거나 타입이 다르면 그 세션을 버리고 익명으로 이어진다.
+- 담는다: 속성 셋 — 필수 `ondolithj.user_id`(`String`, UUID)·`ondolithj.auth_at`(`java.time.Instant`), 선택 `ondolithj.reauth_at`(`java.time.Instant`, 재인증 15분 창의 기준, **1-B2 고침**). **JDK 타입만** 넣는다 — Spring Session 은 속성을 Java 직렬화로 저장하므로, 우리 클래스를 넣으면 다음 판에서 모양이 바뀔 때 jar 교체 뒤 세션을 못 읽는다((가)를 고른 이유가 jar 교체 뒤 로그인 유지다). 필수 속성이 없거나 타입이 다르면 그 세션을 버리고 익명으로 이어진다. `reauth_at` 이 없거나 타입이 다르면 「창 닫힘」으로 읽고 세션은 유지한다(**1-B2 고침**).
 - 담지 않는다: 권한·역할·판정 결과·비밀번호(D15 5.4).
-- Spring 기본 `HttpSessionSecurityContextRepository` 는 권한 목록이 든 `Authentication` 을 통째로 세션에 넣는다. 그래서 `SecurityContextRepository` 를 구현한 작은 어댑터가 저장 때는 위 두 속성만 쓰고, 읽을 때 DB 에서 `Authentication` 을 새로 만든다.
+- Spring 기본 `HttpSessionSecurityContextRepository` 는 권한 목록이 든 `Authentication` 을 통째로 세션에 넣는다. 그래서 세션에는 위 세 속성만 쓴다 — `SecurityContextRepository` 를 구현한 작은 어댑터가 필수 둘을 쓰고(읽을 때 DB 에서 `Authentication` 을 새로 만든다), 로그인·재인증이 `reauth_at` 을 쓴다(**1-B2 고침**).
 - **로그인에 성공하기 전에는 세션(`SPRING_SESSION` 행)을 만들지 않는다.** 익명 요청·로그인 실패·401·403·CSRF 거부 어느 것도 세션을 만들지 않는다. 401 때 원래 요청을 세션에 저장하는 Spring 기능(request cache)은 끈다 — 익명 요청마다 행이 쌓이면 세션 표가 공격으로 커진다.
 - 설치 컨텍스트에는 세션 저장소와 로그인이 없다(DataSource 가 없다). 설치 API 는 Phase 0 그대로다.
 - 쿠키: `HttpOnly`, `SameSite=Lax`, `Secure` 는 설정 파일의 `cookies.secure`(Phase 0 그대로). 수명 12시간(`server.servlet.session.timeout`, 기동 인자로 바꿀 수 있다). 만료 세션 정리는 Spring Session 기본 주기(1분).
@@ -113,7 +114,7 @@
 | `GET /api/admin` | `admin.access` | 200 `{}` / 401 / 403 / 429. **1-B1 고침**: 1-B 도 `{}` 로 둔다 — 대시보드(FR-702)는 뒤로, 메뉴는 `/api/me` 의 `can` 으로 그린다 |
 | 기존 `/api/health`·`/api/site`·`/api/install` | 공개 | 그대로 |
 
-- 오류는 모두 Problem Details(`application/problem+json`): 401(로그인 안 함·로그인 실패), 403(권한 없음·CSRF 거부), 404, 422, 429. 401 에 `WWW-Authenticate` 를 붙이지 않는다(브라우저 로그인 창). 보안 필터가 내는 응답도 같은 형식으로 쓴다 — Phase 0 의 CSRF 403(Boot 기본 오류 JSON)을 여기서 맞춘다.
+- 오류는 모두 Problem Details(`application/problem+json`): 401(로그인 안 함·로그인 실패), 403(권한 없음·CSRF 거부·재인증 필요), 404, 422, 429. 재인증 필요만 전용 `type`(`urn:ondolithj:problem:reauth-required`)으로 가른다(**1-B2 고침**, decisions Q16). 401 에 `WWW-Authenticate` 를 붙이지 않는다(브라우저 로그인 창). 보안 필터가 내는 응답도 같은 형식으로 쓴다 — Phase 0 의 CSRF 403(Boot 기본 오류 JSON)을 여기서 맞춘다.
 - OpenAPI 문서에 실제 응답 코드를 적고 생성 시험이 확인한다(Phase 0 후속과 같은 방식).
 
 ## 7. 프런트
@@ -131,7 +132,7 @@
   - 없는 계정·틀린 비밀번호·비활성 계정의 로그인 응답이 상태·본문까지 같다.
   - 로그인 성공 전에는 `SPRING_SESSION` 행이 0 이다: 익명 `/api/admin`(`Accept: application/json` 과 `text/html` 둘 다), `/api/me`, 로그인 실패, CSRF 거부 뒤.
   - 세션 고정: 미리 심은 세션 쿠키(공격자가 정한 값)로 로그인해도 응답의 세션 ID 가 다르다. 로그인한 세션으로 다시 로그인하면 세션 ID 가 바뀌고 옛 ID 로는 로그인 상태가 아니다. CSRF 토큰도 바뀐다.
-  - `authAt` 은 DB 의 `sessions_valid_from` 값이다(앱 시계와 무관). 세션 속성이 없거나 타입이 다르면 익명으로 이어지고 세션이 지워진다.
+  - `authAt` 은 DB 의 `sessions_valid_from` 값이다(앱 시계와 무관). 필수 세션 속성이 없거나 타입이 다르면 익명으로 이어지고 세션이 지워진다(`reauth_at` 은 창만 닫힌다, **1-B2 고침**).
   - 로그아웃 뒤 `SPRING_SESSION` 행이 없다.
   - 로그인 뒤 `is_active=false` 또는 `sessions_valid_from` 을 앞으로 옮기면 다음 요청이 401 이고 세션이 지워진다.
   - `editor` 역할을 회수하면 다음 요청부터 `/api/admin` 403.
