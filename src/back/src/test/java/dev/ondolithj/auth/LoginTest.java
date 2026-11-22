@@ -133,9 +133,11 @@ class LoginTest {
 	}
 
 	@Test
-	void 세션에는_사용자_ID_와_DB_의_기준_시각만_담긴다() throws Exception {
+	void 세션에는_사용자_ID_기준_시각_재인증_시각만_담긴다() throws Exception {
 		TestHttp http = f.http();
+		Instant before = Instant.now();
 		login(http, ADMIN, PASSWORD);
+		Instant after = Instant.now();
 		String id = new String(Base64.getDecoder().decode(http.cookie("SESSION")), StandardCharsets.UTF_8);
 		@SuppressWarnings("unchecked")
 		SessionRepository<Session> repo = f.ctx.getBean(SessionRepository.class);
@@ -149,8 +151,11 @@ class LoginTest {
 			userId = r.getObject(1, UUID.class);
 			validFrom = r.getObject(2, OffsetDateTime.class).toInstant();
 		}
-		assertThat(s.getAttributeNames()).contains("ondolithj.user_id", "ondolithj.auth_at")
+		assertThat(s.getAttributeNames()).contains("ondolithj.user_id", "ondolithj.auth_at", "ondolithj.reauth_at")
 			.noneMatch(n -> n.contains("SPRING_SECURITY_CONTEXT"));
+		// 재인증 창은 로그인 때 앱 시계로 연다(1-B2 스펙 3.1)
+		assertThat((Object) s.getAttribute("ondolithj.reauth_at")).isInstanceOfSatisfying(Instant.class,
+				t -> assertThat(t).isBetween(before, after));
 		assertThat((Object) s.getAttribute("ondolithj.user_id")).isEqualTo(userId.toString());
 		assertThat((Object) s.getAttribute("ondolithj.auth_at")).isEqualTo(validFrom);
 		// 수명 12시간(D60 NFR-204, server.servlet.session.timeout)이 DB 세션에 닿는다

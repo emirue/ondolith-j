@@ -6,6 +6,7 @@ import dev.ondolithj.Launcher;
 import dev.ondolithj.TestHttp;
 import dev.ondolithj.config.ConfigFile;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -15,10 +16,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.session.Session;
+import org.springframework.session.SessionRepository;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -102,6 +106,20 @@ public final class AuthFixture implements AutoCloseable {
 		TestHttp http = http();
 		assertThat(http.post("/api/auth/login", loginBody(email, PASSWORD)).statusCode()).isEqualTo(204);
 		return http;
+	}
+
+	/** 쿠키의 세션에 재인증 시각을 직접 넣는다(null 이면 지운다) — 창을 닫거나 다른 타입·미래 값을 시험한다. */
+	public void reauthAt(TestHttp http, Object value) {
+		@SuppressWarnings("unchecked")
+		SessionRepository<Session> repo = ctx.getBean(SessionRepository.class);
+		Session s = repo.findById(new String(Base64.getDecoder().decode(http.cookie("SESSION")), StandardCharsets.UTF_8));
+		if (value == null) {
+			s.removeAttribute(Reauth.AT);
+		}
+		else {
+			s.setAttribute(Reauth.AT, value);
+		}
+		repo.save(s);
 	}
 
 	long sessions() throws SQLException {

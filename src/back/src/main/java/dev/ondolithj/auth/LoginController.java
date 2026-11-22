@@ -50,9 +50,11 @@ class LoginController {
 
 	private final OperationLog operationLog;
 
+	private final Reauth reauth;
+
 	LoginController(AuthenticationManager authentication, SessionAuthenticationStrategy sessionStrategy,
 			SecurityContextRepository contexts, ActorQuery actors, RateLimiter limiter, RateLimitProperties limits,
-			OperationLog operationLog) {
+			OperationLog operationLog, Reauth reauth) {
 		this.authentication = authentication;
 		this.sessionStrategy = sessionStrategy;
 		this.contexts = contexts;
@@ -60,6 +62,7 @@ class LoginController {
 		this.limiter = limiter;
 		this.limits = limits;
 		this.operationLog = operationLog;
+		this.reauth = reauth;
 	}
 
 	/** 응답 코드는 OpenApiFileTest 가 문서를 확인한다. 애너테이션은 실행 jar 에 없어도 무시된다. */
@@ -106,6 +109,8 @@ class LoginController {
 		context.setAuthentication(token);
 		SecurityContextHolder.setContext(context);
 		contexts.saveContext(context, request, response);
+		// 재인증 창을 연다(1-B2 스펙 3.1)
+		reauth.stamp(request);
 		// 새 CSRF 토큰을 이 응답의 쿠키로 바로 낸다(다음 요청이 옛 토큰을 쓰지 않게)
 		if (request.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken csrf) {
 			csrf.getToken();

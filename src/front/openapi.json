@@ -219,6 +219,17 @@
         },
         "type" : "object"
       },
+      "ReauthRequest" : {
+        "properties" : {
+          "password" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "password" ],
+        "type" : "object"
+      },
       "SettingsRequest" : {
         "properties" : {
           "name" : {
@@ -403,6 +414,67 @@
           }
         },
         "tags" : [ "oplog-controller" ]
+      }
+    },
+    "/api/admin/reauth" : {
+      "post" : {
+        "operationId" : "reauth",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReauthRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "재인증됨. 15분 동안 재인증 대상 동작이 열린다"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "비밀번호가 맞지 않음(type urn:ondolithj:problem:reauth-required)·admin.access 권한 없음·CSRF 토큰 없음"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "입력 오류. errors.password"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "시도가 너무 많음(계정당·관리자 경로). Retry-After"
+          }
+        },
+        "tags" : [ "reauth-controller" ]
       }
     },
     "/api/admin/settings" : {

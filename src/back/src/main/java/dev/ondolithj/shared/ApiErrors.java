@@ -1,5 +1,7 @@
 package dev.ondolithj.shared;
 
+import dev.ondolithj.auth.Reauth;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -27,6 +29,8 @@ public class ApiErrors extends ResponseEntityExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(ApiErrors.class);
 
+	private static final URI REAUTH_REQUIRED = URI.create("urn:ondolithj:problem:reauth-required");
+
 	@Override
 	protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
 			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
@@ -40,6 +44,14 @@ public class ApiErrors extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(FieldErrors.class)
 	ResponseEntity<ProblemDetail> fieldErrors(FieldErrors ex) {
 		return ResponseEntity.unprocessableContent().body(unprocessable(ex.errors()));
+	}
+
+	/** 재인증 전용 403(1-B2 스펙 3.2). 프런트는 type 만 보고 가른다. 다른 403 은 about:blank 그대로. */
+	@ExceptionHandler(Reauth.Required.class)
+	ResponseEntity<ProblemDetail> reauthRequired() {
+		ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "비밀번호를 다시 입력하세요");
+		p.setType(REAUTH_REQUIRED);
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(p);
 	}
 
 	@ExceptionHandler(Exception.class)

@@ -96,7 +96,7 @@ class RateLimiterTest {
 	@Test
 	void IP_한도를_넘은_로그인은_계정_키를_세지_않는다() {
 		RateLimiter limiter = new RateLimiter(new FakeClock(0));
-		RateLimitProperties limits = new RateLimitProperties(1, 1, 60);
+		RateLimitProperties limits = new RateLimitProperties(1, 1, 60, 5);
 		assertThat(LoginController.limit(limiter, limits, "10.0.0.1", "a@ondolith.test")).isEmpty();
 		assertThat(LoginController.limit(limiter, limits, "10.0.0.1", "b@ondolith.test")).isPresent(); // IP 에서 막힘
 		// b 는 세지 않았으므로 다른 IP 에서 b 의 첫 시도는 허용된다
