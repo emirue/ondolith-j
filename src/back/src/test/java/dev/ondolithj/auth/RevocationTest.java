@@ -7,7 +7,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.ondolithj.TestHttp;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -79,6 +84,44 @@ class RevocationTest {
 		f.sql("UPDATE roles SET is_superuser = true WHERE key = 'member'");
 		try {
 			assertThat(member(email()).get("/api/admin").statusCode()).isEqualTo(403);
+		}
+		finally {
+			f.sql("UPDATE roles SET is_superuser = false WHERE key = 'member'");
+			f.sql("UPDATE roles SET is_superuser = true WHERE key = 'admin'");
+		}
+	}
+
+	static boolean superuser(UUID id) {
+		return f.ctx.getBean(ActorQuery.class).load(id, Instant.now().plusSeconds(60)).orElseThrow().superuser();
+	}
+
+	static boolean holds(UUID id) throws Exception {
+		try (Connection c = f.db();
+				PreparedStatement s = c.prepareStatement(
+						"SELECT count(*) FROM users u WHERE u.id = ? AND " + ActorQuery.HOLDS_SUPERUSER)) {
+			s.setObject(1, id);
+			try (ResultSet r = s.executeQuery()) {
+				r.next();
+				return r.getLong(1) == 1;
+			}
+		}
+	}
+
+	@Test
+	void superuser_술어는_admin_보유자만_참이고_모두가_갖는_역할의_표시는_세지_않는다_R9() throws Exception {
+		UUID admin = f.user(email(), "admin");
+		UUID editor = f.user(email(), "editor");
+		assertThat(superuser(admin)).isTrue();
+		assertThat(holds(admin)).isTrue();
+		assertThat(superuser(editor)).isFalse();
+		assertThat(holds(editor)).isFalse();
+		f.sql("UPDATE roles SET is_superuser = false WHERE key = 'admin'");
+		f.sql("UPDATE roles SET is_superuser = true WHERE key = 'member'");
+		try {
+			assertThat(superuser(editor)).isFalse();
+			assertThat(holds(editor)).isFalse();
+			assertThat(superuser(admin)).isFalse();
+			assertThat(holds(admin)).isFalse();
 		}
 		finally {
 			f.sql("UPDATE roles SET is_superuser = false WHERE key = 'member'");

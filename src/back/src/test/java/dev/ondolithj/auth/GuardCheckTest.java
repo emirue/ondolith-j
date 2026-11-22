@@ -189,6 +189,20 @@ class GuardCheckTest {
 	}
 
 	@Test
+	void API_바로_다음_마디의_변수와_와일드카드는_문제다() throws Exception {
+		HandlerMethod h = handler(ClassLevel.class);
+		for (String bad : List.of("/api/{area}/probe", "/api/*/x", "/api/**")) {
+			var info = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths(bad).build();
+			assertThat(GuardCheck.checkApiRoot(java.util.Map.of(info, h))).as(bad).singleElement().asString()
+				.contains("바로 다음 마디").contains("ClassLevel#m");
+		}
+		for (String ok : List.of("/api/admin/users/{id}", "/api/admin")) {
+			var info = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths(ok).build();
+			assertThat(GuardCheck.checkApiRoot(java.util.Map.of(info, h))).as(ok).isEmpty();
+		}
+	}
+
+	@Test
 	void 쓰는_권한에_AdminPermission_의_값도_센다() throws Exception {
 		assertThat(GuardCheck.used(List.of(handler(LogView.class)))).containsExactly(Permission.LOG_VIEW);
 	}
@@ -226,6 +240,13 @@ class GuardCheckTest {
 		// 허용 빈이 있으니 「패키지 밖」 때문이 아니다
 		assertThatThrownBy(install(fixture.guard.WrongAdminConfig.class, fixture.guard.AllowOutsideConfig.class)::run)
 			.hasStackTraceContaining("/api/admin").hasStackTraceContaining("WrongAdminMark");
+	}
+
+	@Test
+	void API_바로_다음_마디에_변수가_있으면_기동이_멈춘다() {
+		// 허용 빈이 있으니 「패키지 밖」 때문이 아니다
+		assertThatThrownBy(install(fixture.guard.AreaVariableConfig.class, fixture.guard.AllowOutsideConfig.class)::run)
+			.hasStackTraceContaining("/api/ 바로 다음 마디").hasStackTraceContaining("AreaVariable#probe");
 	}
 
 	@Test

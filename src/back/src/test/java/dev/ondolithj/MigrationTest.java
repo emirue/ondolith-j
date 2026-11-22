@@ -68,7 +68,7 @@ class MigrationTest {
 		f.clean();
 		assertThatThrownBy(f::migrate).isInstanceOf(FlywayException.class);
 		assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_name = 'half_done'")).isEmpty();
-		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1", "2", "3");
+		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1", "2", "3", "4");
 	}
 
 	@Test
@@ -98,7 +98,8 @@ class MigrationTest {
 
 	@Test
 	void V3_가_관리자_권한_셋을_심고_operator_에만_준다() throws SQLException {
-		Flyway f = flyway("classpath:db/migration");
+		Flyway f = Flyway.configure().dataSource(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword())
+			.locations("classpath:db/migration").target("3").cleanDisabled(false).load();
 		f.clean();
 		f.migrate();
 		assertThat(rows("SELECT key FROM permissions"))
@@ -112,22 +113,47 @@ class MigrationTest {
 	}
 
 	@Test
-	void V3_의_작업_로그는_고치거나_지울_수_없고_사용자_삭제만_actor_를_비운다() throws SQLException {
+	void V4_가_사용자_역할_권한_여섯을_심고_operator_에는_보기_둘만_준다() throws SQLException {
+		Flyway f = flyway("classpath:db/migration");
+		f.clean();
+		f.migrate();
+		assertThat(rows("SELECT key FROM permissions")).containsExactlyInAnyOrder("admin.access", "settings.view",
+				"settings.update", "log.view", "user.view", "user.create", "user.update", "role.view", "role.assign",
+				"role.manage");
+		assertThat(rows(permsOf("operator"))).containsExactlyInAnyOrder("admin.access", "settings.view",
+				"settings.update", "log.view", "user.view", "role.view");
+		assertThat(rows(permsOf("editor"))).containsExactly("admin.access");
+		for (String role : List.of("admin", "member", "anonymous")) {
+			assertThat(rows(permsOf(role))).as(role).isEmpty();
+		}
+	}
+
+	@Test
+	void V3_의_작업_로그는_고치거나_지울_수_없다_actor_만_NULL_로_바꾸는_UPDATE_는_사용자가_있어도_통과한다_원문과_같은_한계()
+			throws SQLException {
 		Flyway f = flyway("classpath:db/migration");
 		f.clean();
 		f.migrate();
 		UUID user = UUID.fromString(rows("INSERT INTO users (email, password_hash) VALUES ('oplog@ondolith.test', 'x') RETURNING id").get(0));
 		exec("INSERT INTO operation_logs (actor_user_id, actor_email, action, target_type, target_id) "
 				+ "VALUES (?, 'oplog@ondolith.test', 'auth.login', 'user', ?)", user, user.toString());
+		exec("INSERT INTO operation_logs (actor_user_id, actor_email, action, target_type, target_id) "
+				+ "VALUES (?, 'oplog@ondolith.test', 'auth.login', 'user', 'limit')", user);
 		assertThatThrownBy(() -> exec("UPDATE operation_logs SET summary = 'x'")).isInstanceOf(SQLException.class);
 		assertThatThrownBy(() -> exec("DELETE FROM operation_logs")).isInstanceOf(SQLException.class);
 		assertThatThrownBy(() -> exec("TRUNCATE operation_logs")).isInstanceOf(SQLException.class);
 		assertThatThrownBy(() -> exec("UPDATE operation_logs SET actor_user_id = NULL, summary = 'x'"))
 			.isInstanceOf(SQLException.class);
+		// 사용자가 남아 있는데도 actor 만 비우는 문장은 WHEN 을 지난다(M-5). 이메일 스냅샷은 그대로다
+		exec("UPDATE operation_logs SET actor_user_id = NULL WHERE target_id = 'limit'");
+		assertThat(rows("SELECT actor_user_id FROM operation_logs WHERE target_id = 'limit'")).singleElement().isNull();
+		assertThat(rows("SELECT actor_email FROM operation_logs WHERE target_id = 'limit'"))
+			.containsExactly("oplog@ondolith.test");
 
 		exec("DELETE FROM users WHERE id = ?", user);
-		assertThat(rows("SELECT actor_user_id FROM operation_logs")).singleElement().isNull();
-		assertThat(rows("SELECT actor_email FROM operation_logs")).containsExactly("oplog@ondolith.test");
+		assertThat(rows("SELECT actor_user_id FROM operation_logs WHERE target_id <> 'limit'")).singleElement().isNull();
+		assertThat(rows("SELECT actor_email FROM operation_logs WHERE target_id <> 'limit'"))
+			.containsExactly("oplog@ondolith.test");
 		assertThatThrownBy(() -> exec("UPDATE operation_logs SET summary = 'x'")).isInstanceOf(SQLException.class);
 		assertThatThrownBy(() -> exec("UPDATE operation_logs SET actor_user_id = NULL")).isInstanceOf(SQLException.class);
 	}

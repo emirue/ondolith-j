@@ -17,6 +17,16 @@ import org.springframework.stereotype.Component;
 public class ActorQuery {
 
 	/** 방문자 권한 키. 코드의 enum 에서 오므로(형식이 고정된 상수) SQL 에 그대로 넣는다. */
+	/**
+	 * 「superuser 역할」 술어 하나(별칭 r = roles). 인증·R6 대상 판정·마지막 관리자 셈·A-403·A-405 가 이것만 쓴다 —
+	 * 셈이 인증보다 넓으면 인증이 인정하지 않는 보유자가 세어진다(스펙 5절). R9: 모두가 갖는 역할의 표시는 세지 않는다.
+	 */
+	public static final String SUPERUSER_ROLE = "(r.is_superuser AND r.key NOT IN ('anonymous', 'member'))";
+
+	/** 사용자 u(별칭 u = users)가 superuser 역할을 user_roles 로 갖는다. */
+	public static final String HOLDS_SUPERUSER = "EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
+			+ "WHERE ur.user_id = u.id AND " + SUPERUSER_ROLE + ")";
+
 	private static final String VISITOR_KEYS = Arrays.stream(Permission.values()).filter(Permission::visitor)
 		.map(p -> "'" + p.key() + "'").collect(Collectors.joining(", ", "ARRAY[", "]::text[]"));
 
@@ -24,7 +34,7 @@ public class ActorQuery {
 	// R9: anonymous·member 의 부여는 방문자 권한만 센다 — 이 규칙 전에 들어간 부여까지 효력이 없다
 	private static final String SQL = """
 			SELECT u.email, u.display_name, u.is_active, u.sessions_valid_from,
-			       COALESCE(bool_or(r.is_superuser) FILTER (WHERE r.key NOT IN ('anonymous', 'member')), false) AS superuser,
+			       COALESCE(bool_or(%s), false) AS superuser,
 			       array_remove(array_agg(DISTINCT p.key), NULL) AS perms
 			FROM users u
 			LEFT JOIN roles r ON r.key IN ('anonymous', 'member')
@@ -34,7 +44,7 @@ public class ActorQuery {
 			    AND (r.key NOT IN ('anonymous', 'member') OR p.key = ANY(%s))
 			WHERE u.id = ?
 			GROUP BY u.id
-			""".formatted(VISITOR_KEYS);
+			""".formatted(SUPERUSER_ROLE, VISITOR_KEYS);
 
 	private final JdbcClient jdbc;
 
@@ -52,8 +62,9 @@ public class ActorQuery {
 			if (authAt.isBefore(validFrom)) {
 				return null;
 			}
+			boolean superuser = rs.getBoolean("superuser");
 			Set<Permission> perms = EnumSet.noneOf(Permission.class);
-			if (rs.getBoolean("superuser")) {
+			if (superuser) {
 				perms = EnumSet.allOf(Permission.class);
 			}
 			else {
@@ -62,7 +73,7 @@ public class ActorQuery {
 					Permission.ofKey((String) k).ifPresent(perms::add);
 				}
 			}
-			return new Actor(id, rs.getString("email"), rs.getString("display_name"), authAt, Set.copyOf(perms));
+			return new Actor(id, rs.getString("email"), rs.getString("display_name"), authAt, superuser, Set.copyOf(perms));
 		}).optional();
 	}
 }

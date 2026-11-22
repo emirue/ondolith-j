@@ -18,7 +18,25 @@ public enum Permission {
 	SETTINGS_UPDATE("settings.update", false),
 
 	/** 작업 로그 열람(A-601). */
-	LOG_VIEW("log.view", false);
+	LOG_VIEW("log.view", false),
+
+	/** 사용자 목록(A-401). */
+	USER_VIEW("user.view", false),
+
+	/** 사용자 생성(A-402). */
+	USER_CREATE("user.create", false),
+
+	/** 사용자 상세·비활성·활성(A-402). */
+	USER_UPDATE("user.update", false),
+
+	/** 역할과 권한 구성 보기(A-403). */
+	ROLE_VIEW("role.view", false),
+
+	/** 사용자 역할 부여·빼기(A-405). */
+	ROLE_ASSIGN("role.assign", false),
+
+	/** 역할 권한 부여·빼기(A-404). */
+	ROLE_MANAGE("role.manage", false);
 
 	private final String key;
 
