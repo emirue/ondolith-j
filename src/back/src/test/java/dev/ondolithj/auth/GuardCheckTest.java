@@ -191,7 +191,7 @@ class GuardCheckTest {
 	@Test
 	void API_바로_다음_마디의_변수와_와일드카드는_문제다() throws Exception {
 		HandlerMethod h = handler(ClassLevel.class);
-		for (String bad : List.of("/api/{area}/probe", "/api/*/x", "/api/**")) {
+		for (String bad : List.of("/api/{area}/probe", "/api/*/x", "/api/**", "/api/admi?/x")) {
 			var info = org.springframework.web.servlet.mvc.method.RequestMappingInfo.paths(bad).build();
 			assertThat(GuardCheck.checkApiRoot(java.util.Map.of(info, h))).as(bad).singleElement().asString()
 				.contains("바로 다음 마디").contains("ClassLevel#m");

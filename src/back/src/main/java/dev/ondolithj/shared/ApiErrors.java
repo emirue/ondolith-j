@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -15,9 +16,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -44,6 +48,36 @@ public class ApiErrors extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(FieldErrors.class)
 	ResponseEntity<ProblemDetail> fieldErrors(FieldErrors ex) {
 		return ResponseEntity.unprocessableContent().body(unprocessable(ex.errors()));
+	}
+
+	/** 경로 변수가 형식에 맞지 않으면(UUID 가 아님) 그런 자원이 없는 것이다 — 404(1-B2 스펙 7절, D86 2.7). 질의 매개변수는 그대로 400. */
+	@Override
+	protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+		if (ex instanceof MethodArgumentTypeMismatchException m && m.getParameter().hasParameterAnnotation(PathVariable.class)) {
+			return notFound();
+		}
+		return super.handleTypeMismatch(ex, headers, status, request);
+	}
+
+	/** 공백뿐인 경로 마디(%20)는 UUID 변환이 null 을 내 「변환 뒤 없음」이 된다 — 이것도 형식이 틀린 경로다. */
+	@Override
+	protected ResponseEntity<Object> handleMissingPathVariable(MissingPathVariableException ex, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+		if (ex.isMissingAfterConversion()) {
+			return notFound();
+		}
+		return super.handleMissingPathVariable(ex, headers, status, request);
+	}
+
+	private static ResponseEntity<Object> notFound() {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+			.body(ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "찾을 수 없습니다"));
+	}
+
+	@ExceptionHandler(Refused.class)
+	ResponseEntity<ProblemDetail> refused(Refused ex) {
+		return ResponseEntity.status(ex.status()).body(ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage()));
 	}
 
 	/** 재인증 전용 403(1-B2 스펙 3.2). 프런트는 type 만 보고 가른다. 다른 403 은 about:blank 그대로. */

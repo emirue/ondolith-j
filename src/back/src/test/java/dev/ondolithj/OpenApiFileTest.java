@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/settings", "/api/admin/system", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/settings", "/api/admin/system", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -111,6 +111,26 @@ class OpenApiFileTest {
 			assertThat(reauth.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
 				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
 		}
+		// A-402 상세·비활성·활성(1-B2 스펙 7절). 409 는 마지막 관리자 잠금(Task 6)
+		JsonNode detail = written.at("/paths/~1api~1admin~1users~1{id}/get/responses");
+		assertThat(fieldNames(detail)).containsExactlyInAnyOrder("200", "401", "403", "404", "429");
+		JsonNode deactivate = written.at("/paths/~1api~1admin~1users~1{id}~1deactivate/post/responses");
+		assertThat(fieldNames(deactivate)).containsExactlyInAnyOrder("204", "401", "403", "404", "409", "429");
+		JsonNode activate = written.at("/paths/~1api~1admin~1users~1{id}~1activate/post/responses");
+		assertThat(fieldNames(activate)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		for (JsonNode r : java.util.List.of(deactivate, activate)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+			for (String code : java.util.List.of("401", "403", "404", "429")) {
+				assertThat(r.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+					.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+			}
+		}
+		assertThat(detail.at("/404/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(fieldNames(written.at("/components/schemas/UserDetail/properties"))).containsExactlyInAnyOrder("id",
+				"email", "display_name", "is_active", "created_at", "roles", "assignable_roles");
+		assertThat(fieldNames(written.at("/components/schemas/RoleRef/properties"))).containsExactlyInAnyOrder("id",
+				"key", "name", "is_superuser");
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
 		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");

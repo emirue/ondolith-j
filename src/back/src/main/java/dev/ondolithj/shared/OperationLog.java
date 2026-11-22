@@ -20,7 +20,8 @@ public class OperationLog {
 
 	/** 동작 이름과 target_type 을 함께 정한다. */
 	public enum Action {
-		AUTH_LOGIN("auth.login", "user"), SETTINGS_UPDATE("settings.update", "settings");
+		AUTH_LOGIN("auth.login", "user"), SETTINGS_UPDATE("settings.update", "settings"),
+		USER_DEACTIVATE("user.deactivate", "user"), USER_ACTIVATE("user.activate", "user"), USER_DENIED("user.denied", "user");
 
 		private final String key;
 

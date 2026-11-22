@@ -230,6 +230,24 @@
         "required" : [ "password" ],
         "type" : "object"
       },
+      "RoleRef" : {
+        "properties" : {
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "is_superuser" : {
+            "type" : "boolean"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "SettingsRequest" : {
         "properties" : {
           "name" : {
@@ -277,6 +295,40 @@
           },
           "email" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UserDetail" : {
+        "properties" : {
+          "assignable_roles" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RoleRef"
+            },
+            "type" : "array"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "display_name" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "is_active" : {
+            "type" : "boolean"
+          },
+          "roles" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RoleRef"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -594,6 +646,203 @@
           }
         },
         "tags" : [ "system-controller" ]
+      }
+    },
+    "/api/admin/users/{id}" : {
+      "get" : {
+        "operationId" : "detail",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description" : "사용자와 가진 역할, 줄 수 있는 역할"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "user.update 권한 없음"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "없는 사용자·UUID 가 아닌 경로"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "users-controller" ]
+      }
+    },
+    "/api/admin/users/{id}/activate" : {
+      "post" : {
+        "operationId" : "activate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "활성화함(이미 활성이어도). 옛 세션은 살아나지 않는다"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·CSRF 토큰 없음"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "없는 사용자·UUID 가 아닌 경로"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "users-controller" ]
+      }
+    },
+    "/api/admin/users/{id}/deactivate" : {
+      "post" : {
+        "operationId" : "deactivate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "비활성화함(이미 비활성이어도). 그 계정의 세션은 모두 끝난다"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "로그인이 필요함"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "권한 없음·재인증 필요·자기 계정·superuser 보유자(R6)·CSRF 토큰 없음"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "없는 사용자·UUID 가 아닌 경로"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "마지막 활성 관리자"
+          },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "관리자 경로 요청이 너무 많음. Retry-After"
+          }
+        },
+        "tags" : [ "users-controller" ]
       }
     },
     "/api/auth/login" : {
