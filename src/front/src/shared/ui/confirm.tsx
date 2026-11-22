@@ -21,7 +21,7 @@ import { Label } from "@/shared/ui/label";
  * 연 단추는 Trigger 다 — Radix 는 닫힐 때 Trigger 로만 초점을 돌린다.
  * save 는 이 단추만 쓴다(목록의 줄마다 useSave 를 따로) — 나눠 쓰면 재인증 403 에 모든 단추의 대화상자가 열린다.
  * 대화상자에는 칸이 없다 — 422 의 칸 옆 오류는 부르는 화면이 그리고 describedBy 로 넘긴다. 재인증 뒤 422 면 대화상자가 닫히며
- * (reauthNeeded 가 꺼진다) 초점이 이 단추로 돌아와 그 오류를 읽는다. destructive 대화상자의 422 는 닫지 않는다 — 빼기는 읽어 온 값만 보내 닿지 않는다.
+ * (reauthNeeded 가 꺼진다) 초점이 이 단추로 돌아와 그 오류를 읽는다. destructive 대화상자의 422 는 닫지 않는다 — 빼기의 422 는 칸 null 과 모르는 권한 키뿐이고(RolesController), 화면은 읽어 온 값만 보낸다.
  */
 export function ConfirmButton<V>({
   label,

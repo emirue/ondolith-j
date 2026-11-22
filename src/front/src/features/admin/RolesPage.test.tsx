@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Link, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REAUTH_TYPE } from "@/shared/api/useSave";
 import { json, mockApi, renderWithQuery } from "@/test-api";
@@ -162,5 +163,30 @@ describe("역할", () => {
   it("그 밖의 실패 → 「역할을 불러오지 못했습니다」", async () => {
     renderRoles({ get: () => json(500, {}) });
     expect(await screen.findByRole("alert")).toHaveTextContent("역할을 불러오지 못했습니다");
+  });
+
+  it("화면을 떠나면 캐시를 남기지 않는다 — 다시 들어오면 앞 사람의 역할이 응답 전에 보이지 않는다", async () => {
+    let hang = false;
+    const f = mockApi((req) => {
+      if (new URL(req.url).pathname === "/api/me") return json(200, { can: { "role.manage": true } });
+      return hang ? new Promise<Response>(() => {}) : json(200, { roles: roles(), permissions: PERMISSIONS });
+    });
+    renderWithQuery(
+      <Routes>
+        <Route path="/admin/roles" element={<><RolesPage /><Link to="/away">나가기</Link></>} />
+        <Route path="/away" element={<Link to="/admin/roles">돌아가기</Link>} />
+      </Routes>,
+      "/admin/roles",
+      { notice: true },
+    );
+    const u = userEvent.setup();
+    await role("운영자");
+    hang = true;
+    await u.click(screen.getByRole("link", { name: "나가기" }));
+    await new Promise((r) => setTimeout(r, 10));
+    await u.click(await screen.findByRole("link", { name: "돌아가기" }));
+    await screen.findByRole("heading", { level: 2, name: "역할" });
+    await vi.waitFor(() => expect(f.mock.calls.filter(([req]) => new URL(req.url).pathname === "/api/admin/roles")).toHaveLength(2));
+    expect(screen.queryByRole("region")).toBeNull();
   });
 });
