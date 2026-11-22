@@ -3,7 +3,7 @@ package dev.ondolithj.shared;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-/** 사이트 이름 규칙(1-B1 스펙 8절). 설치와 A-201 이 같이 쓰고, 프런트가 같은 세 정규식을 쓴다. */
+/** 사이트 이름 규칙(1-B1 스펙 8절). 설치·A-201(100자)과 사용자 표시 이름(50자, 1-B2 스펙 4절)이 같이 쓰고, 프런트가 같은 세 정규식을 쓴다. */
 public final class SiteName {
 
 	// String.strip() 은 NBSP(U+00A0)를 남긴다 — \p{Z} 로 뺀다
@@ -22,7 +22,7 @@ public final class SiteName {
 		return raw == null ? "" : EDGES.matcher(raw).replaceAll("");
 	}
 
-	public static Optional<String> error(String raw) {
+	public static Optional<String> error(String raw, int max) {
 		String v = strip(raw);
 		if (INVISIBLE.matcher(v).matches()) {
 			return Optional.of("필수입니다");
@@ -30,6 +30,6 @@ public final class SiteName {
 		if (CONTROL.matcher(v).find()) {
 			return Optional.of("쓸 수 없는 문자가 있습니다");
 		}
-		return v.length() > 100 ? Optional.of("100자 이하") : Optional.empty();
+		return v.length() > max ? Optional.of(max + "자 이하") : Optional.empty();
 	}
 }

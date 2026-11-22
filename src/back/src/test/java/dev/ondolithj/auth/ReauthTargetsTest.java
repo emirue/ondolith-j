@@ -34,7 +34,8 @@ class ReauthTargetsTest {
 	/** 재인증 대상(D15 5.3-1 의 1-B2 행). Task 4·7 이 채운다. */
 	static final Set<String> TARGETS = Set.of("POST /api/admin/users/{id}/deactivate", "POST /api/admin/users/{id}/activate");
 
-	static final Set<String> NOT_TARGETS = Set.of("POST /api/admin/settings", "POST /api/admin/reauth");
+	static final Set<String> NOT_TARGETS = Set.of("POST /api/admin/settings", "POST /api/admin/reauth",
+			"POST /api/admin/users");
 
 	record Ids(UUID user, UUID role) {
 	}
@@ -86,6 +87,8 @@ class ReauthTargetsTest {
 		return switch (key) {
 			case "POST /api/admin/settings" -> new Call("/api/admin/settings", "{\"name\": \"이름-" + SEQ.incrementAndGet() + "\"}");
 			case "POST /api/admin/reauth" -> new Call("/api/admin/reauth", "{\"password\": \"" + PASSWORD + "\"}");
+			case "POST /api/admin/users" -> new Call("/api/admin/users", "{\"email\": \"created" + SEQ.incrementAndGet()
+					+ "@ondolith.test\", \"display_name\": \"새 사용자\", \"password\": \"" + PASSWORD + "\"}");
 			case "POST /api/admin/users/{id}/deactivate" -> new Call("/api/admin/users/" + ids.user() + "/deactivate", "");
 			case "POST /api/admin/users/{id}/activate" -> new Call("/api/admin/users/" + ids.user() + "/activate", "");
 			default -> throw new IllegalStateException("표에 요청을 더한다: " + key);

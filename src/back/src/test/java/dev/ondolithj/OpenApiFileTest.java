@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/settings", "/api/admin/system", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -131,6 +131,22 @@ class OpenApiFileTest {
 				"email", "display_name", "is_active", "created_at", "roles", "assignable_roles");
 		assertThat(fieldNames(written.at("/components/schemas/RoleRef/properties"))).containsExactlyInAnyOrder("id",
 				"key", "name", "is_superuser");
+		// A-401 목록·A-402 생성(1-B2 스펙 7절). 생성 본문은 고정 레코드 — 역할·활성 상태·기준 시각 칸이 없다
+		JsonNode list = written.at("/paths/~1api~1admin~1users/get/responses");
+		assertThat(fieldNames(list)).containsExactlyInAnyOrder("200", "400", "401", "403", "422", "429");
+		JsonNode create = written.at("/paths/~1api~1admin~1users/post/responses");
+		assertThat(fieldNames(create)).containsExactlyInAnyOrder("201", "400", "401", "403", "409", "422", "429");
+		for (JsonNode r : java.util.List.of(list.get("400"), list.get("422"), create.get("409"), create.get("422"))) {
+			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
+				.isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		assertThat(fieldNames(written.at("/components/schemas/UserPage/properties"))).containsExactlyInAnyOrder("items",
+				"page", "page_size", "has_next");
+		assertThat(fieldNames(written.at("/components/schemas/UserItem/properties"))).containsExactlyInAnyOrder("id",
+				"email", "display_name", "is_active", "roles", "created_at");
+		assertThat(fieldNames(written.at("/components/schemas/CreateUser/properties"))).containsExactlyInAnyOrder("email",
+				"display_name", "password");
+		assertThat(fieldNames(written.at("/components/schemas/Created/properties"))).containsExactly("id");
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
 		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");
