@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/api/client";
+import { LoadError, LoadFailure } from "@/shared/api/load";
 import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 
-/** /admin/system — 시스템 정보(A-602). server_version 이 오면 DB 에 연결된 것이다. 403 은 null 로 받는다. */
+/** /admin/system — 시스템 정보(A-602). server_version 이 오면 DB 에 연결된 것이다. 실패는 LoadError 로 던져 LoadFailure 가 가른다. */
 export function SystemPage() {
   const heading = useFocusOnMount<HTMLHeadingElement>();
   const system = useQuery({
@@ -11,8 +12,7 @@ export function SystemPage() {
     gcTime: 0,
     queryFn: async () => {
       const { data, response } = await api.GET("/api/admin/system");
-      if (response.status === 403) return null;
-      if (!response.ok || !data) throw new Error(`system ${response.status}`);
+      if (!response.ok || !data) throw new LoadError(response.status);
       return data;
     },
   });
@@ -20,8 +20,7 @@ export function SystemPage() {
   return (
     <>
       <h2 ref={heading} tabIndex={-1} className="mb-4 text-xl font-semibold outline-none">시스템 정보</h2>
-      {system.isError && <p role="alert">시스템 정보를 불러오지 못했습니다</p>}
-      {data === null && <p>권한이 없습니다</p>}
+      {system.isError && <LoadFailure error={system.error} failed="시스템 정보를 불러오지 못했습니다" />}
       {data && (
         <>
           <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4">

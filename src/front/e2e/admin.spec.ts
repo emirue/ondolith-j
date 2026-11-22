@@ -5,7 +5,7 @@ test("관리자 셸 흐름: 메뉴 셋 → 이름 저장 → 알림 → 홈 → 
   await installSite(page, stack);
   await loginAdmin(page);
   const menu = page.getByRole("navigation", { name: "관리자 메뉴" });
-  await expect(menu.getByRole("link")).toHaveText(["사이트 설정", "작업 로그", "시스템 정보"]);
+  await expect(menu.getByRole("link")).toHaveText(["사이트 설정", "작업 로그", "시스템 정보", "사용자", "역할"]);
 
   await menu.getByRole("link", { name: "사이트 설정" }).click();
   await page.getByLabel("사이트 이름").fill("바뀐 이름");

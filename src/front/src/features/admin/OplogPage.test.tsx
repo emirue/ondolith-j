@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +87,35 @@ describe("작업 로그", () => {
     const f = renderOplog(() => json(200, { items: [], page: 1, page_size: 100, total: 0 }), "/admin/oplog?page=abc");
     await screen.findByRole("table", { name: "작업 로그" });
     expect(pages(f)).toEqual(["1"]);
+  });
+
+  it("쪽을_넘기면_h2_로_초점_M_3", async () => {
+    renderOplog((page) => json(200, { items: [row({})], page: Number(page), page_size: 100, total: 101 }));
+    await userEvent.setup().click(await screen.findByRole("link", { name: "다음" }));
+    await screen.findByRole("link", { name: "이전" });
+    expect(screen.getByRole("heading", { name: "작업 로그" })).toHaveFocus();
+  });
+
+  it("page_0_과_2147483648_은_1쪽, 2147483647 은 그 쪽", async () => {
+    for (const [query, want] of [["0", "1"], ["2147483648", "1"], ["2147483647", "2147483647"]]) {
+      const f = renderOplog(() => json(200, { items: [], page: 1, page_size: 100, total: 0 }), `/admin/oplog?page=${query}`);
+      await waitFor(() => expect(pages(f)).toEqual([want]));
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("빈_쪽이면_첫_쪽으로_M_9 — 「이전」 대신 ?page=1", async () => {
+    renderOplog(() => json(200, { items: [], page: 5, page_size: 100, total: 3 }), "/admin/oplog?page=5");
+    expect(await screen.findByRole("link", { name: "첫 쪽으로" })).toHaveAttribute("href", "/admin/oplog?page=1");
+    expect(screen.queryByRole("link", { name: "이전" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "다음" })).toBeNull();
+  });
+
+  it("401_이면_로그인_안내와_next_링크_M_9", async () => {
+    renderOplog(() => json(401, { status: 401, detail: "로그인이 필요합니다" }), "/admin/oplog?page=2");
+    expect(await screen.findByRole("alert")).toHaveTextContent("로그인이 끝났습니다");
+    expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute("href", "/login?next=%2Fadmin%2Foplog%3Fpage%3D2");
   });
 
   it("403 → 「권한이 없습니다」, 제목은 남는다", async () => {

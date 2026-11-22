@@ -24,7 +24,10 @@ export function SettingsPage() {
   return (
     <>
       <h2 ref={heading} tabIndex={-1} className="mb-4 text-xl font-semibold outline-none">사이트 설정</h2>
-      {me.isPending ? null : me.data?.can?.["settings.update"] !== true ? (
+      {me.isPending ? null : me.isError ? (
+        // M-10: can 을 모르는 것이지 권한이 없는 것이 아니다
+        <p role="alert">사이트 설정을 불러오지 못했습니다</p>
+      ) : me.data?.can?.["settings.update"] !== true ? (
         <p>권한이 없습니다</p>
       ) : site.data ? (
         // 처음 값이 온 뒤에 폼을 그린다(defaultValues 는 첫 그리기 값만 쓴다). 저장 뒤 다시 읽기가 실패해도 폼은 남는다

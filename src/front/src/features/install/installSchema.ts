@@ -1,7 +1,6 @@
 import { z } from "zod";
+import { passwordSchema } from "@/shared/lib/password";
 import { siteNameSchema } from "@/shared/lib/siteName";
-
-const bytes = (v: string) => new TextEncoder().encode(v).length;
 
 function isSiteUrl(v: string) {
   try {
@@ -32,7 +31,7 @@ export const installSchema = z
     site_type: z.enum(["cms", "shop"]),
     site_url: z.string().refine(isSiteUrl, "http·https 절대 주소"),
     admin_email: z.email("이메일 형식이 아닙니다").max(254, "254자 이하"),
-    admin_password: z.string().min(10, "10자 이상").refine((v) => bytes(v) <= 72, "72바이트 이하(한글은 약 24자)"),
+    admin_password: passwordSchema,
     admin_password_confirm: z.string(),
   })
   .refine((v) => v.admin_password === v.admin_password_confirm, {
