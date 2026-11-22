@@ -16,7 +16,8 @@ export function UsersPage() {
   const [params, setParams] = useSearchParams();
   const page = parsePage(params.get("page"));
   const q = params.get("q") ?? "";
-  const heading = useFocusOnMount<HTMLHeadingElement>(page);
+  // 검색어도 — 제출하면 칸이 key={q} 로 다시 그려져 초점이 body 로 떨어진다
+  const heading = useFocusOnMount<HTMLHeadingElement>(page, q);
   const can = useMe().data?.can;
   const users = useQuery({
     queryKey: ["admin", "users", page, q],

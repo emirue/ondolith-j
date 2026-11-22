@@ -75,6 +75,14 @@ describe("사용자 목록", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/admin/users?q=kim");
   });
 
+  it("검색 칸에서 Enter 로 제출해도 초점은 h2 로 — 칸이 다시 그려져 초점이 body 로 떨어지지 않는다", async () => {
+    renderUsers(() => json(200, page()));
+    const u = userEvent.setup();
+    await u.type(await screen.findByLabelText("검색"), "kim{Enter}");
+    expect(await screen.findByTestId("location")).toHaveTextContent("/admin/users?q=kim");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "사용자" })).toHaveFocus());
+  });
+
   it("can['user.update'] 가 false 면 이메일이 링크가 아니다, true 면 상세 링크", async () => {
     renderUsers(() => json(200, page()), "/admin/users", { "user.update": false });
     await screen.findByRole("table", { name: "사용자 목록" });
