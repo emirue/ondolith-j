@@ -493,4 +493,46 @@ class RolesApiTest {
 			}
 		}
 	}
+
+	// ---- 검사 순서(스펙 6절) ----
+
+	@Test
+	void 창이_닫히면_입력_오류와_R_거절보다_재인증이_먼저이고_기록하지_않는다() throws Exception {
+		Login admin = login("admin");
+		f.reauthAt(admin.http(), null);
+		TestHttp h = admin.http();
+		List<HttpResponse<String>> rs = List.of(grantRole(h, admin.id(), role("editor")),
+				revokeRole(h, admin.id(), role("admin")), h.post("/api/admin/users/" + admin.id() + "/roles", "{}"),
+				grantPerm(h, role("editor"), "ghost.key-9f2a"), grantPerm(h, role("admin"), "log.view"),
+				h.post("/api/admin/roles/" + role("editor") + "/permissions/revoke", "{}"));
+		for (HttpResponse<String> r : rs) {
+			assertThat(r.statusCode()).as("%s", r.uri()).isEqualTo(403);
+			assertThat(r.body()).as("%s", r.uri()).contains(URN);
+		}
+		assertThat(rows(admin.id())).isEmpty();
+	}
+
+	@Test
+	void A_405_는_줄_수_없는_역할_R1_R3_순서() throws Exception {
+		Login p = login(testRole("admin.access", "role.assign"));
+		// 줄 수 없는 역할 422 가 R1 보다 먼저(남기지 않음)
+		fieldError(grantRole(p.http(), p.id(), role("anonymous")), "role_id", "줄 수 없는 역할입니다");
+		// R1 이 R3 보다 먼저
+		refused(grantRole(p.http(), p.id(), role("admin")), 403, "자기 계정의 역할은 변경할 수 없습니다");
+		assertThat(rows(p.id())).containsExactly("user.denied|" + p.id() + "|user.grant_role admin r1");
+	}
+
+	@Test
+	void A_404_는_모르는_키_R5_R9_R4_순서() throws Exception {
+		Login p = login(testRole("admin.access", "role.manage"));
+		UUID admin = role("admin");
+		UUID member = role("member");
+		// 모르는 키가 R5 보다, R5 가 R4 보다, R9 가 R4 보다 먼저
+		fieldError(grantPerm(p.http(), admin, "ghost.key-9f2a"), "permission", "알 수 없는 권한입니다");
+		refused(grantPerm(p.http(), admin, "user.update"), 403, "이 역할의 권한은 변경할 수 없습니다");
+		fieldError(grantPerm(p.http(), member, "user.update"), "permission", "모두가 갖는 역할에는 방문자 권한만 줄 수 있습니다");
+		assertThat(rows(p.id())).containsExactly("role.denied|" + admin + "|role.grant_permission unknown_permission",
+				"role.denied|" + admin + "|role.grant_permission user.update r5",
+				"role.denied|" + member + "|role.grant_permission user.update r9");
+	}
 }
