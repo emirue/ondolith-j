@@ -112,5 +112,13 @@ chk "모르는 대상은 거부" "1|" "$(TARGET=x run target_paths)"
 CORE_CFG=$'db.url=jdbc:postgresql://bench-db:5432/m\ndb.user=m\ndb.password=m\nsite.url=http://measure.ondolith.test\ncookies.secure=false\nseal.key=KEY\nupload.dir=/tmp/uploads\nbackup.dir=/tmp/backups\ninstalled.at=2026-11-14T00:00:00Z'
 chk "코어 설정 파일" "0|$CORE_CFG" "$(run core_config bench-db KEY 2026-11-14T00:00:00Z)"
 
+# --- platform_ok <검사값> <PLATFORM>: 이미지·Docker 서버의 os/arch 가 PLATFORM 과 같아야 한다
+chk "플랫폼 같으면 통과" "0|" "$(run platform_ok linux/arm64 linux/arm64)"
+chk "아키텍처가 다르면 실패" "1|" "$(run platform_ok linux/amd64 linux/arm64)"
+chk "검사값이 비면 실패" "1|" "$(run platform_ok '' linux/arm64)"
+chk "PLATFORM 이 비면 실패" "1|" "$(run platform_ok linux/arm64 '')"
+# Docker 서버가 꺼져 있으면 기본 PLATFORM 과 서버 값이 함께 빈다 — 같아도 실패
+chk "둘 다 비면 실패" "1|" "$(run platform_ok '' '')"
+
 echo "measure: 통과 $pass / 실패 $fail"
 [ "$fail" -eq 0 ]

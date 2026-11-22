@@ -28,9 +28,9 @@
 | Java | 25 |
 | 빌드 | Gradle - Kotlin (wrapper `gradle-9.8.2`) |
 | 의존성 | `web`(`spring-boot-starter-webmvc`), `security`, `data-jpa`, `postgresql` |
-| 빌드 이미지 / 실행 이미지 | `eclipse-temurin:25-jdk` / `eclipse-temurin:25-jre` |
-| DB 이미지 | `postgres:18-alpine` |
-| 부하 도구 | `httpd:2.4-alpine` 안의 `ab` (`-n 5000 -c 20`, 목록 `/api/posts?page=3`·단건 `/api/posts/500` 차례로) |
+| 빌드 이미지 / 실행 이미지 | `eclipse-temurin:25-jdk` / `eclipse-temurin:25-jre`. 실행은 `measure.sh` 의 고정 참조(태그@다이제스트), 빌드는 아래 「다시 재기」의 참조. 둘 다 `--platform` 은 호스트 |
+| DB 이미지 | `postgres:18-alpine`. `measure.sh` 의 고정 참조(태그@다이제스트), `--platform` 호스트 |
+| 부하 도구 | `httpd:2.4-alpine`(`measure.sh` 의 고정 참조, `--platform` 호스트) 안의 `ab` (`-n 5000 -c 20`, 목록 `/api/posts?page=3`·단건 `/api/posts/500` 차례로) |
 | 가상 스레드 / 커넥션 풀 | 끔(기본값) / HikariCP 기본값 |
 | CPU | 앱·DB 컨테이너 모두 `--cpus=1` |
 | 데이터 | `posts` 1000행 ([`bench/seed.sql`](../bench/seed.sql)) |
@@ -174,17 +174,43 @@ Phase 1-A(로그인·DB 세션·권한·횟수 제한)를 붙인 코어를 Phase
 - **아키텍처**: arm64 에서 쟀다. Lightsail 인스턴스와 아키텍처가 다르면 숫자가 조금 다를 수 있다.
 - **범위 밖, 하지 않음**: 실제 Lightsail 인스턴스 측정(비용), React·S3 배포, GraalVM native image.
 - DB 계정 `m`/`m` 은 포트를 열지 않는 일회용 측정 컨테이너용이다.
+- `PLATFORM` 기본값은 Docker 서버의 `os/arch`(호스트)다. 서버나 세 이미지의 `os/arch` 가 `PLATFORM` 과 다르면 하네스 실패(exit 2)다. 대상 Lightsail 의 아키텍처는 정해지지 않았고(측정이 흉내 내는 것은 티어의 메모리 상한), 에뮬레이션으로 잰 값은 측정 목적에 어긋난다.
+
+### 이미지 고정 (2026-11-22)
+
+태그가 새 판을 가리키면 측정 조건이 바뀐다(1-A 절의 DB 판 18.4 → 18.7). 그래서 이미지는 `태그@sha256:<인덱스 다이제스트>` 로 쓴다. 인덱스(멀티 아키텍처 목록) 다이제스트를 쓰고, 판은 `--platform` 이 목록에서 고른다. 플랫폼별 다이제스트를 넣으면 아키텍처가 참조에 박혀 `PLATFORM` 이 뜻을 잃는다.
+
+| 이미지 | 인덱스 다이제스트(2026-11-22 조회) |
+|---|---|
+| `postgres:18-alpine` | `sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71` |
+| `eclipse-temurin:25-jre` | `sha256:4ed132f6832e9804b123e89a849a7b4502756ae64a4ee08ebab939d9d5d0a9fa` |
+| `httpd:2.4-alpine` | `sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24` |
+| `eclipse-temurin:25-jdk`(빌드) | `sha256:ce2ef9d2d67a68de5e196d4de9d743327c44a10b57fe02ec39f572c652cacfd3` |
+
+넷 모두 목록에 `linux/arm64/v8` 이 있다. 이 다이제스트 판에서는 JRE 가 Temurin-25.0.5.1+2, DB 가 PostgreSQL 18.7 이다(`./measure.sh env`).
+
+```bash
+# 다이제스트 확인·갱신: 첫 Digest 줄이 인덱스 다이제스트, Platform 줄에 호스트 판이 있어야 한다
+docker buildx imagetools inspect postgres:18-alpine
+# 고정 참조가 실제로 받아지는지
+docker run --rm --platform "$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" \
+  postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71 postgres --version
+```
+
+다이제스트를 바꾸면 `measure.sh` 의 변수 셋과 위 표, 아래 빌드 명령을 함께 바꾸고 다시 잰다.
 
 ## 다시 재기
 
 ```bash
 # 1. 빌드 (테스트는 DB 가 있어야 돌므로 bootJar 만)
 docker volume create bench-gradle
-docker run --rm --cpus=2 -v "$PWD/bench":/src -w /src -v bench-gradle:/root/.gradle \
-  eclipse-temurin:25-jdk ./gradlew --no-daemon -q bootJar
+docker run --rm --cpus=2 --platform "$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" \
+  -v "$PWD/bench":/src -w /src -v bench-gradle:/root/.gradle \
+  eclipse-temurin:25-jdk@sha256:ce2ef9d2d67a68de5e196d4de9d743327c44a10b57fe02ec39f572c652cacfd3 \
+  ./gradlew --no-daemon -q bootJar
 
 # 2. 측정 (한 번에 하나씩. 스스로 nice 19 로 다시 실행된다)
-./measure.sh env          # 아키텍처·java -version → results/env.txt
+./measure.sh env          # os/arch·이미지 참조·java -version·DB 판 → results/env.txt
 ./measure.sh S6 1         # 시나리오 S6 의 1회차. 판정 실패면 exit 1, 하네스 실패면 exit 2
 # 코어 jar: cd src/back && ./mvnw -q -B package -DskipTests 로 빌드한 뒤
 TARGET=core JAR=src/back/target/ondolith-j-0.0.1-SNAPSHOT.jar LABEL=core-p0 ./measure.sh S5 1
