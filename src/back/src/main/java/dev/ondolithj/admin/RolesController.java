@@ -260,6 +260,8 @@ class RolesController {
 					throw new Refused(HttpStatus.CONFLICT, "마지막 관리자의 역할은 회수할 수 없습니다");
 				}
 				case GONE -> throw new Refused(HttpStatus.NOT_FOUND, notHeld);
+				// R3 을 지난 요청자는 superuser 라 닿지 않는다. 닿으면 성공으로 떨어지지 않고 500 으로 멈춘다(1-B2 최종 검토 M-1)
+				case R6 -> throw new IllegalStateException("역할 빼기에서 R6 이 나왔다");
 				case DONE -> {
 				}
 			}

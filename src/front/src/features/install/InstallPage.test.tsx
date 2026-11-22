@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, mockApi, renderWithQuery } from "@/test-api";
@@ -92,5 +93,26 @@ describe("설치 화면", () => {
     await u.click(screen.getByRole("button", { name: "설치" }));
     expect(await screen.findByText("비밀번호 확인이 다릅니다")).toBeInTheDocument();
     expect(f).not.toHaveBeenCalled();
+  });
+
+  it("보낸 비밀번호가 쿼리·변경 캐시에 남지 않는다(1-B2 최종 검토 c)", async () => {
+    mockApi(() => new Response(null, { status: 202 }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const onSubmitted = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <InstallPage onSubmitted={onSubmitted} />
+      </QueryClientProvider>,
+    );
+    const u = await fillValid();
+    await u.type(screen.getByLabelText("DB 비밀번호"), "db-pass-not-real");
+    await u.click(screen.getByRole("button", { name: "설치" }));
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
+    const cached = JSON.stringify([
+      client.getMutationCache().getAll().map((m) => m.state),
+      client.getQueryCache().getAll().map((q) => q.state),
+    ]);
+    expect(cached).not.toContain("not-a-real-pass");
+    expect(cached).not.toContain("db-pass-not-real");
   });
 });
