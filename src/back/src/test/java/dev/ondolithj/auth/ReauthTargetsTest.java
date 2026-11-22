@@ -31,13 +31,16 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  */
 class ReauthTargetsTest {
 
-	/** 재인증 대상(D15 5.3-1 의 1-B2 행). Task 4·7 이 채운다. */
-	static final Set<String> TARGETS = Set.of("POST /api/admin/users/{id}/deactivate", "POST /api/admin/users/{id}/activate");
+	/** 재인증 대상(D15 5.3-1 의 1-B2 행). */
+	static final Set<String> TARGETS = Set.of("POST /api/admin/users/{id}/deactivate", "POST /api/admin/users/{id}/activate",
+			"POST /api/admin/roles/{id}/permissions", "POST /api/admin/roles/{id}/permissions/revoke",
+			"POST /api/admin/users/{id}/roles", "POST /api/admin/users/{id}/roles/revoke");
 
 	static final Set<String> NOT_TARGETS = Set.of("POST /api/admin/settings", "POST /api/admin/reauth",
 			"POST /api/admin/users");
 
-	record Ids(UUID user, UUID role) {
+	/** role 은 editor, operator 는 A-405 로 줄 역할. */
+	record Ids(UUID user, UUID role, UUID operator) {
 	}
 
 	record Call(String path, String body) {
@@ -91,6 +94,14 @@ class ReauthTargetsTest {
 					+ "@ondolith.test\", \"display_name\": \"새 사용자\", \"password\": \"" + PASSWORD + "\"}");
 			case "POST /api/admin/users/{id}/deactivate" -> new Call("/api/admin/users/" + ids.user() + "/deactivate", "");
 			case "POST /api/admin/users/{id}/activate" -> new Call("/api/admin/users/" + ids.user() + "/activate", "");
+			case "POST /api/admin/roles/{id}/permissions" -> new Call("/api/admin/roles/" + ids.role() + "/permissions",
+					"{\"permission\": \"log.view\"}");
+			case "POST /api/admin/roles/{id}/permissions/revoke" -> new Call(
+					"/api/admin/roles/" + ids.role() + "/permissions/revoke", "{\"permission\": \"log.view\"}");
+			case "POST /api/admin/users/{id}/roles" -> new Call("/api/admin/users/" + ids.user() + "/roles",
+					"{\"role_id\": \"" + ids.operator() + "\"}");
+			case "POST /api/admin/users/{id}/roles/revoke" -> new Call("/api/admin/users/" + ids.user() + "/roles/revoke",
+					"{\"role_id\": \"" + ids.operator() + "\"}");
 			default -> throw new IllegalStateException("표에 요청을 더한다: " + key);
 		};
 	}
@@ -117,10 +128,12 @@ class ReauthTargetsTest {
 
 	static Ids ids() throws Exception {
 		UUID user = f.user("target" + SEQ.incrementAndGet() + "@ondolith.test");
-		try (Connection c = f.db(); PreparedStatement s = c.prepareStatement("SELECT id FROM roles WHERE key = 'editor'");
+		try (Connection c = f.db();
+				PreparedStatement s = c.prepareStatement(
+						"SELECT (SELECT id FROM roles WHERE key = 'editor'), (SELECT id FROM roles WHERE key = 'operator')");
 				ResultSet r = s.executeQuery()) {
 			r.next();
-			return new Ids(user, r.getObject(1, UUID.class));
+			return new Ids(user, r.getObject(1, UUID.class), r.getObject(2, UUID.class));
 		}
 	}
 

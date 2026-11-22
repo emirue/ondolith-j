@@ -238,25 +238,69 @@ class LastAdminTest {
 	}
 
 	/**
-	 * 처리기가 대상을 읽은 뒤(보유자 아님, R6 통과)에 대상이 보유자가 된다. 처리기가 먼저 읽은 값으로 잠금을 건너뛰면 204 다(스펙 5절
-	 * 「늘 이 함수를 거친다」). 시험 연결이 roles 행을 잡은 채 같은 트랜잭션에서 admin 을 주고 커밋한다(외래 키가 roles 행을 읽어서
+	 * 처리기가 대상을 읽은 뒤(보유자 아님, R6 통과)에 대상이 보유자가 된다. 처리기가 먼저 읽은 값으로 잠금을 건너뛰거나(스펙 5절
+	 * 「늘 이 함수를 거친다」) R6 을 잠금 아래서 다시 보지 않으면, 활성 보유자가 둘이라 비-superuser 의 비활성화가 204 로 지나간다(Task 6
+	 * 관찰, 주 세션 Ruling). 시험 연결이 roles 행을 잡은 채 같은 트랜잭션에서 admin 을 주고 커밋한다(외래 키가 roles 행을 읽어서
 	 * 다른 연결로는 줄 수 없다).
 	 */
 	@Test
 	@Timeout(90)
-	void 처리기가_본_뒤에_보유자가_된_대상도_비활성화는_409() throws Exception {
+	void 처리기가_R6_을_본_뒤에_보유자가_된_대상의_비활성화는_잠금_아래서_403_r6() throws Exception {
+		Login probe = login("probe_users");
+		user("admin");
+		UUID x = user();
+		HttpResponse<String> r = afterCheck(c -> c.createStatement().executeQuery(
+				"SELECT id FROM roles WHERE is_superuser FOR UPDATE").close(), deactivating(probe.http(), x), x);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(403);
+		assertThat(r.body()).contains("권한이 없습니다");
+		assertThat(active(x)).isTrue();
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.denied' "
+				+ "AND target_id = ? AND summary = 'user.deactivate r6'", probe.id(), x.toString())).isEqualTo(1);
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.deactivate'",
+				probe.id())).isZero();
+	}
+
+	/**
+	 * 활성화는 잠금이 없다. 시험 연결이 users 표를 SHARE 로 잡으면 처리기의 SELECT(인증·R6)는 지나가고 UPDATE 는 표 잠금에서
+	 * 멈춘다 — 표 잠금은 실행 스냅숏보다 먼저라, 풀린 뒤의 UPDATE 는 커밋된 부여를 본다. 판정이 UPDATE 의 WHERE 에 없으면 204 다.
+	 */
+	@Test
+	@Timeout(90)
+	void 처리기가_R6_을_본_뒤에_보유자가_된_대상의_활성화는_403_r6() throws Exception {
 		Login probe = login("probe_users");
 		UUID x = user();
+		f.sql("UPDATE users SET is_active = false WHERE id = ?", x);
+		HttpResponse<String> r = afterCheck(c -> c.createStatement().execute("LOCK TABLE users IN SHARE MODE"),
+				() -> {
+					try {
+						return probe.http().postAsync("/api/admin/users/" + x + "/activate", "", Duration.ofSeconds(30));
+					}
+					catch (Exception e) {
+						throw new IllegalStateException(e);
+					}
+				}, x);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(403);
+		assertThat(r.body()).contains("권한이 없습니다");
+		assertThat(active(x)).isFalse();
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.denied' "
+				+ "AND target_id = ? AND summary = 'user.activate r6'", probe.id(), x.toString())).isEqualTo(1);
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.activate'",
+				probe.id())).isZero();
+	}
+
+	/** 시험 연결이 잠금을 잡고, 요청이 그 잠금을 기다리는 것을 본 뒤 같은 트랜잭션에서 x 에게 admin 을 주고 커밋한다. */
+	static HttpResponse<String> afterCheck(Lock lock, Supplier<CompletableFuture<HttpResponse<String>>> send, UUID x)
+			throws Exception {
 		CompletableFuture<HttpResponse<String>> sent;
 		try (Connection c = f.db()) {
 			c.setAutoCommit(false);
-			try (Statement s = c.createStatement()) {
-				s.execute("SET lock_timeout = '5s'");
-				s.execute("SET statement_timeout = '30s'");
-				s.executeQuery("SELECT id FROM roles WHERE is_superuser FOR UPDATE").close();
-			}
 			try {
-				sent = deactivating(probe.http(), x).get();
+				try (Statement s = c.createStatement()) {
+					s.execute("SET lock_timeout = '5s'");
+					s.execute("SET statement_timeout = '30s'");
+				}
+				lock.take(c);
+				sent = send.get();
 				awaitWaiters(1);
 				try (PreparedStatement g = c.prepareStatement(
 						"INSERT INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE key = 'admin'")) {
@@ -269,11 +313,44 @@ class LastAdminTest {
 				c.rollback();
 			}
 		}
-		HttpResponse<String> r = sent.get(30, TimeUnit.SECONDS);
-		assertThat(r.statusCode()).as(r.body()).isEqualTo(409);
-		assertThat(r.body()).contains(LAST_ADMIN);
-		assertThat(active(x)).isTrue();
-		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.denied' "
-				+ "AND target_id = ? AND summary = 'user.deactivate last_admin'", probe.id(), x.toString())).isEqualTo(1);
+		return sent.get(30, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * 비활성화와 superuser 역할 빼기가 같은 잠금을 거친다(스펙 5절). A 가 B 를 비활성화하고 B 가 A 의 admin 을 빼면, 둘 다 셈 2 로
+	 * 지나가 활성 관리자가 0 이 될 수 있다. 시험 연결이 두 쓰기의 행을 잡아 두 요청이 모두 판정을 지난 자리까지 오게 한다.
+	 */
+	@Test
+	@Timeout(90)
+	void 비활성화와_admin_역할_빼기가_엇갈려도_하나만_된다() throws Exception {
+		Login a = login("admin");
+		Login b = login("admin");
+		UUID adminRole = UUID.fromString(app.sql("SELECT id::text FROM roles WHERE key = 'admin'").query(String.class).single());
+		List<Integer> codes = race(c -> {
+			try (PreparedStatement s = c.prepareStatement("SELECT 1 FROM users WHERE id = ? FOR UPDATE")) {
+				s.setObject(1, b.id());
+				s.executeQuery().close();
+			}
+			try (PreparedStatement s = c.prepareStatement(
+					"SELECT 1 FROM user_roles WHERE user_id = ? AND role_id = ? FOR UPDATE")) {
+				s.setObject(1, a.id());
+				s.setObject(2, adminRole);
+				s.executeQuery().close();
+			}
+		}, List.of(deactivating(a.http(), b.id()), () -> {
+			try {
+				return b.http().postAsync("/api/admin/users/" + a.id() + "/roles/revoke",
+						"{\"role_id\": \"" + adminRole + "\"}", Duration.ofSeconds(30));
+			}
+			catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
+		}));
+		codes.sort(null);
+		assertThat(codes).isEqualTo(List.of(204, 409));
+		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id IN (?, ?) AND action = 'user.denied' "
+				+ "AND summary IN ('user.deactivate last_admin', 'user.revoke_role admin last_admin')", a.id(), b.id()))
+			.isEqualTo(1);
+		assertThat(holders()).isEqualTo(1);
 	}
 }

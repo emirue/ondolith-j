@@ -52,6 +52,8 @@ class UsersController {
 
 	private static final String NOT_FOUND = "사용자를 찾을 수 없습니다";
 
+	private static final String R6 = "권한이 없습니다";
+
 	private static final int PAGE_SIZE = 50;
 
 	// 전체 건수는 세지 않고 한 행 더 읽어 다음 쪽을 안다(원문 코드, D86 7.13). 역할 키는 같은 질의의 집계 — 질의는 행 수와 관계없이 하나다.
@@ -222,7 +224,8 @@ class UsersController {
 		reauth.require(request);
 		refuse(id, actor, Action.USER_DEACTIVATE, request);
 		// 위에서 읽은 보유 여부로 건너뛰지 않는다 — 잠금 아래서 다시 읽는다(스펙 5절). 기록은 커밋·롤백 뒤
-		switch (lastAdmin.run(id, () -> jdbc.sql(DEACTIVATE).param(id).update())) {
+		switch (lastAdmin.run(id, actor.superuser(), () -> jdbc.sql(DEACTIVATE).param(id).update())) {
+			case R6 -> deny(actor, Action.USER_DEACTIVATE, id, "r6", R6, request);
 			case REFUSED -> {
 				operationLog.record(actor, Action.USER_DENIED, id.toString(),
 						Action.USER_DEACTIVATE.key() + " last_admin", ClientIp.of(request));
@@ -247,7 +250,15 @@ class UsersController {
 			HttpServletRequest request) {
 		reauth.require(request);
 		refuse(id, actor, Action.USER_ACTIVATE, request);
-		write("UPDATE users SET is_active = true, updated_at = now() WHERE id = ?", id);
+		// R6 을 쓰기 문장 안에서 다시 본다 — 위의 판정 뒤에 대상이 보유자가 되는 틈을 닫는다(잠금이 없는 쪽)
+		int n = jdbc.sql("UPDATE users u SET is_active = true, updated_at = now() WHERE u.id = ? AND (? OR NOT "
+				+ ActorQuery.HOLDS_SUPERUSER + ")").params(id, actor.superuser()).update();
+		if (n == 0) {
+			if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM users WHERE id = ?)").param(id).query(Boolean.class).single()) {
+				deny(actor, Action.USER_ACTIVATE, id, "r6", R6, request);
+			}
+			throw new Refused(HttpStatus.NOT_FOUND, NOT_FOUND);
+		}
 		operationLog.record(actor, Action.USER_ACTIVATE, id.toString(), "", ClientIp.of(request));
 		return ResponseEntity.noContent().build();
 	}
@@ -259,21 +270,15 @@ class UsersController {
 		if (id.equals(actor.id())) {
 			deny(actor, action, id, "self", "자기 계정에는 이 작업을 할 수 없습니다", request);
 		}
-		// R6: 비활성·활성 둘 다(Q19) — 막아 둔 superuser 보유자를 비-superuser 가 다시 열지 못하게
+		// R6: 비활성·활성 둘 다(Q19) — 막아 둔 superuser 보유자를 비-superuser 가 다시 열지 못하게.
+		// 이 판정 뒤에 대상이 보유자가 될 수 있어 쓰기 때 한 번 더 본다(비활성은 LastAdmin 잠금 아래, 활성은 UPDATE 의 WHERE)
 		if (holder && !actor.superuser()) {
-			deny(actor, action, id, "r6", "권한이 없습니다", request);
+			deny(actor, action, id, "r6", R6, request);
 		}
 	}
 
 	private void deny(Actor actor, Action action, UUID id, String rule, String detail, HttpServletRequest request) {
 		operationLog.record(actor, Action.USER_DENIED, id.toString(), action.key() + " " + rule, ClientIp.of(request));
 		throw new Refused(HttpStatus.FORBIDDEN, detail);
-	}
-
-	/** 조회와 쓰기 사이에 사라졌으면 404. */
-	private void write(String sql, UUID id) {
-		if (jdbc.sql(sql).param(id).update() == 0) {
-			throw new Refused(HttpStatus.NOT_FOUND, NOT_FOUND);
-		}
 	}
 }

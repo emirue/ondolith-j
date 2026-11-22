@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/roles", "/api/admin/roles/{id}/permissions", "/api/admin/roles/{id}/permissions/revoke", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/admin/users/{id}/roles", "/api/admin/users/{id}/roles/revoke", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -147,6 +147,38 @@ class OpenApiFileTest {
 		assertThat(fieldNames(written.at("/components/schemas/CreateUser/properties"))).containsExactlyInAnyOrder("email",
 				"display_name", "password");
 		assertThat(fieldNames(written.at("/components/schemas/Created/properties"))).containsExactly("id");
+		// A-403·A-404·A-405(1-B2 스펙 7절). 빼기의 422 는 칸이 비었을 때(필수)
+		JsonNode roles = written.at("/paths/~1api~1admin~1roles/get/responses");
+		assertThat(fieldNames(roles)).containsExactlyInAnyOrder("200", "401", "403", "429");
+		JsonNode grantPerm = written.at("/paths/~1api~1admin~1roles~1{id}~1permissions/post/responses");
+		JsonNode revokePerm = written.at("/paths/~1api~1admin~1roles~1{id}~1permissions~1revoke/post/responses");
+		JsonNode grantRole = written.at("/paths/~1api~1admin~1users~1{id}~1roles/post/responses");
+		JsonNode revokeRole = written.at("/paths/~1api~1admin~1users~1{id}~1roles~1revoke/post/responses");
+		for (JsonNode r : java.util.List.of(grantPerm, revokePerm, grantRole)) {
+			assertThat(fieldNames(r)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "422", "429");
+		}
+		assertThat(fieldNames(revokeRole)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "409", "422", "429");
+		for (JsonNode r : java.util.List.of(grantPerm, revokePerm, grantRole, revokeRole)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+			for (String code : java.util.List.of("400", "401", "403", "404", "422", "429")) {
+				assertThat(r.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+					.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+			}
+		}
+		assertThat(revokeRole.at("/409/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(roles.at("/403/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(fieldNames(written.at("/components/schemas/RolesView/properties"))).containsExactlyInAnyOrder("roles",
+				"permissions");
+		assertThat(fieldNames(written.at("/components/schemas/RoleView/properties"))).containsExactlyInAnyOrder("id", "key",
+				"name", "description", "is_builtin", "is_superuser", "is_assignable", "permissions");
+		assertThat(fieldNames(written.at("/components/schemas/Grant/properties"))).containsExactlyInAnyOrder("key",
+				"effective");
+		assertThat(fieldNames(written.at("/components/schemas/PermissionView/properties"))).containsExactlyInAnyOrder("key",
+				"description");
+		assertThat(fieldNames(written.at("/components/schemas/PermissionRequest/properties"))).containsExactly("permission");
+		assertThat(fieldNames(written.at("/components/schemas/RoleRequest/properties"))).containsExactly("role_id");
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
 		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");
