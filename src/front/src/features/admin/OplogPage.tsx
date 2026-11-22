@@ -7,8 +7,20 @@ import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 
 type OplogItem = components["schemas"]["OplogItem"];
 
-/** 동작 이름표(스펙 6절). 모르는 키는 그대로 보인다. */
-const ACTIONS: Record<string, string> = { "auth.login": "로그인", "settings.update": "사이트 설정 변경" };
+/** 동작 이름표(1-B1 스펙 6절, 1-B2 스펙 8절). 모르는 키는 그대로 보인다. */
+const ACTIONS: Record<string, string> = {
+  "auth.login": "로그인",
+  "settings.update": "사이트 설정 변경",
+  "user.create": "사용자 생성",
+  "user.deactivate": "사용자 비활성화",
+  "user.activate": "사용자 활성화",
+  "user.grant_role": "역할 부여",
+  "user.revoke_role": "역할 빼기",
+  "role.grant_permission": "역할에 권한 부여",
+  "role.revoke_permission": "역할에서 권한 빼기",
+  "user.denied": "사용자 작업 거절",
+  "role.denied": "역할 작업 거절",
+};
 
 function actor(item: OplogItem) {
   if (item.actor_email === "") return "시스템";

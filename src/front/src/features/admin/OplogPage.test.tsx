@@ -65,6 +65,24 @@ describe("작업 로그", () => {
     ]);
   });
 
+  it("사용자·역할 동작 아홉의 이름표(1-B2 스펙 8절)", async () => {
+    const labels = {
+      "user.create": "사용자 생성",
+      "user.deactivate": "사용자 비활성화",
+      "user.activate": "사용자 활성화",
+      "user.grant_role": "역할 부여",
+      "user.revoke_role": "역할 빼기",
+      "role.grant_permission": "역할에 권한 부여",
+      "role.revoke_permission": "역할에서 권한 빼기",
+      "user.denied": "사용자 작업 거절",
+      "role.denied": "역할 작업 거절",
+    };
+    renderOplog(() => json(200, { items: Object.keys(labels).map((action) => row({ action })), page: 1, page_size: 100, total: 9 }));
+    const table = await screen.findByRole("table", { name: "작업 로그" });
+    const cells = within(table).getAllByRole("row").slice(1).map((tr) => within(tr).getAllByRole("cell")[2]!.textContent);
+    expect(cells).toEqual(Object.values(labels));
+  });
+
   it("total 101, 1쪽 → 「다음」은 ?page=2, 「이전」 없음. 누르면 page=2 를 부르고 「이전」이 생긴다", async () => {
     const f = renderOplog((page) => json(200, { items: [row({})], page: Number(page), page_size: 100, total: 101 }));
     const next = await screen.findByRole("link", { name: "다음" });
