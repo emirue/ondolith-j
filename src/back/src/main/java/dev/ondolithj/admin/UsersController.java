@@ -116,12 +116,15 @@ class UsersController {
 
 	private final Reauth reauth;
 
+	private final LastAdmin lastAdmin;
+
 	private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-	UsersController(JdbcClient jdbc, OperationLog operationLog, Reauth reauth) {
+	UsersController(JdbcClient jdbc, OperationLog operationLog, Reauth reauth, LastAdmin lastAdmin) {
 		this.jdbc = jdbc;
 		this.operationLog = operationLog;
 		this.reauth = reauth;
+		this.lastAdmin = lastAdmin;
 	}
 
 	@AdminPermission(Permission.USER_VIEW)
@@ -218,7 +221,17 @@ class UsersController {
 			HttpServletRequest request) {
 		reauth.require(request);
 		refuse(id, actor, Action.USER_DEACTIVATE, request);
-		write(DEACTIVATE, id);
+		// 위에서 읽은 보유 여부로 건너뛰지 않는다 — 잠금 아래서 다시 읽는다(스펙 5절). 기록은 커밋·롤백 뒤
+		switch (lastAdmin.run(id, () -> jdbc.sql(DEACTIVATE).param(id).update())) {
+			case REFUSED -> {
+				operationLog.record(actor, Action.USER_DENIED, id.toString(),
+						Action.USER_DEACTIVATE.key() + " last_admin", ClientIp.of(request));
+				throw new Refused(HttpStatus.CONFLICT, "마지막 관리자는 비활성화·삭제할 수 없습니다");
+			}
+			case GONE -> throw new Refused(HttpStatus.NOT_FOUND, NOT_FOUND);
+			case DONE -> {
+			}
+		}
 		operationLog.record(actor, Action.USER_DEACTIVATE, id.toString(), "", ClientIp.of(request));
 		return ResponseEntity.noContent().build();
 	}
