@@ -213,4 +213,39 @@ describe("ConfirmButton", () => {
     expect(screen.queryByLabelText("관리자 비밀번호 재확인")).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent("권한이 없습니다");
   });
+
+  it("다시_보낸_원_요청이_401_이면_대화상자를_닫고_로그인_안내_Review_Focus_4", async () => {
+    const { answer } = pendingApi();
+    renderWithQuery(<Harness />, "/admin/users/x", { notice: true });
+    const u = userEvent.setup();
+    await u.click(trigger());
+    await u.click(screen.getByRole("button", { name: "확인" }));
+    await answer(REAUTH());
+    await u.type(screen.getByLabelText("관리자 비밀번호 재확인"), `${PASSWORD}{Enter}`);
+    await answer(NO_CONTENT());
+    await answer(problem(401, { status: 401, detail: "로그인이 필요합니다" }));
+    expect(dialog()).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("로그인이 끝났습니다");
+    expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute("href", "/login?next=%2Fadmin%2Fusers%2Fx");
+  });
+
+  it("재인증_429_는_대화상자_안에_잠시_뒤_문구_입력은_남고_다시_204_면_원_요청_한_번_Review_Focus_5", async () => {
+    const { answer, paths } = pendingApi();
+    renderWithQuery(<Harness />, "/", { notice: true });
+    const u = userEvent.setup();
+    await u.click(trigger());
+    await u.click(screen.getByRole("button", { name: "확인" }));
+    await answer(REAUTH());
+    const field = screen.getByLabelText("관리자 비밀번호 재확인");
+    await u.type(field, `${PASSWORD}{Enter}`);
+    await answer(problem(429, { status: 429, detail: "잠시 뒤 다시 시도하세요" }));
+    expect(dialog()).toContainElement(screen.getByRole("alert"));
+    expect(screen.getByRole("alert")).toHaveTextContent("잠시 뒤 다시 시도하세요");
+    expect(field).toHaveValue(PASSWORD);
+    await u.click(screen.getByRole("button", { name: "확인" }));
+    await answer(NO_CONTENT());
+    await answer(NO_CONTENT());
+    expect(paths()).toEqual([DEACTIVATE, "/api/admin/reauth", "/api/admin/reauth", DEACTIVATE]);
+    expect(dialog()).toBeNull();
+  });
 });

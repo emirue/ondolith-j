@@ -19,6 +19,7 @@ import { Label } from "@/shared/ui/label";
  * 확인은 AlertDialogAction 이 아니라 폼의 제출 단추다 — Action 은 누르는 즉시 닫아(onOpenChange(false)) 응답 전에 대화상자가 사라지고,
  * 닫힘을 막으려 preventDefault 하면 폼 제출도 막힌다. open 은 이 부품이 쥔다.
  * 연 단추는 Trigger 다 — Radix 는 닫힐 때 Trigger 로만 초점을 돌린다.
+ * save 는 이 단추만 쓴다(목록의 줄마다 useSave 를 따로) — 나눠 쓰면 재인증 403 에 모든 단추의 대화상자가 열린다.
  */
 export function ConfirmButton<V>({
   label,

@@ -74,6 +74,20 @@ describe("useSave", () => {
     await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
   });
 
+  it("send 가 동기로 던져도 풀린다", async () => {
+    const send = vi
+      .fn<(v: string) => Promise<Sent>>()
+      .mockImplementationOnce(() => {
+        throw new TypeError("동기 실패");
+      })
+      .mockResolvedValue({ response: new Response(null, { status: 204 }) });
+    renderWithQuery(<Probe send={send} />, "/", { notice: true });
+    fireEvent.click(screen.getByRole("button"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("저장하지 못했습니다");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  });
+
   it("다음 제출을 시작하면 앞 알림을 지운다", async () => {
     const { send, finish } = pendingSend();
     renderWithQuery(<Probe send={send} />, "/", { notice: true });

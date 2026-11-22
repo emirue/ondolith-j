@@ -32,6 +32,7 @@ const isReauth = (status: number, problem: Problem) => status === 403 && problem
  * 상태를 바꾸는 요청의 공용 훅(1-B1 스펙 6절, 1-B2 스펙 9절). 성공 문구는 필수다(W6-45).
  * FR-727: 같은 틱의 두 번째 호출은 다시 그리기 전이라 상태로 막지 못한다 — 동기 잠금(useRef)으로 막는다.
  * useMutation 을 쓰지 않는다 — 변경 캐시가 보낸 값(variables)을 남겨, 비밀번호 칸이 있는 폼과 재인증 비밀번호가 캐시에 남는다.
+ * 확인 단추(ConfirmButton) 하나에 useSave 하나를 쓴다 — 재인증 상태·실패를 단추마다 보이므로, 나눠 쓰면 모든 단추의 대화상자·알림이 함께 뜬다.
  * ponytail: 65초 시한이 없다 — 앞 요청이 끝나지 않으면 풀리지 않는다. 응답 없는 요청이 실제로 보이면 시한을 넣는다.
  */
 export function useSave<V, R = unknown>(o: {
@@ -72,8 +73,9 @@ export function useSave<V, R = unknown>(o: {
   };
 
   const send = (values: V) =>
-    o
-      .send(values)
+    // send 가 동기로 던져도 거절로 받는다 — 아니면 잠금이 풀리지 않는다
+    Promise.resolve()
+      .then(() => o.send(values))
       .then(({ response, data, error }) => {
         const problem = error as Problem;
         if (isReauth(response.status, problem)) {
