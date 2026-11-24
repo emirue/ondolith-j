@@ -91,7 +91,7 @@ class LoginController {
 		catch (InternalAuthenticationServiceException e) {
 			throw new IllegalStateException("로그인 중 계정을 읽지 못했습니다", e);
 		}
-		// BCrypt 72바이트를 넘는 비밀번호는 인코더가 IllegalArgumentException 을 던진다 — 500 이 아니라 같은 실패다
+		// spring-security-crypto 7.1.2 의 BCrypt.checkpw 는 73바이트 비밀번호에 false 를 낸다. catch 는 판이 바뀌어 다시 던질 때를 위해 둔다
 		catch (AuthenticationException | IllegalArgumentException e) {
 			log.info("로그인 실패");
 			return failed();

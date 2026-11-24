@@ -353,7 +353,7 @@ class RolesApiTest {
 		Login p = login(testRole("admin.access", "role.manage"));
 		UUID r = role("editor");
 		refused(grantPerm(p.http(), r, "user.update"), 403, "보유하지 않은 권한은 부여할 수 없습니다");
-		refused(revokePerm(p.http(), r, "user.update"), 403, "보유하지 않은 권한은 부여할 수 없습니다");
+		refused(revokePerm(p.http(), r, "user.update"), 403, "보유하지 않은 권한은 뺄 수 없습니다");
 		// 가진 권한은 준다(이미 있으면 그대로)
 		assertThat(grantPerm(p.http(), r, "admin.access").statusCode()).isEqualTo(204);
 		assertThat(rows(p.id())).containsExactly("role.denied|" + r + "|role.grant_permission user.update r4",
@@ -454,6 +454,22 @@ class RolesApiTest {
 		list.get("permissions").forEach(p -> perms.add(p.get("key").asString()));
 		assertThat(perms).isSorted().hasSize(dev.ondolithj.auth.Permission.values().length);
 		assertThat(list.at("/permissions/0/description").asString()).isNotEmpty();
+	}
+
+	@Test
+	void 역할의_visitor_only_와_권한의_visitor() throws Exception {
+		JsonNode list = roles(login("operator").http());
+		for (JsonNode r : list.get("roles")) {
+			String key = r.get("key").asString();
+			assertThat(r.get("visitor_only").isBoolean()).as(key).isTrue();
+			assertThat(r.get("visitor_only").asBoolean()).as(key).isEqualTo(key.equals("anonymous") || key.equals("member"));
+		}
+		// 1-C1 에는 방문자 권한이 없다
+		assertThat(list.get("permissions")).hasSize(dev.ondolithj.auth.Permission.values().length);
+		for (JsonNode p : list.get("permissions")) {
+			assertThat(p.get("visitor").isBoolean()).as(p.toString()).isTrue();
+			assertThat(p.get("visitor").asBoolean()).as(p.toString()).isFalse();
+		}
 	}
 
 	@Test

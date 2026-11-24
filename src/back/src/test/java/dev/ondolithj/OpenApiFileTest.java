@@ -176,11 +176,11 @@ class OpenApiFileTest {
 		assertThat(fieldNames(written.at("/components/schemas/RolesView/properties"))).containsExactlyInAnyOrder("roles",
 				"permissions");
 		assertThat(fieldNames(written.at("/components/schemas/RoleView/properties"))).containsExactlyInAnyOrder("id", "key",
-				"name", "description", "is_builtin", "is_superuser", "is_assignable", "permissions");
+				"name", "description", "is_builtin", "is_superuser", "is_assignable", "visitor_only", "permissions");
 		assertThat(fieldNames(written.at("/components/schemas/Grant/properties"))).containsExactlyInAnyOrder("key",
 				"effective");
 		assertThat(fieldNames(written.at("/components/schemas/PermissionView/properties"))).containsExactlyInAnyOrder("key",
-				"description");
+				"description", "visitor");
 		assertThat(fieldNames(written.at("/components/schemas/PermissionRequest/properties"))).containsExactly("permission");
 		assertThat(fieldNames(written.at("/components/schemas/RoleRequest/properties"))).containsExactly("role_id");
 		// A-302 작성·A-303 발행·발행 취소·P-202 공개 조회(1-C1 스펙 6절). status 는 거절하려고 받는 칸이라 문서에 적지 않는다

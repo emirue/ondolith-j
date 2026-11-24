@@ -99,6 +99,14 @@ test("역할 화면에서 편집자에게 권한을 준다", async ({ page, stac
   // 화면 상태가 아니라 서버에 들어갔다
   await page.reload();
   await expect(granted).toBeVisible();
+  // 같은 권한을 뺀다(확인 대화상자)
+  await editor.getByRole("list", { name: "권한" }).getByRole("listitem").filter({ hasText: "log.view" }).getByRole("button", { name: "빼기" }).click();
+  await page.getByRole("alertdialog", { name: "권한을 뺄까요?" }).getByRole("button", { name: "확인" }).click();
+  await expect(page.getByRole("status")).toHaveText("권한을 뺐습니다");
+  await page.reload();
+  // 목록이 그려진 뒤에 없음을 본다(그리기 전의 빈 화면으로 통과하지 않게)
+  await expect(editor.getByRole("list", { name: "권한" }).getByText("admin.access", { exact: true })).toBeVisible();
+  await expect(granted).toHaveCount(0);
 });
 
 test("확인 단추를 두 번 눌러도 POST 는 하나", async ({ page, stack }) => {

@@ -15,6 +15,7 @@ type Done = (gone: boolean) => void;
 
 /**
  * /admin/roles — 역할과 권한(A-403·A-404). superuser 역할은 편집할 수 없다(R5).
+ * 모두가 갖는 역할(visitor_only)의 고르기에는 방문자 권한만 둔다 — 나머지는 R9 가 늘 거절한다.
  * 단추마다 부품과 useSave 를 따로 둔다(ConfirmButton 하나에 useSave 하나). /api/me 가 실패하면 단추만 숨긴다(사용자 목록과 같다).
  */
 export function RolesPage() {
@@ -44,11 +45,12 @@ export function RolesPage() {
   };
 
   const all = (roles.data?.permissions ?? []).map((p) => p.key ?? "");
+  const visitor = (roles.data?.permissions ?? []).filter((p) => p.visitor === true).map((p) => p.key ?? "");
   return (
     <>
       <h2 ref={heading} tabIndex={-1} className="mb-4 text-xl font-semibold outline-none">역할</h2>
       {roles.isError && <LoadFailure error={roles.error} failed="역할을 불러오지 못했습니다" />}
-      {roles.data?.roles?.map((r) => <RoleSection key={r.id} role={r} all={all} manage={manage} done={done} />)}
+      {roles.data?.roles?.map((r) => <RoleSection key={r.id} role={r} all={r.visitor_only ? visitor : all} manage={manage} done={done} />)}
     </>
   );
 }

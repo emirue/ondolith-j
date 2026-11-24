@@ -541,6 +541,7 @@ export interface components {
         PermissionView: {
             description?: string;
             key?: string;
+            visitor?: boolean;
         };
         ProblemDetail: {
             detail?: string;
@@ -584,6 +585,7 @@ export interface components {
             key?: string;
             name?: string;
             permissions?: components["schemas"]["Grant"][];
+            visitor_only?: boolean;
         };
         RolesView: {
             permissions?: components["schemas"]["PermissionView"][];

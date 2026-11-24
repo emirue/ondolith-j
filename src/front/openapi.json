@@ -330,6 +330,9 @@
           },
           "key" : {
             "type" : "string"
+          },
+          "visitor" : {
+            "type" : "boolean"
           }
         },
         "type" : "object"
@@ -444,6 +447,9 @@
               "$ref" : "#/components/schemas/Grant"
             },
             "type" : "array"
+          },
+          "visitor_only" : {
+            "type" : "boolean"
           }
         },
         "type" : "object"
