@@ -4,6 +4,7 @@ import dev.ondolithj.auth.GuardCheck;
 import dev.ondolithj.shared.ApiErrors;
 import dev.ondolithj.shared.AppState;
 import dev.ondolithj.shared.HealthController;
+import dev.ondolithj.shared.RequestSizeLimit;
 import dev.ondolithj.shared.SecurityConfig;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -23,7 +24,7 @@ import org.springframework.context.annotation.Import;
 		UserDetailsServiceAutoConfiguration.class })
 @ComponentScan
 // 설치 컨텍스트는 install 패키지만 스캔하므로 기동 점검을 직접 넣는다
-@Import({ SecurityConfig.class, ApiErrors.class, HealthController.class, GuardCheck.class })
+@Import({ SecurityConfig.class, ApiErrors.class, HealthController.class, GuardCheck.class, RequestSizeLimit.class })
 public class InstallApplication {
 
 	@Bean

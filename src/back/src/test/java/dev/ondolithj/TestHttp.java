@@ -66,6 +66,26 @@ public final class TestHttp {
 		return b;
 	}
 
+	/**
+	 * 본문 바이트를 그대로 보낸다. chunked 면 길이를 모르는 게시자라 Transfer-Encoding: chunked 가 된다(HTTP/1.1 고정).
+	 * csrf 면 post 와 같은 토큰 헤더를 붙인다.
+	 */
+	public HttpResponse<String> send(String method, String path, String contentType, byte[] body, boolean chunked,
+			boolean csrf) throws IOException, InterruptedException {
+		HttpRequest.BodyPublisher p = chunked
+				? HttpRequest.BodyPublishers.ofInputStream(() -> new java.io.ByteArrayInputStream(body))
+				: HttpRequest.BodyPublishers.ofByteArray(body);
+		HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(base + path)).version(HttpClient.Version.HTTP_1_1)
+			.header("Content-Type", contentType).method(method, p);
+		if (csrf) {
+			if (xsrf() == null) {
+				get("/api/health");
+			}
+			b.header("X-XSRF-TOKEN", xsrf());
+		}
+		return client.send(b.build(), HttpResponse.BodyHandlers.ofString());
+	}
+
 	/** 이름이 같은 쿠키 값. 없으면 null. */
 	public String cookie(String name) {
 		return cookies.getCookieStore().getCookies().stream().filter(c -> c.getName().equals(name))
