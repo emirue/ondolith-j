@@ -112,6 +112,18 @@ class RequestSizeLimitTest {
 		chunkedRejected(admin.send("POST", "/api/admin/settings", JSON, nameJson(MAX + 1), true, true));
 	}
 
+	/** 상한이 정상 최대 입력을 깨지 않는다 — 한글 200,000자는 약 600 KB 다(스펙 17절 2). */
+	@Test
+	void 한글_200000자_본문은_상한_안에서_201() throws Exception {
+		f.user("size-editor@ondolith.test", "editor");
+		TestHttp editor = f.loginAs("size-editor@ondolith.test");
+		String body = "<p>" + "가".repeat(199_993) + "</p>";
+		byte[] req = json.writeValueAsBytes(java.util.Map.of("slug", "size-max", "title", "제목", "body_html", body));
+		assertThat(req.length).isBetween(600_000, MAX);
+		HttpResponse<String> r = editor.send("POST", "/api/admin/pages", JSON, req, false, true);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(201);
+	}
+
 	@Test
 	void chunked_1MiB_초과도_끊기고_500_이_아니다() throws Exception {
 		chunkedRejected(f.http().send("POST", "/api/admin/settings", JSON, nameJson(2 * MAX), true, true));
