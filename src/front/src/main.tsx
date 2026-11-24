@@ -1,3 +1,4 @@
+import "./zod-jitless"; // 스키마를 만드는 모듈보다 먼저
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

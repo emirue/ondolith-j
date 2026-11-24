@@ -19,7 +19,7 @@ test("로그인 흐름: 막힌 관리자 → 로그인 → 셸 → 로그아웃 
   await expect(page.getByRole("banner")).toContainText(ADMIN_EMAIL);
 
   await page.getByRole("main").getByRole("button", { name: "로그아웃" }).click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:5173\/$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:4173\/$/);
   await expect(page.getByRole("banner").getByRole("link", { name: "로그인" })).toBeVisible();
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);

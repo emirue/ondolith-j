@@ -1,4 +1,4 @@
-import { expect as baseExpect, test as base, type Page } from "@playwright/test";
+import { expect as baseExpect, test as base, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
@@ -44,7 +44,45 @@ const portOpen = (port: number) =>
     s.on("error", () => resolve(false));
   });
 
-export const test = base.extend<{ stack: Stack }>({
+export type CspViolation = { directive: string; blocked: string; url: string };
+export type Watch = { violations: CspViolation[]; dialogs: string[]; allow(match: (v: CspViolation) => boolean): void; check(): void };
+
+/**
+ * 문맥의 모든 페이지에서 CSP 위반 이벤트(securitypolicyviolation)와 대화상자를 모은다(1-C1 스펙 8.5).
+ * 콘솔 오류는 쓰지 않는다 — 요청 실패가 섞인다. check() 는 allow 로 받지 않은 위반 0건과 대화상자 0건을 단언한다.
+ */
+export async function watch(target: BrowserContext): Promise<Watch> {
+  const violations: CspViolation[] = [];
+  const dialogs: string[] = [];
+  const allowed: ((v: CspViolation) => boolean)[] = [];
+  await target.exposeFunction("__cspViolation", (v: CspViolation) => void violations.push(v));
+  await target.addInitScript(() =>
+    document.addEventListener("securitypolicyviolation", (e) =>
+      Reflect.get(window, "__cspViolation")({ directive: e.effectiveDirective, blocked: e.blockedURI, url: location.href })));
+  const onDialog = (p: Page) => p.on("dialog", (d) => {
+    dialogs.push(d.message());
+    d.dismiss().catch(() => {}); // 페이지가 닫히는 중이면 거부된다
+  });
+  target.pages().forEach(onDialog);
+  target.on("page", onDialog);
+  return {
+    violations,
+    dialogs,
+    allow: (match) => void allowed.push(match),
+    check() {
+      baseExpect(violations.filter((v) => !allowed.some((m) => m(v))), "받지 않은 CSP 위반").toEqual([]);
+      baseExpect(dialogs, "대화상자").toEqual([]);
+    },
+  };
+}
+
+export const test = base.extend<{ stack: Stack; guard: Watch }>({
+  // 모든 시험: 기본 문맥의 CSP 위반·대화상자가 끝에 0건(예외는 시험이 guard.allow 로 적는다). 새 문맥은 watch 를 직접 부른다
+  guard: [async ({ context }, use) => {
+    const w = await watch(context);
+    await use(w);
+    w.check();
+  }, { auto: true }],
   // eslint-disable-next-line no-empty-pattern
   stack: async ({}, use, info) => {
     const jar = jarPath();
