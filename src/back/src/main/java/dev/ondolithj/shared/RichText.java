@@ -47,9 +47,21 @@ public final class RichText {
 	/** 예외를 던지지 않는다(DB 에 직접 들어간 옛 행에도). */
 	public static String clean(String html) {
 		// 허용 밖 껍데기가 빠지면 <p>a<p>b</p></p> 처럼 파서가 만들 수 없는 꼴이 남아 다시 파싱하면 모양이 바뀐다.
-		// 두 번째 통과가 파서가 만든 꼴로 맞춘다(멱등).
-		// ponytail: 두 번으로 수렴하지 않는 입력이 나오면 바뀌지 않을 때까지 돈다
-		return html == null ? "" : once(once(html));
+		// 바뀌지 않을 때까지(고정점) 다시 건다 — 두 번으로 모자란 입력이 있다(1-C1 최종 검토 I-1, 무작위 50만 개 중 203개가 세 번).
+		// 모든 통과 결과는 이미 정화된 값이라, 상한에 닿아도 안전은 그대로이고 멱등만 깨진다.
+		// ponytail: 상한 8 — 그보다 오래 바뀌는 입력이 나오면 상한을 올리거나 그 꼴을 시험에 더한다
+		if (html == null) {
+			return "";
+		}
+		String out = once(html);
+		for (int i = 1; i < 8; i++) {
+			String next = once(out);
+			if (next.equals(out)) {
+				return out;
+			}
+			out = next;
+		}
+		return out;
 	}
 
 	private static String once(String html) {

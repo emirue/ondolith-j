@@ -123,6 +123,16 @@ class RichTextTest {
 	}
 
 	@Test
+	void 세_번째_통과에서야_안정하는_꼴도_멱등이다() {
+		// 1-C1 최종 검토 I-1: 두 번 걸면 아직 모양이 바뀌는 입력(무작위 50만 개 중 203개, 모두 세 번이면 안정)
+		for (String in : new String[] { "<h3><a><h2><noscript><a>x<br>" }) {
+			String out = RichText.clean(in);
+			assertThat(RichText.clean(out)).as(in).isEqualTo(out);
+			assertThat(violations(out)).as(in).isEmpty();
+		}
+	}
+
+	@Test
 	void null_과_빈_값은_빈_문자열이고_던지지_않는다() {
 		assertThat(RichText.clean(null)).isEmpty();
 		assertThat(RichText.clean("")).isEmpty();
