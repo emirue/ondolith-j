@@ -11,8 +11,10 @@ function Probe() {
   return (
     <>
       <button onClick={() => notice.show("저장했습니다")}>알림</button>
+      <button onClick={() => notice.show("만들었습니다", "/b")}>b 에 알림</button>
       <button onClick={() => navigate("/b")}>다른 곳</button>
       <button onClick={() => navigate("/a")}>돌아옴</button>
+      <button onClick={() => navigate("/c")}>셋째 곳</button>
     </>
   );
 }
@@ -32,6 +34,19 @@ describe("알림 칸", () => {
     expect(screen.getByTestId("notice")).toHaveTextContent("저장했습니다");
     await u.click(screen.getByRole("button", { name: "다른 곳" }));
     await u.click(screen.getByRole("button", { name: "돌아옴" }));
+    expect(screen.getByTestId("notice")).toBeEmptyDOMElement();
+  });
+
+  it("show(글, 주소) 는 그 주소에서만 보이고, 그 주소를 떠나면 지운다", async () => {
+    renderWithQuery(<Probe />, "/a", { notice: true });
+    const u = userEvent.setup();
+    await u.click(screen.getByRole("button", { name: "b 에 알림" }));
+    expect(screen.getByTestId("notice")).toBeEmptyDOMElement();
+    await u.click(screen.getByRole("button", { name: "다른 곳" }));
+    expect(screen.getByTestId("notice")).toHaveTextContent("만들었습니다");
+    await u.click(screen.getByRole("button", { name: "셋째 곳" }));
+    expect(screen.getByTestId("notice")).toBeEmptyDOMElement();
+    await u.click(screen.getByRole("button", { name: "다른 곳" }));
     expect(screen.getByTestId("notice")).toBeEmptyDOMElement();
   });
 });

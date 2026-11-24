@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
@@ -45,6 +46,8 @@ public class GuardCheck implements SmartInitializingSingleton {
 	/** Boot 의 오류 처리기(/error). 우리 코드가 아니지만 늘 있다. */
 	private static final String BOOT_ERROR = "org.springframework.boot.webmvc.autoconfigure.error";
 
+	private static final Pattern API_ROOT_VARIABLE = Pattern.compile("^/api/[^/]*[{*?]");
+
 	private final ListableBeanFactory beans;
 
 	private final ObjectProvider<DataSource> dataSource;
@@ -66,6 +69,7 @@ public class GuardCheck implements SmartInitializingSingleton {
 			.collect(Collectors.toSet());
 		List<String> problems = new ArrayList<>(check(handlers, prefixes));
 		problems.addAll(checkAdminPaths(mappings));
+		problems.addAll(checkApiRoot(mappings));
 		Set<Permission> used = used(handlers);
 		DataSource ds = dataSource.getIfAvailable();
 		if (ds != null) {
@@ -138,6 +142,22 @@ public class GuardCheck implements SmartInitializingSingleton {
 			RequiresPermission r = requires(h);
 			if (admin && r != null && r.value() != Permission.ADMIN_ACCESS) {
 				problems.add(name + ": /api/admin 경로의 @RequiresPermission 은 ADMIN_ACCESS 만 된다(@AdminPermission 을 쓴다)");
+			}
+		});
+		return problems;
+	}
+
+	/**
+	 * /api/ 바로 다음 마디의 변수·와일드카드(/api/{area}/x, /api/**, /api/admi?/x 처럼 첫 마디에 { · * · ? 가 든 것 —
+	 * PathPattern 에서 ? 는 한 글자 와일드카드다)는 /api/admin/x 요청을 받지만
+	 * 관리자 경로로 세지 않는다 — checkAdminPaths 를 비켜 간다(1-B2 스펙 7절 M-7). 더 깊은 마디의 변수는 된다.
+	 */
+	static List<String> checkApiRoot(Map<RequestMappingInfo, HandlerMethod> mappings) {
+		List<String> problems = new ArrayList<>();
+		mappings.forEach((info, h) -> {
+			if (info.getPatternValues().stream().anyMatch(p -> API_ROOT_VARIABLE.matcher(p).find())) {
+				problems.add(h.getBeanType().getName() + "#" + h.getMethod().getName()
+						+ ": /api/ 바로 다음 마디에 변수·와일드카드를 쓸 수 없다");
 			}
 		});
 		return problems;

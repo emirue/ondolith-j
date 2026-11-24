@@ -1,0 +1,40 @@
+2026-11-22T14:20:45.648Z  INFO 1 --- [ondolith-j] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-22T14:20:45.648Z  INFO 1 --- [ondolith-j] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.27]
+2026-11-22T14:20:45.673Z  INFO 1 --- [ondolith-j] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1803 ms
+2026-11-22T14:20:45.964Z  INFO 1 --- [ondolith-j] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter adminRateLimitFilterRegistration was not registered (disabled)
+2026-11-22T14:20:46.170Z  INFO 1 --- [ondolith-j] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-22T14:20:46.365Z  INFO 1 --- [ondolith-j] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2fc7fa6e
+2026-11-22T14:20:46.366Z  INFO 1 --- [ondolith-j] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-22T14:20:46.377Z  INFO 1 --- [ondolith-j] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://bench-db:5432/m (PostgreSQL 18.7)
+2026-11-22T14:20:46.455Z  INFO 1 --- [ondolith-j] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-11-22T14:20:46.457Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 4 migrations (execution time 00:00.007s)
+2026-11-22T14:20:46.462Z  INFO 1 --- [ondolith-j] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-11-22T14:20:46.544Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-11-22T14:20:46.551Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - init"
+2026-11-22T14:20:46.570Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - auth"
+2026-11-22T14:20:46.645Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - admin shell"
+2026-11-22T14:20:46.655Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - users roles"
+2026-11-22T14:20:46.658Z  INFO 1 --- [ondolith-j] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 4 migrations to schema "public", now at version v4 (execution time 00:00.027s)
+2026-11-22T14:20:46.769Z  INFO 1 --- [ondolith-j] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-11-22T14:20:46.856Z  INFO 1 --- [ondolith-j] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.13.Final
+2026-11-22T14:20:47.280Z  INFO 1 --- [ondolith-j] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-22T14:20:47.372Z  INFO 1 --- [ondolith-j] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://bench-db:5432/m]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 18.7
+	Default catalog/schema: m/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-22T14:20:48.344Z  INFO 1 --- [ondolith-j] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-22T14:20:48.416Z  INFO 1 --- [ondolith-j] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-22T14:20:48.979Z  INFO 1 --- [ondolith-j] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-22T14:20:50.491Z  INFO 1 --- [ondolith-j] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-11-22T14:20:50.558Z  INFO 1 --- [ondolith-j] [           main] dev.ondolithj.Launcher                   : Started Launcher in 7.118 seconds (process running for 7.698)
+2026-11-22T14:20:51.119Z  INFO 1 --- [ondolith-j] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-22T14:20:51.119Z  INFO 1 --- [ondolith-j] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-11-22T14:20:51.124Z  INFO 1 --- [ondolith-j] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 5 ms

@@ -7,6 +7,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /** 시험용 HTTP 도우미. 쿠키를 기억하고, 요청하면 XSRF-TOKEN 쿠키를 X-XSRF-TOKEN 헤더로 붙인다(프런트와 같은 방식). */
@@ -42,6 +44,16 @@ public final class TestHttp {
 
 	/** 먼저 GET /api/health 로 토큰 쿠키를 받고, 그 값을 헤더로 붙여 보낸다. */
 	public HttpResponse<String> post(String path, String json) throws IOException, InterruptedException {
+		return client.send(withToken(path, json).build(), HttpResponse.BodyHandlers.ofString());
+	}
+
+	/** post 와 같다. 토큰은 보내기 전에 받아 두고, 요청마다 시한을 건다(동시 요청 시험이 멈추지 않게). */
+	public CompletableFuture<HttpResponse<String>> postAsync(String path, String json, Duration timeout)
+			throws IOException, InterruptedException {
+		return client.sendAsync(withToken(path, json).timeout(timeout).build(), HttpResponse.BodyHandlers.ofString());
+	}
+
+	private HttpRequest.Builder withToken(String path, String json) throws IOException, InterruptedException {
 		String token = xsrf();
 		if (token == null) {
 			get("/api/health");
@@ -51,7 +63,7 @@ public final class TestHttp {
 		if (token != null) {
 			b.header("X-XSRF-TOKEN", token);
 		}
-		return client.send(b.build(), HttpResponse.BodyHandlers.ofString());
+		return b;
 	}
 
 	/** 이름이 같은 쿠키 값. 없으면 null. */

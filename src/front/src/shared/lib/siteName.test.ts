@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { siteNameSchema, stripSiteName } from "./siteName";
+import { nameSchema, siteNameSchema, stripSiteName } from "./siteName";
 
 // 서버 SiteNameTest 와 같은 입력 표(null 은 TS 에 없어 뺐다)
 const error = (v: string) => {
@@ -31,5 +31,12 @@ describe("사이트 이름 규칙", () => {
   it("오류는 첫 위반 하나 — 필수, 제어 문자, 길이 순(서버와 같다)", () => {
     expect(error("\u0000")).toEqual(["필수입니다"]);
     expect(error("a\t" + "가".repeat(100))).toEqual(["쓸 수 없는 문자가 있습니다"]);
+  });
+
+  it("nameSchema(50) — 같은 규칙에 길이만 50(사용자 표시 이름)", () => {
+    const r = nameSchema(50).safeParse("가".repeat(51));
+    expect(r.success ? null : r.error.issues.map((i) => i.message)).toEqual(["50자 이하"]);
+    expect(nameSchema(50).parse(" " + "가".repeat(50) + " ")).toBe("가".repeat(50));
+    expect(nameSchema(50).safeParse(" ").success).toBe(false);
   });
 });

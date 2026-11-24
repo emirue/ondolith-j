@@ -5,8 +5,11 @@ import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-/** 시험마다 새로 띄우는 것: PostgreSQL 컨테이너, 빈 작업 폴더, 그 폴더에서 띄운 실제 jar(설정 파일 없음 → 설치 모드). */
-export type Stack = { dbHost: string; dbPort: number; dbUser: string; dbPassword: string; dbName: string };
+/**
+ * 시험마다 새로 띄우는 것: PostgreSQL 컨테이너, 빈 작업 폴더, 그 폴더에서 띄운 실제 jar(설정 파일 없음 → 설치 모드).
+ * sql 은 그 DB 에 문장 하나를 돌리고 psql 출력(-tA)을 돌려준다.
+ */
+export type Stack = { dbHost: string; dbPort: number; dbUser: string; dbPassword: string; dbName: string; sql(statement: string): string };
 
 const BACK = path.resolve(import.meta.dirname, "../../back");
 const DB_PASS = "e2e-pass-not-real";
@@ -65,7 +68,10 @@ export const test = base.extend<{ stack: Stack }>({
       app = spawn("java", ["-jar", jar, "--server.port=8080", "--server.address=127.0.0.1", "--spring.main.log-startup-info=false"],
         { cwd: work, stdio: ["ignore", logFd, logFd] });
       await until("jar 가 health 에 응답", 90, async () => (await fetch("http://127.0.0.1:8080/api/health")).ok);
-      await use({ dbHost: "127.0.0.1", dbPort, dbUser: "app", dbPassword: DB_PASS, dbName: "app" });
+      await use({
+        dbHost: "127.0.0.1", dbPort, dbUser: "app", dbPassword: DB_PASS, dbName: "app",
+        sql: (statement) => docker("exec", name, "psql", "-U", "app", "-d", "app", "-tAc", statement),
+      });
     } finally {
       if (app && app.exitCode === null) {
         const exited = new Promise((r) => app!.once("exit", r));
@@ -105,11 +111,11 @@ export async function installSite(page: Page, stack: Stack, site = "E2E 사이�
   await baseExpect(page.getByRole("heading", { name: site })).toBeVisible({ timeout: 60_000 });
 }
 
-/** `/login?next=/admin` 에서 관리자로 로그인하고 「관리자」 제목까지 기다린다. */
-export async function loginAdmin(page: Page) {
+/** `/login?next=/admin` 에서 관리자(또는 준 계정)로 로그인하고 「관리자」 제목까지 기다린다. */
+export async function loginAdmin(page: Page, email = ADMIN_EMAIL, password = ADMIN_PASSWORD) {
   await page.goto("/login?next=/admin");
-  await page.getByLabel("이메일").fill(ADMIN_EMAIL);
-  await page.getByLabel("비밀번호").fill(ADMIN_PASSWORD);
+  await page.getByLabel("이메일").fill(email);
+  await page.getByLabel("비밀번호").fill(password);
   await page.getByRole("button", { name: "로그인" }).click();
   await baseExpect(page.getByRole("heading", { name: "관리자", exact: true })).toBeVisible();
 }

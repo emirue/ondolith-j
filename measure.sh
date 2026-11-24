@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 시나리오 하나를 한 번 측정하고 판정한다.
 #   ./measure.sh <S1..S7> [회차=1]   측정. 판정 실패 exit 1, 하네스 실패 exit 2
-#   ./measure.sh env                 측정 머신의 아키텍처·java -version 기록
+#   ./measure.sh env                 측정 머신의 os/arch·이미지 참조·java·DB 판 기록
 #   ./measure.sh clean               bench-* 컨테이너·네트워크·gradle 볼륨 삭제
 # 위쪽 함수는 tests/measure.test.sh 가 source 해서 검증한다(Docker 불필요).
 
@@ -55,6 +55,9 @@ ab_brief() {
 
 # "Running OOMKilled" 가 "true false" 여야 한다.
 container_ok() { [ "$1" = "true false" ]; }
+
+# 검사값(os/arch)이 PLATFORM 과 같아야 한다. 둘 중 하나라도 비면 실패.
+platform_ok() { [ -n "$1" ] && [ "$1" = "$2" ]; }
 
 # OutOfMemoryError 건수가 숫자 0 이어야 한다.
 no_oom() { case $1 in '' | *[!0-9]*) return 1 ;; esac; [ "$1" -eq 0 ]; }
@@ -138,7 +141,11 @@ redact() { sed -E 's/(Using generated security passwor[d]: ).*/\1[제거됨]/'; 
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 NET=bench-net DB=bench-db APP=bench-app
-HTTPD=httpd:2.4-alpine  # ab·wget 용
+# 측정 이미지는 태그@인덱스(멀티 아키텍처 목록) 다이제스트로 고정한다. 판은 --platform 이 목록에서 고른다.
+# 확인·갱신: docker buildx imagetools inspect <태그> 의 첫 Digest 줄(docs/measure-lightsail.md)
+DB_IMAGE=postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
+JRE_IMAGE=eclipse-temurin:25-jre@sha256:4ed132f6832e9804b123e89a849a7b4502756ae64a4ee08ebab939d9d5d0a9fa
+HTTPD=httpd:2.4-alpine@sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24  # ab·wget 용
 
 hf() { echo "하네스 실패: $*" >&2; exit 2; }
 cleanup() {
@@ -147,6 +154,18 @@ cleanup() {
 	return 0
 }
 log() { echo "$*" | tee -a "$OUT/run.log"; }
+# Docker 서버와 세 이미지가 모두 PLATFORM 이어야 한다. 에뮬레이션으로 잰 값은 남기지 않는다.
+# 서버 검사가 pull 보다 먼저다(다른 판을 받아 로컬 이미지를 덮지 않게).
+check_platform() {
+	local i
+	platform_ok "$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}' 2>/dev/null)" "$PLATFORM" \
+		|| hf "PLATFORM($PLATFORM)이 Docker 서버와 다르다 — 에뮬레이션 값은 남기지 않는다"
+	for i in "$DB_IMAGE" "$JRE_IMAGE" "$HTTPD"; do
+		docker pull -q --platform "$PLATFORM" "$i" >/dev/null || hf "$i 를 받지 못했다"
+		platform_ok "$(docker image inspect -f '{{.Os}}/{{.Architecture}}' "$i" 2>/dev/null)" "$PLATFORM" \
+			|| hf "$i 가 $PLATFORM 이 아니다"
+	done
+}
 state() { docker inspect -f '{{.State.Running}} {{.State.OOMKilled}}' "$1" 2>/dev/null; }
 
 # wait_for <초> <명령...>: 1초 간격으로 성공할 때까지.
@@ -154,7 +173,7 @@ wait_for() { local n=$1 i=0; shift; while [ "$i" -lt "$n" ]; do "$@" >/dev/null 
 
 # run_ab <이름> <URL>: ab 를 돌리며 앱·DB 메모리 표본을 뜬다.
 run_ab() {
-	docker run --rm --network "$NET" "$HTTPD" ab -n "$AB_N" -c 20 "$2" >"$OUT/ab-$1.txt" 2>&1 &
+	docker run --rm --platform "$PLATFORM" --network "$NET" "$HTTPD" ab -n "$AB_N" -c 20 "$2" >"$OUT/ab-$1.txt" 2>&1 &
 	local pid=$!
 	: >"$OUT/samples-$1.txt"
 	while kill -0 "$pid" 2>/dev/null; do
@@ -176,15 +195,17 @@ measure() {
 	jar=$(app_jar "$ROOT")
 	[ -f "$jar" ] || hf "jar 가 없다: $jar (측정 앱은 bench 의 bootJar, CLAUDE.md 참고)"
 	OUT=$(out_dir "$ROOT" "$id" "$run") || hf "LABEL 은 영숫자·-·_ 만"
+	# 입력 검사(Docker 없음) 뒤, 결과 폴더 비우기·cleanup 보다 먼저
+	check_platform
 	rm -rf "$OUT"; mkdir -p "$OUT"
 	cleanup
 	log "== $id 회차 $run${LABEL:+ [$LABEL]} 대상 ${TARGET:-bench}: DB ${DB_MEM}/sb=${SB}, 앱 ${APP_MEM}, JVM ${J}${JOPTS:+ ($JOPTS)}, 티어 ${TIER}MB, jar $(basename "$jar")"
 
 	# 1. 네트워크와 DB. 준비는 TCP(-h 127.0.0.1)로 본다: 초기화 중 임시 서버는 소켓만 연다.
 	docker network create "$NET" >/dev/null || hf "네트워크 생성"
-	docker run -d --name "$DB" --network "$NET" --cpus=1 --memory="$DB_MEM" \
+	docker run -d --platform "$PLATFORM" --name "$DB" --network "$NET" --cpus=1 --memory="$DB_MEM" \
 		-e POSTGRES_USER=m -e POSTGRES_PASSWORD=m -e POSTGRES_DB=m \
-		postgres:18-alpine -c shared_buffers="$SB" >/dev/null || hf "DB 컨테이너 시작"
+		"$DB_IMAGE" -c shared_buffers="$SB" >/dev/null || hf "DB 컨테이너 시작"
 	wait_for 60 docker exec "$DB" pg_isready -h 127.0.0.1 -U m || hf "DB 가 60초 안에 준비되지 않음"
 	# 2·3. 스키마·데이터와 앱. JOPTS 는 단어 분리가 필요해 따옴표를 쓰지 않는다.
 	if [ "${TARGET:-bench}" = core ]; then
@@ -193,24 +214,24 @@ measure() {
 		core_config "$DB" "$(openssl rand -base64 32)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$CORE_DIR/ondolith-j.properties" \
 			|| hf "코어 설정 파일"
 		# shellcheck disable=SC2086
-		docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
+		docker run -d --platform "$PLATFORM" --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
 			-v "$jar":/app.jar:ro -v "$CORE_DIR":/conf:ro \
-			eclipse-temurin:25-jre java $JOPTS -jar /app.jar --config=/conf/ondolith-j.properties >/dev/null \
+			"$JRE_IMAGE" java $JOPTS -jar /app.jar --config=/conf/ondolith-j.properties >/dev/null \
 			|| hf "앱 컨테이너 시작"
 	else
 		docker exec -i "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q <"$ROOT/bench/seed.sql" >/dev/null || hf "seed.sql 적용"
 		# shellcheck disable=SC2086
-		docker run -d --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
+		docker run -d --platform "$PLATFORM" --name "$APP" --network "$NET" --cpus=1 --memory="$APP_MEM" \
 			-e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/m" \
 			-e SPRING_DATASOURCE_USERNAME=m -e SPRING_DATASOURCE_PASSWORD=m \
 			-v "$jar":/app.jar:ro \
-			eclipse-temurin:25-jre java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
+			"$JRE_IMAGE" java $JOPTS -jar /app.jar >/dev/null || hf "앱 컨테이너 시작"
 	fi
 
 	# 4. 「떴다」는 프로세스가 아니라 응답이다: 기동 확인 경로가 200 일 때까지 90초.
 	# ponytail: 앱이 일찍 죽어도 90초까지 기다린다. 길어지면 루프 안에서 state 를 본다.
 	local booted=yes
-	docker run --rm --network "$NET" -e P="$BOOT_PATH" "$HTTPD" sh -c \
+	docker run --rm --platform "$PLATFORM" --network "$NET" -e P="$BOOT_PATH" "$HTTPD" sh -c \
 		'i=0; while [ $i -lt 90 ]; do wget -q -T 2 -O /dev/null "http://bench-app:8080$P" 2>/dev/null && exit 0; i=$((i+1)); sleep 1; done; exit 1' \
 		|| booted=no
 	docker logs "$APP" 2>&1 | redact | tail -n 40 >"$OUT/app-log-tail.txt"
@@ -227,11 +248,11 @@ measure() {
 		docker exec "$DB" psql -h 127.0.0.1 -U m -d m -v ON_ERROR_STOP=1 -q \
 			-c "INSERT INTO settings (key, value) VALUES ('site.name', '측정 사이트'), ('site.type', 'cms')" \
 			|| hf "사이트 설정 넣기"
-		docker run --rm --network "$NET" -e A="$LOAD_LIST" -e B="$LOAD_ONE" "$HTTPD" sh -c \
+		docker run --rm --platform "$PLATFORM" --network "$NET" -e A="$LOAD_LIST" -e B="$LOAD_ONE" "$HTTPD" sh -c \
 			'for i in 1 2 3 4 5 6 7 8 9 10; do wget -q -O /dev/null "http://bench-app:8080$A"; wget -q -O /dev/null "http://bench-app:8080$B"; done' \
 			|| log "데우기 중 오류"
 	else
-		docker run --rm --network "$NET" "$HTTPD" sh -c \
+		docker run --rm --platform "$PLATFORM" --network "$NET" "$HTTPD" sh -c \
 			'for p in 0 1 2 3 4 5 6 7 8 9; do wget -q -O /dev/null "http://bench-app:8080/api/posts?page=$p"; done
 			 for i in 1 2 3 4 5 6 7 8 9 10; do wget -q -O /dev/null "http://bench-app:8080/api/posts/$i"; done' \
 			|| log "데우기 중 오류"
@@ -292,14 +313,22 @@ main() {
 	if [ -z "${MEASURE_NICED:-}" ]; then exec env MEASURE_NICED=1 nice -n 19 "$0" "$@"; fi
 	trap cleanup EXIT
 	trap 'exit 130' INT TERM
+	PLATFORM=${PLATFORM:-$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}' 2>/dev/null)}
 	case ${1:-} in
 		env)
+			check_platform
 			mkdir -p "$ROOT/results"
 			{
-				echo "docker server arch: $(docker version --format '{{.Server.Arch}}')"
+				echo "PLATFORM: $PLATFORM"
+				echo "docker server os/arch: $(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
 				echo "docker server version: $(docker version --format '{{.Server.Version}}')"
-				echo "--- eclipse-temurin:25-jre"
-				docker run --rm eclipse-temurin:25-jre java -version 2>&1
+				for i in "$DB_IMAGE" "$JRE_IMAGE" "$HTTPD"; do
+					echo "image: $i -> $(docker image inspect -f '{{.Os}}/{{.Architecture}} {{index .RepoDigests 0}}' "$i")"
+				done
+				echo "--- $JRE_IMAGE"
+				docker run --rm --platform "$PLATFORM" "$JRE_IMAGE" java -version 2>&1
+				echo "--- $DB_IMAGE"
+				docker run --rm --platform "$PLATFORM" "$DB_IMAGE" postgres --version 2>&1
 			} | tee "$ROOT/results/env.txt" ;;
 		clean) cleanup; docker volume rm bench-gradle >/dev/null 2>&1; echo "정리 완료" ;;
 		S[0-9]*) measure "$@" ;;

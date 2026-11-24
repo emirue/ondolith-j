@@ -6,13 +6,12 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 import { installSchema, normalizeSiteUrl, type InstallValues } from "./installSchema";
-import { useInstall } from "./useInstall";
+import { postInstall } from "./postInstall";
 
 /** 설치 화면(P-001). 서버 검증(422)은 칸 옆에, DB 접속 실패 등은 폼 위에 보인다. */
 export function InstallPage({ onSubmitted }: { onSubmitted: () => void }) {
   const heading = useFocusOnMount<HTMLHeadingElement>();
   const [formError, setFormError] = useState<string | null>(null);
-  const install = useInstall();
   const form = useForm<InstallValues>({
     resolver: zodResolver(installSchema),
     defaultValues: {
@@ -26,7 +25,7 @@ export function InstallPage({ onSubmitted }: { onSubmitted: () => void }) {
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
     try {
-      const r = await install.mutateAsync({ ...values, site_url: normalizeSiteUrl(values.site_url) });
+      const r = await postInstall({ ...values, site_url: normalizeSiteUrl(values.site_url) });
       if (r.ok) return onSubmitted();
       if (r.errors && Object.keys(r.errors).length > 0) {
         // 첫 오류 칸으로 포커스를 옮겨 키보드·스크린 리더 사용자도 알게 한다

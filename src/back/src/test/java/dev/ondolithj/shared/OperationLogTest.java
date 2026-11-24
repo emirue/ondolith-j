@@ -96,7 +96,7 @@ class OperationLogTest {
 		UUID id = f.user(email);
 		String target = UUID.randomUUID().toString();
 		f.ctx.getBean(OperationLog.class)
-			.record(new Actor(id, email, "", Instant.now(), Set.of()), OperationLog.Action.AUTH_LOGIN, target, "",
+			.record(new Actor(id, email, "", Instant.now(), false, Set.of()), OperationLog.Action.AUTH_LOGIN, target, "",
 					"fe80::1%eth0");
 		assertThat(count("target_id = ?", target)).isEqualTo(1);
 		assertThat(count("ip IS NULL AND target_id = ?", target)).isEqualTo(1);
@@ -107,7 +107,7 @@ class OperationLogTest {
 		String email = email();
 		UUID id = f.user(email);
 		f.ctx.getBean(OperationLog.class)
-			.record(new Actor(id, email, "", Instant.now(), Set.of()), OperationLog.Action.SETTINGS_UPDATE, null,
+			.record(new Actor(id, email, "", Instant.now(), false, Set.of()), OperationLog.Action.SETTINGS_UPDATE, null,
 					"site.name", null);
 		assertThat(count("action = 'settings.update' AND target_id IS NULL AND ip IS NULL AND actor_user_id = ?", id))
 			.isEqualTo(1);

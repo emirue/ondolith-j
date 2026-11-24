@@ -34,6 +34,11 @@ class AuthConfig {
 	}
 
 	@Bean
+	Reauth reauth() {
+		return new Reauth(Clock.systemUTC());
+	}
+
+	@Bean
 	AdminRateLimitFilter adminRateLimitFilter(RateLimiter limiter, RateLimitProperties limits, JsonMapper json) {
 		return new AdminRateLimitFilter(limiter, limits, json);
 	}

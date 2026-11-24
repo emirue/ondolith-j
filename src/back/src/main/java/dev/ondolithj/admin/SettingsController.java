@@ -61,7 +61,7 @@ class SettingsController {
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<Void> save(@RequestBody SettingsRequest req, @AuthenticationPrincipal Actor actor,
 			HttpServletRequest request) {
-		SiteName.error(req.name()).ifPresent(m -> {
+		SiteName.error(req.name(), 100).ifPresent(m -> {
 			throw new FieldErrors(Map.of("name", m));
 		});
 		boolean changed = jdbc.sql(UPSERT).param(SiteName.strip(req.name())).query(String.class).optional().isPresent();

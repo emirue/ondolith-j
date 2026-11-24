@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/settings", "/api/admin/system", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/roles", "/api/admin/roles/{id}/permissions", "/api/admin/roles/{id}/permissions/revoke", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/admin/users/{id}/roles", "/api/admin/users/{id}/roles/revoke", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -103,6 +103,86 @@ class OpenApiFileTest {
 			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
 				.isEqualTo("#/components/schemas/ProblemDetail");
 		}
+		// 재인증(1-B2 스펙 3.3·7절)
+		JsonNode reauth = written.at("/paths/~1api~1admin~1reauth/post/responses");
+		assertThat(fieldNames(reauth)).containsExactlyInAnyOrder("204", "401", "403", "422", "429");
+		assertThat(reauth.at("/204/content").isMissingNode()).isTrue();
+		for (String code : java.util.List.of("401", "403", "422", "429")) {
+			assertThat(reauth.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+				.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		// A-402 상세·비활성·활성(1-B2 스펙 7절). 409 는 마지막 관리자 잠금(Task 6)
+		JsonNode detail = written.at("/paths/~1api~1admin~1users~1{id}/get/responses");
+		assertThat(fieldNames(detail)).containsExactlyInAnyOrder("200", "401", "403", "404", "429");
+		JsonNode deactivate = written.at("/paths/~1api~1admin~1users~1{id}~1deactivate/post/responses");
+		assertThat(fieldNames(deactivate)).containsExactlyInAnyOrder("204", "401", "403", "404", "409", "429");
+		JsonNode activate = written.at("/paths/~1api~1admin~1users~1{id}~1activate/post/responses");
+		assertThat(fieldNames(activate)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		// Q20: 활성화의 403 에 R2
+		assertThat(activate.at("/403/description").asString()).contains("R2");
+		for (JsonNode r : java.util.List.of(deactivate, activate)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+			for (String code : java.util.List.of("401", "403", "404", "429")) {
+				assertThat(r.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+					.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+			}
+		}
+		assertThat(detail.at("/404/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(fieldNames(written.at("/components/schemas/UserDetail/properties"))).containsExactlyInAnyOrder("id",
+				"email", "display_name", "is_active", "created_at", "roles", "assignable_roles");
+		assertThat(fieldNames(written.at("/components/schemas/RoleRef/properties"))).containsExactlyInAnyOrder("id",
+				"key", "name", "is_superuser");
+		// A-401 목록·A-402 생성(1-B2 스펙 7절). 생성 본문은 고정 레코드 — 역할·활성 상태·기준 시각 칸이 없다
+		JsonNode list = written.at("/paths/~1api~1admin~1users/get/responses");
+		assertThat(fieldNames(list)).containsExactlyInAnyOrder("200", "400", "401", "403", "422", "429");
+		JsonNode create = written.at("/paths/~1api~1admin~1users/post/responses");
+		assertThat(fieldNames(create)).containsExactlyInAnyOrder("201", "400", "401", "403", "409", "422", "429");
+		// Q21: 1-E 전에는 superuser 만 만든다
+		assertThat(create.at("/403/description").asString()).contains("superuser 아님");
+		for (JsonNode r : java.util.List.of(list.get("400"), list.get("422"), create.get("409"), create.get("422"))) {
+			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
+				.isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		assertThat(fieldNames(written.at("/components/schemas/UserPage/properties"))).containsExactlyInAnyOrder("items",
+				"page", "page_size", "has_next");
+		assertThat(fieldNames(written.at("/components/schemas/UserItem/properties"))).containsExactlyInAnyOrder("id",
+				"email", "display_name", "is_active", "roles", "created_at");
+		assertThat(fieldNames(written.at("/components/schemas/CreateUser/properties"))).containsExactlyInAnyOrder("email",
+				"display_name", "password");
+		assertThat(fieldNames(written.at("/components/schemas/Created/properties"))).containsExactly("id");
+		// A-403·A-404·A-405(1-B2 스펙 7절). 빼기의 422 는 칸이 비었을 때(필수)
+		JsonNode roles = written.at("/paths/~1api~1admin~1roles/get/responses");
+		assertThat(fieldNames(roles)).containsExactlyInAnyOrder("200", "401", "403", "429");
+		JsonNode grantPerm = written.at("/paths/~1api~1admin~1roles~1{id}~1permissions/post/responses");
+		JsonNode revokePerm = written.at("/paths/~1api~1admin~1roles~1{id}~1permissions~1revoke/post/responses");
+		JsonNode grantRole = written.at("/paths/~1api~1admin~1users~1{id}~1roles/post/responses");
+		JsonNode revokeRole = written.at("/paths/~1api~1admin~1users~1{id}~1roles~1revoke/post/responses");
+		for (JsonNode r : java.util.List.of(grantPerm, revokePerm, grantRole)) {
+			assertThat(fieldNames(r)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "422", "429");
+		}
+		assertThat(fieldNames(revokeRole)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "409", "422", "429");
+		for (JsonNode r : java.util.List.of(grantPerm, revokePerm, grantRole, revokeRole)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+			for (String code : java.util.List.of("400", "401", "403", "404", "422", "429")) {
+				assertThat(r.at("/" + code + "/content/application~1problem+json/schema/$ref").asString())
+					.as(code).isEqualTo("#/components/schemas/ProblemDetail");
+			}
+		}
+		assertThat(revokeRole.at("/409/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(roles.at("/403/content/application~1problem+json/schema/$ref").asString())
+			.isEqualTo("#/components/schemas/ProblemDetail");
+		assertThat(fieldNames(written.at("/components/schemas/RolesView/properties"))).containsExactlyInAnyOrder("roles",
+				"permissions");
+		assertThat(fieldNames(written.at("/components/schemas/RoleView/properties"))).containsExactlyInAnyOrder("id", "key",
+				"name", "description", "is_builtin", "is_superuser", "is_assignable", "permissions");
+		assertThat(fieldNames(written.at("/components/schemas/Grant/properties"))).containsExactlyInAnyOrder("key",
+				"effective");
+		assertThat(fieldNames(written.at("/components/schemas/PermissionView/properties"))).containsExactlyInAnyOrder("key",
+				"description");
+		assertThat(fieldNames(written.at("/components/schemas/PermissionRequest/properties"))).containsExactly("permission");
+		assertThat(fieldNames(written.at("/components/schemas/RoleRequest/properties"))).containsExactly("role_id");
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
 		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");

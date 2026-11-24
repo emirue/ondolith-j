@@ -1,6 +1,7 @@
 package dev.ondolithj.install;
 
 import dev.ondolithj.config.ConfigFile;
+import dev.ondolithj.shared.Password;
 import dev.ondolithj.shared.SiteName;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -9,7 +10,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -47,15 +47,14 @@ public record InstallRequest(
 	Map<String, String> check() {
 		Map<String, String> e = new LinkedHashMap<>();
 		// NBSP·영폭 공백만인 이름을 @NotBlank 는 통과시킨다 — A-201 과 같은 규칙으로 본다
-		SiteName.error(siteName).ifPresent(m -> e.put("site_name", m));
+		SiteName.error(siteName, 100).ifPresent(m -> e.put("site_name", m));
 		try {
 			ConfigFile.parseSiteUrl(siteUrl);
 		} catch (IllegalArgumentException ex) {
 			e.put("site_url", "http·https 절대 주소(한글 도메인은 punycode)");
 		}
-		if (adminPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
-			e.put("admin_password", "72바이트 이하(한글은 약 24자)");
-		}
+		// 10자 검사는 애너테이션에도 남긴다 — check() 는 애너테이션을 지난 뒤에만 돌아, 다른 칸 오류와 한 응답에 싣지 못한다
+		Password.error(adminPassword).ifPresent(m -> e.put("admin_password", m));
 		if (!adminPassword.equals(adminPasswordConfirm)) {
 			e.put("admin_password_confirm", "비밀번호 확인이 다릅니다");
 		}

@@ -67,18 +67,30 @@ class MeTest {
 	}
 
 	@Test
-	void 운영자는_관리자_권한_넷이_모두_true_이다() throws Exception {
+	void 운영자는_보기_권한_여섯이_true_바꾸는_넷은_false() throws Exception {
 		JsonNode can = me(as("operator@ondolith.test")).get("can");
-		for (String key : new String[] { "admin.access", "settings.view", "settings.update", "log.view" }) {
+		for (String key : new String[] { "admin.access", "settings.view", "settings.update", "log.view", "user.view",
+				"role.view" }) {
 			assertThat(can.get(key).asBoolean(false)).as(key).isTrue();
 		}
+		for (String key : new String[] { "user.create", "user.update", "role.assign", "role.manage" }) {
+			assertThat(can.get(key).asBoolean(true)).as(key).isFalse();
+		}
+	}
+
+	@Test
+	void can_의_키가_권한_열이다() throws Exception {
+		assertThat(me(f.http()).get("can").propertyNames()).containsExactlyInAnyOrder("admin.access", "settings.view",
+				"settings.update", "log.view", "user.view", "user.create", "user.update", "role.view", "role.assign",
+				"role.manage");
 	}
 
 	@Test
 	void 편집자는_admin_access_만_true_이다() throws Exception {
 		JsonNode can = me(as("editor@ondolith.test")).get("can");
 		assertThat(can.get("admin.access").asBoolean(false)).isTrue();
-		for (String key : new String[] { "settings.view", "settings.update", "log.view" }) {
+		for (String key : new String[] { "settings.view", "settings.update", "log.view", "user.view", "user.create",
+				"user.update", "role.view", "role.assign", "role.manage" }) {
 			assertThat(can.get(key).asBoolean(true)).as(key).isFalse();
 		}
 	}

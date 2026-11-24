@@ -110,4 +110,12 @@ describe("사이트 설정", () => {
     expect(screen.queryByLabelText("사이트 이름")).toBeNull();
     expect(screen.getByRole("heading", { name: "사이트 설정" })).toBeInTheDocument();
   });
+
+  it("/api/me 가 실패하면 「권한이 없습니다」가 아니라 「사이트 설정을 불러오지 못했습니다」(M-10)", async () => {
+    mockApi((req) => (req.url.endsWith("/api/me") ? json(500, {}) : json(200, { name: "옛 이름", type: "cms" })));
+    renderWithQuery(<Routes><Route path="/admin/settings" element={<SettingsPage />} /></Routes>, "/admin/settings", { notice: true });
+    expect(await screen.findByRole("alert")).toHaveTextContent("사이트 설정을 불러오지 못했습니다");
+    expect(screen.queryByText("권한이 없습니다")).toBeNull();
+    expect(screen.queryByLabelText("사이트 이름")).toBeNull();
+  });
 });

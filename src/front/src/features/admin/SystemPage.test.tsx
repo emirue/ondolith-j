@@ -53,6 +53,12 @@ describe("시스템 정보", () => {
     expect(screen.getByRole("heading", { name: "시스템 정보" })).toBeInTheDocument();
   });
 
+  it("401 → 「로그인이 끝났습니다」와 지금 주소로 돌아오는 링크", async () => {
+    renderSystem(() => json(401, { status: 401, detail: "로그인이 필요합니다" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("로그인이 끝났습니다");
+    expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute("href", "/login?next=%2Fadmin%2Fsystem");
+  });
+
   it("그 밖의 실패 → 「시스템 정보를 불러오지 못했습니다」", async () => {
     renderSystem(() => json(500, {}));
     expect(await screen.findByRole("alert")).toHaveTextContent("시스템 정보를 불러오지 못했습니다");

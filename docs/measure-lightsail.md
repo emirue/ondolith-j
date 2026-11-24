@@ -28,9 +28,9 @@
 | Java | 25 |
 | 빌드 | Gradle - Kotlin (wrapper `gradle-9.8.2`) |
 | 의존성 | `web`(`spring-boot-starter-webmvc`), `security`, `data-jpa`, `postgresql` |
-| 빌드 이미지 / 실행 이미지 | `eclipse-temurin:25-jdk` / `eclipse-temurin:25-jre` |
-| DB 이미지 | `postgres:18-alpine` |
-| 부하 도구 | `httpd:2.4-alpine` 안의 `ab` (`-n 5000 -c 20`, 목록 `/api/posts?page=3`·단건 `/api/posts/500` 차례로) |
+| 빌드 이미지 / 실행 이미지 | `eclipse-temurin:25-jdk` / `eclipse-temurin:25-jre`. 실행은 `measure.sh` 의 고정 참조(태그@다이제스트), 빌드는 아래 「다시 재기」의 참조. 둘 다 `--platform` 은 호스트 |
+| DB 이미지 | `postgres:18-alpine`. `measure.sh` 의 고정 참조(태그@다이제스트), `--platform` 호스트 |
+| 부하 도구 | `httpd:2.4-alpine`(`measure.sh` 의 고정 참조, `--platform` 호스트) 안의 `ab` (`-n 5000 -c 20`, 목록 `/api/posts?page=3`·단건 `/api/posts/500` 차례로) |
 | 가상 스레드 / 커넥션 풀 | 끔(기본값) / HikariCP 기본값 |
 | CPU | 앱·DB 컨테이너 모두 `--cpus=1` |
 | 데이터 | `posts` 1000행 ([`bench/seed.sql`](../bench/seed.sql)) |
@@ -157,6 +157,25 @@ Phase 1-A(로그인·DB 세션·권한·횟수 제한)를 붙인 코어를 Phase
 - S6 은 두 대상 모두 앱 상한 180m 에 붙어 차이가 보이지 않는다. 512MB 근거가 아니다. **D-4 는 계속 보류한다.**
 - 처리량은 부하 경로가 달라 측정 앱과 비교하지 않는다.
 
+## Phase 1-B 코어 jar 측정 (2026-11-22)
+
+Phase 1-B(관리자 셸·작업 로그·재인증·사용자·역할)를 붙인 코어를 같은 방법으로 쟀다(측정 앱과 번갈아, S5·S6 각 3회, 12회). **이번부터 이미지를 다이제스트와 플랫폼으로 고정했다**(아래 「이미지 고정」). 측정 앱도 고정한 JDK 이미지로 다시 빌드해 같은 세션에서 다시 쟀다.
+원본: `results/core-1b/`(코어, 커밋 `8701d7a` 에서 빌드 — 1-B2 최종 검토 수정 뒤), `results/bench-1b/`, `results/env.txt`(linux/arm64, JRE Temurin-25.0.5.1+2, PostgreSQL 18.7). 부하 경로는 앞과 같다(`/api/site`·`/api/health`, 로그인 없음) — 관리자 API 는 부하에 넣지 않았으므로 늘어난 빈·클래스의 유휴·기본 경로 비용을 본다.
+
+| 대상 | 시나리오 | 기동(s) | 앱 유휴(MiB) | 앱 cgroup 최고(MiB) | DB 유휴(MiB) | 판정 |
+|---|---|---|---|---|---|---|
+| 측정 앱 | S5 | 4.67–5.122 | 243.7–255.4 | 306.8–323.3 | 52.8–53.1 | 3/3 |
+| 코어 1-B | S5 | 6.112–6.315 | 280.0–282.0 | 338.7–355.2 | 55.9–56.1 | 3/3 |
+| 측정 앱 | S6 | 4.761–5.722 | 177.4–179.7 | 180.1 | 46.0–46.5 | 3/3 |
+| 코어 1-B | S6 | 6.366–7.118 | 179.2–179.9 | 180.0–180.1 | 49.2–49.4 | 3/3 |
+
+- 12회 모두 통과(OOM 0, 실패 요청 0).
+- **S5 에서 코어의 앱 유휴가 측정 앱보다 약 27–36 MiB 크다**(최솟값끼리 36.3, 최댓값끼리 26.6). 1-A(약 27–30 MiB)와 비슷한 폭이다 — 1-B 의 관리자 기능이 유휴를 크게 늘리지는 않았다(세션이 달라 1-A 값과 직접 비교하지는 않는다).
+- 기동은 코어가 S5 약 1.2–1.4초, S6 약 1.4–1.6초 길다.
+- **DB 유휴가 Phase 0 수준(약 53 MiB)으로 돌아왔다.** 1-A 의 약 두 배(101.8–123.4)는 DB 판(둘 다 18.7)이 아니라, 로컬 `postgres:18-alpine` 이 amd64 판이라 arm64 맥에서 에뮬레이션으로 돈 탓이었을 가능성이 크다(이번에 바뀐 것은 아키텍처와 JRE 판이다 — 추정, 같은 조건으로 되돌려 재 보지는 않았다). 1-A 의 DB 열은 에뮬레이션 값으로 읽는다.
+- S6 은 두 대상 모두 앱 상한 180m 에 붙어 차이가 보이지 않는다. **D-4 는 계속 보류한다.**
+- 처리량은 부하 경로가 달라 측정 앱과 비교하지 않는다.
+
 ## 읽는 법과 한계
 
 - **판정**은 회차마다 다음을 모두 만족해야 통과다.
@@ -174,20 +193,47 @@ Phase 1-A(로그인·DB 세션·권한·횟수 제한)를 붙인 코어를 Phase
 - **아키텍처**: arm64 에서 쟀다. Lightsail 인스턴스와 아키텍처가 다르면 숫자가 조금 다를 수 있다.
 - **범위 밖, 하지 않음**: 실제 Lightsail 인스턴스 측정(비용), React·S3 배포, GraalVM native image.
 - DB 계정 `m`/`m` 은 포트를 열지 않는 일회용 측정 컨테이너용이다.
+- `PLATFORM` 기본값은 Docker 서버의 `os/arch`(호스트)다. 서버나 세 이미지의 `os/arch` 가 `PLATFORM` 과 다르면 하네스 실패(exit 2)다. 대상 Lightsail 의 아키텍처는 정해지지 않았고(측정이 흉내 내는 것은 티어의 메모리 상한), 에뮬레이션으로 잰 값은 측정 목적에 어긋난다.
+
+### 이미지 고정 (2026-11-22)
+
+태그가 새 판을 가리키면 측정 조건이 바뀐다(1-A 절의 DB 판 18.4 → 18.7). 그래서 이미지는 `태그@sha256:<인덱스 다이제스트>` 로 쓴다. 인덱스(멀티 아키텍처 목록) 다이제스트를 쓰고, 판은 `--platform` 이 목록에서 고른다. 플랫폼별 다이제스트를 넣으면 아키텍처가 참조에 박혀 `PLATFORM` 이 뜻을 잃는다.
+
+| 이미지 | 인덱스 다이제스트(2026-11-22 조회) |
+|---|---|
+| `postgres:18-alpine` | `sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71` |
+| `eclipse-temurin:25-jre` | `sha256:4ed132f6832e9804b123e89a849a7b4502756ae64a4ee08ebab939d9d5d0a9fa` |
+| `httpd:2.4-alpine` | `sha256:32bd0639bcc4917ef1fd9363a1d9dd2dd9c498565118b062a10d51e43a5c3a24` |
+| `eclipse-temurin:25-jdk`(빌드) | `sha256:ce2ef9d2d67a68de5e196d4de9d743327c44a10b57fe02ec39f572c652cacfd3` |
+
+넷 모두 목록에 `linux/arm64/v8` 이 있다. 이 다이제스트 판에서는 JRE 가 Temurin-25.0.5.1+2, DB 가 PostgreSQL 18.7 이다(`./measure.sh env`).
+
+```bash
+# 다이제스트 확인·갱신: 첫 Digest 줄이 인덱스 다이제스트, Platform 줄에 호스트 판이 있어야 한다
+docker buildx imagetools inspect postgres:18-alpine
+# 고정 참조가 실제로 받아지는지
+docker run --rm --platform "$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" \
+  postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71 postgres --version
+```
+
+다이제스트를 바꾸면 `measure.sh` 의 변수 셋과 위 표, 아래 빌드 명령을 함께 바꾸고 다시 잰다.
 
 ## 다시 재기
 
 ```bash
 # 1. 빌드 (테스트는 DB 가 있어야 돌므로 bootJar 만)
 docker volume create bench-gradle
-docker run --rm --cpus=2 -v "$PWD/bench":/src -w /src -v bench-gradle:/root/.gradle \
-  eclipse-temurin:25-jdk ./gradlew --no-daemon -q bootJar
+docker run --rm --cpus=2 --platform "$(docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" \
+  -v "$PWD/bench":/src -w /src -v bench-gradle:/root/.gradle \
+  eclipse-temurin:25-jdk@sha256:ce2ef9d2d67a68de5e196d4de9d743327c44a10b57fe02ec39f572c652cacfd3 \
+  ./gradlew --no-daemon -q bootJar
 
 # 2. 측정 (한 번에 하나씩. 스스로 nice 19 로 다시 실행된다)
-./measure.sh env          # 아키텍처·java -version → results/env.txt
+./measure.sh env          # os/arch·이미지 참조·java -version·DB 판 → results/env.txt
 ./measure.sh S6 1         # 시나리오 S6 의 1회차. 판정 실패면 exit 1, 하네스 실패면 exit 2
 # 코어 jar: cd src/back && ./mvnw -q -B package -DskipTests 로 빌드한 뒤
-TARGET=core JAR=src/back/target/ondolith-j-0.0.1-SNAPSHOT.jar LABEL=core-p0 ./measure.sh S5 1
+# JAR 는 절대 경로로 준다 — 상대 경로는 docker 가 볼륨 이름으로 읽어 하네스 실패(exit 2)다
+TARGET=core JAR="$PWD/src/back/target/ondolith-j-0.0.1-SNAPSHOT.jar" LABEL=core-p0 ./measure.sh S5 1
 
 # 3. 표 만들기, 정리
 scripts/summarize.sh      # results/ → 마크다운 표
