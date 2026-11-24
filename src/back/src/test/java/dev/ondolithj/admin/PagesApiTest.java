@@ -23,13 +23,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jsoup.parser.Parser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * A-302 작성, A-303 발행·발행 취소, P-202 공개 조회(1-C1 스펙 5·6·7절, 13.4). DB 를 시험끼리 나눠 쓰므로 슬러그는 SEQ 로 짓고,
+ * A-301 목록, A-302 작성·상세·수정, 삭제, A-303 발행·발행 취소, P-202 공개 조회(1-C1 스펙 5·6·7·17절, 13.4). DB 를 시험끼리 나눠 쓰므로 슬러그는 SEQ 로 짓고,
  * operation_logs 는 비울 수 없으니 시험마다 새 계정으로 센다.
  */
 class PagesApiTest {
@@ -56,6 +57,12 @@ class PagesApiTest {
 	@AfterAll
 	static void stop() {
 		f.close();
+	}
+
+	/** 목록 시험에 다른 시험의 행이 섞이지 않게 한다. 다른 시험은 저마다 만든 행만 본다. */
+	@BeforeEach
+	void clear() throws SQLException {
+		f.sql("DELETE FROM pages");
 	}
 
 	record Login(UUID id, TestHttp http) {
@@ -173,6 +180,43 @@ class PagesApiTest {
 
 	static HttpResponse<String> view(TestHttp http, String slug) throws Exception {
 		return http.get("/api/pages/" + slug);
+	}
+
+	static HttpResponse<String> update(TestHttp http, UUID id, String slug, String bodyHtml) throws Exception {
+		return http.post("/api/admin/pages/" + id, body(slug, "제목", bodyHtml));
+	}
+
+	static HttpResponse<String> delete(TestHttp http, UUID id) throws Exception {
+		return http.post("/api/admin/pages/" + id + "/delete", "");
+	}
+
+	/** 행 전체(슬러그·제목·본문·상태·시각). */
+	static String row(UUID id) throws SQLException {
+		return text("SELECT row_to_json(p)::text FROM pages p WHERE id = ?", id);
+	}
+
+	/** 그 계정이 그 페이지에 남긴 action 기록 수. */
+	static long logged(UUID actor, String action, UUID page) throws SQLException {
+		return one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = ? AND target_type = 'page' "
+				+ "AND target_id = ? AND summary = ''", actor, action, page.toString());
+	}
+
+	/** ls-1 이 가장 최근, ls-n 이 가장 오래된 초안 n 개. 한 문장의 now() 는 같으므로 시각을 행마다 다르게 준다. */
+	static void seed(int n) throws SQLException {
+		f.sql("INSERT INTO pages (slug, title, body_html, updated_at) SELECT 'ls-' || g, '목록' || g, '<p>목록본문</p>', "
+				+ "now() - g * interval '1 minute' FROM generate_series(1, ?) g", n);
+	}
+
+	static JsonNode list(TestHttp http, String page) throws Exception {
+		HttpResponse<String> r = http.get("/api/admin/pages?page=" + page);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+		return json.readTree(r.body());
+	}
+
+	static List<String> slugs(JsonNode page) {
+		List<String> out = new ArrayList<>();
+		page.get("items").forEach(i -> out.add(i.get("slug").asString()));
+		return out;
 	}
 
 	// ---- 첫 Red ----
@@ -642,6 +686,336 @@ class PagesApiTest {
 			.isEqualTo(404);
 		assertThat(post(editor.http(), s, "<p>b</p>").statusCode()).isEqualTo(409);
 		assertThat(post(editor.http(), "Bad", "<p>b</p>").statusCode()).isEqualTo(422);
+		assertThat(logs(probe.id())).isZero();
+		assertThat(logs(editor.id())).isEqualTo(base);
+	}
+
+	// ---- 수정 ----
+
+	/** 17절 1: 판정은 조회 뒤 비교가 아니라 한 문장(WHERE status = 'draft')이다. */
+	@Test
+	void 발행_권한_없는_역할은_발행된_페이지를_고칠_수_없다_403() throws Exception {
+		Login probe = login(role("admin.access", "page.update"));
+		TestHttp editor = login("editor").http();
+		String ds = slug();
+		UUID draft = create(editor, ds, "<p>a</p>");
+		HttpResponse<String> ok = update(probe.http(), draft, ds, "<p>b</p>");
+		assertThat(ok.statusCode()).as(ok.body()).isEqualTo(204);
+		assertThat(stored(draft)).isEqualTo("<p>b</p>");
+
+		String ps = slug();
+		UUID published = create(editor, ps, "<p>a</p>");
+		publish(editor, published);
+		String before = row(published);
+		// 슬러그를 그대로 둔 수정도, 바꾼 수정도
+		for (String s : List.of(ps, slug())) {
+			HttpResponse<String> r = update(probe.http(), published, s, "<p>c</p>");
+			refused(r, 403, "발행된 페이지는 발행 권한이 있어야 고칠 수 있습니다");
+			assertThat(r.body()).doesNotContain(s);
+		}
+		assertThat(row(published)).isEqualTo(before);
+		assertThat(logged(probe.id(), "page.update", draft)).isEqualTo(1);
+		assertThat(logs(probe.id())).isEqualTo(1);
+	}
+
+	@Test
+	void 편집자와_superuser_는_발행본을_고친다() throws Exception {
+		Login editor = login("editor");
+		Login admin = login("admin");
+		String old = slug();
+		UUID id = create(editor.http(), old, "<p>a</p>");
+		publish(editor.http(), id);
+		assertThat(update(editor.http(), id, old, "<p>b</p>").statusCode()).isEqualTo(204);
+		assertThat(stored(id)).isEqualTo("<p>b</p>");
+		String moved = slug();
+		HttpResponse<String> r = update(admin.http(), id, moved, "<p>c</p>");
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("published");
+		refused(view(f.http(), old), 404, NOT_FOUND);
+		HttpResponse<String> now = view(f.http(), moved);
+		assertThat(now.statusCode()).isEqualTo(200);
+		assertThat(json.readTree(now.body()).get("body_html").asString()).isEqualTo("<p>c</p>");
+		assertThat(logged(editor.id(), "page.update", id)).isEqualTo(1);
+		assertThat(logged(admin.id(), "page.update", id)).isEqualTo(1);
+	}
+
+	/** Review Focus 2: UNIQUE 가 자기 행과 부딪히지 않는다. */
+	@Test
+	void 슬러그를_그대로_둔_수정은_204() throws Exception {
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<p>a</p>");
+		String createdAt = text("SELECT created_at::text FROM pages WHERE id = ?", id);
+		HttpResponse<String> r = editor.post("/api/admin/pages/" + id, body(s, "  새 제목 ", "<p>b</p><script>x</script>"));
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
+		assertThat(text("SELECT title FROM pages WHERE id = ?", id)).isEqualTo("새 제목");
+		assertThat(stored(id)).isEqualTo("<p>b</p>");
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(text("SELECT created_at::text FROM pages WHERE id = ?", id)).isEqualTo(createdAt);
+		assertThat(one("SELECT count(*) FROM pages WHERE id = ? AND updated_at > created_at", id)).isEqualTo(1);
+	}
+
+	@Test
+	void 다른_페이지의_슬러그로_바꾸면_409() throws Exception {
+		Login editor = login("editor");
+		String taken = slug();
+		create(editor.http(), taken, "<p>a</p>");
+		UUID id = create(editor.http(), slug(), "<p>b</p>");
+		String before = row(id);
+		long base = logs(editor.id());
+		HttpResponse<String> r = update(editor.http(), id, taken, "<p>c</p>");
+		refused(r, 409, "이미 사용 중인 주소입니다");
+		assertThat(r.body()).doesNotContain(taken);
+		assertThat(row(id)).isEqualTo(before);
+		assertThat(logs(editor.id())).isEqualTo(base);
+	}
+
+	/** 칸 검사가 대상 조회보다 앞이다(스펙 5.2). */
+	@Test
+	void 없는_id_는_404_틀린_본문이면_422() throws Exception {
+		TestHttp editor = login("editor").http();
+		UUID ghost = UUID.randomUUID();
+		refused(update(editor, ghost, slug(), "<p>a</p>"), 404, NOT_FOUND);
+		fieldError(update(editor, ghost, slug(), ""), "body_html", "본문을 입력하세요");
+		fieldError(update(editor, ghost, "Bad", "<p>a</p>"), "slug");
+		for (String bad : List.of("abc", "%20", "1")) {
+			assertThat(editor.post("/api/admin/pages/" + bad, body(slug(), "제목", "<p>a</p>")).statusCode()).as(bad)
+				.isEqualTo(404);
+			assertThat(editor.post("/api/admin/pages/" + bad + "/delete", "").statusCode()).as(bad).isEqualTo(404);
+			assertThat(editor.get("/api/admin/pages/" + bad).statusCode()).as(bad).isEqualTo(404);
+		}
+	}
+
+	@Test
+	void 수정의_status_는_422_이고_상태가_그대로() throws Exception {
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<p>a</p>");
+		publish(editor, id);
+		String before = row(id);
+		for (Object status : new Object[] { "draft", "published", false }) {
+			Map<String, Object> m = fields(s, "제목", "<p>b</p>");
+			m.put("status", status);
+			fieldError(editor.post("/api/admin/pages/" + id, json.writeValueAsString(m)), "status",
+					"발행 상태는 발행 단추로 바꿉니다");
+		}
+		assertThat(row(id)).isEqualTo(before);
+	}
+
+	// ---- 내보낼 때 정화 ----
+
+	/** 0절 완료 기준 3: 정화 규칙이 바뀌기 전에 저장된 값도 나갈 때 다시 거른다. */
+	@Test
+	void DB_에_넣은_옛_HTML_도_공개와_상세에서_정화된다() throws Exception {
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		f.sql("INSERT INTO pages (slug, title, body_html, status) VALUES (?, '옛 페이지', "
+				+ "'<p onclick=\"x\">a</p><script>alert(1)</script>', 'published')", s);
+		UUID id = UUID.fromString(text("SELECT id::text FROM pages WHERE slug = ?", s));
+		HttpResponse<String> pub = view(f.http(), s);
+		assertThat(pub.statusCode()).as(pub.body()).isEqualTo(200);
+		assertThat(json.readTree(pub.body()).get("body_html").asString()).isEqualTo("<p>a</p>");
+		HttpResponse<String> detail = editor.get("/api/admin/pages/" + id);
+		assertThat(detail.statusCode()).as(detail.body()).isEqualTo(200);
+		assertThat(json.readTree(detail.body()).get("body_html").asString()).isEqualTo("<p>a</p>");
+	}
+
+	// ---- 삭제 ----
+
+	@Test
+	void 삭제는_204_와_행_하나_공개는_404_다시_삭제는_404() throws Exception {
+		Login editor = login("editor");
+		String s = slug();
+		UUID id = create(editor.http(), s, "<p>a</p>");
+		publish(editor.http(), id);
+		assertThat(delete(editor.http(), id).statusCode()).isEqualTo(204);
+		assertThat(rows(s)).isZero();
+		refused(view(f.http(), s), 404, NOT_FOUND);
+		refused(delete(editor.http(), id), 404, NOT_FOUND);
+		refused(editor.http().get("/api/admin/pages/" + id), 404, NOT_FOUND);
+		assertThat(logged(editor.id(), "page.delete", id)).isEqualTo(1);
+		assertThat(logs(editor.id())).isEqualTo(3);
+	}
+
+	@Test
+	void page_update_만_가진_역할은_삭제가_403() throws Exception {
+		Login probe = login(role("admin.access", "page.update"));
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<p>a</p>");
+		assertThat(delete(probe.http(), id).statusCode()).isEqualTo(403);
+		assertThat(rows(s)).isEqualTo(1);
+		assertThat(logs(probe.id())).isZero();
+	}
+
+	// ---- 상세 ----
+
+	@Test
+	void 상세는_편집자_200_page_view_만이면_403() throws Exception {
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<h2>t</h2><p>a</p>");
+		HttpResponse<String> r = editor.get("/api/admin/pages/" + id);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+		JsonNode d = json.readTree(r.body());
+		assertThat(d.propertyNames()).containsExactlyInAnyOrder("id", "slug", "title", "body_html", "status", "created_at",
+				"updated_at");
+		assertThat(d.get("id").asString()).isEqualTo(id.toString());
+		assertThat(d.get("slug").asString()).isEqualTo(s);
+		assertThat(d.get("title").asString()).isEqualTo("제목");
+		assertThat(d.get("body_html").asString()).isEqualTo("<h2>t</h2><p>a</p>");
+		assertThat(d.get("status").asString()).isEqualTo("draft");
+		assertThat(d.get("created_at").asString()).isNotBlank();
+		assertThat(d.get("updated_at").asString()).isNotBlank();
+		assertThat(r.headers().firstValue("Cache-Control")).hasValueSatisfying(v -> assertThat(v).contains("no-store"));
+		// 상세는 편집 폼 조회라 page.update(D19:2632)
+		assertThat(login(role("admin.access", "page.view")).http().get("/api/admin/pages/" + id).statusCode())
+			.isEqualTo(403);
+		assertThat(login(role("admin.access", "page.update")).http().get("/api/admin/pages/" + id).statusCode())
+			.isEqualTo(200);
+		refused(editor.get("/api/admin/pages/" + UUID.randomUUID()), 404, NOT_FOUND);
+	}
+
+	// ---- 목록 ----
+
+	@Test
+	void 쪽당_50_한_행_더_읽어_has_next() throws Exception {
+		seed(51);
+		TestHttp editor = login("editor").http();
+		JsonNode first = list(editor, "1");
+		assertThat(first.get("page").asInt()).isEqualTo(1);
+		assertThat(first.get("page_size").asInt()).isEqualTo(50);
+		assertThat(first.get("has_next").asBoolean()).isTrue();
+		List<String> want = new ArrayList<>();
+		for (int i = 1; i <= 50; i++) {
+			want.add("ls-" + i);
+		}
+		assertThat(slugs(first)).containsExactlyElementsOf(want);
+		JsonNode item = first.get("items").get(0);
+		assertThat(item.propertyNames()).containsExactlyInAnyOrder("id", "slug", "title", "status", "updated_at");
+		assertThat(item.get("title").asString()).isEqualTo("목록1");
+		assertThat(item.get("status").asString()).isEqualTo("draft");
+		JsonNode second = list(editor, "2");
+		assertThat(slugs(second)).containsExactly("ls-51");
+		assertThat(second.get("has_next").asBoolean()).isFalse();
+		// 기본 쪽은 1
+		assertThat(slugs(list(editor, "1"))).isEqualTo(slugs(json.readTree(editor.get("/api/admin/pages").body())));
+	}
+
+	/** Review Focus 5. */
+	@Test
+	void 끝을_넘은_쪽은_빈_목록() throws Exception {
+		seed(51);
+		JsonNode third = list(login("editor").http(), "3");
+		assertThat(third.get("items").isEmpty()).isTrue();
+		assertThat(third.get("items").isArray()).isTrue();
+		assertThat(third.get("has_next").asBoolean()).isFalse();
+		assertThat(third.get("page").asInt()).isEqualTo(3);
+	}
+
+	@Test
+	void page_0_은_422_abc_는_400() throws Exception {
+		TestHttp editor = login("editor").http();
+		for (String bad : List.of("0", "-1")) {
+			fieldError(editor.get("/api/admin/pages?page=" + bad), "page", "1 이상");
+		}
+		assertThat(editor.get("/api/admin/pages?page=abc").statusCode()).isEqualTo(400);
+		assertThat(editor.get("/api/admin/pages?page=99999999999").statusCode()).isEqualTo(400);
+		// 큰 쪽 번호도 offset 이 넘치지 않는다
+		assertThat(list(editor, String.valueOf(Integer.MAX_VALUE)).get("items").isEmpty()).isTrue();
+	}
+
+	/** SC-4: 초안 본문이 목록 캐시에 남지 않는다. */
+	@Test
+	void 목록에_body_html_이_없다() throws Exception {
+		TestHttp editor = login("editor").http();
+		String secret = "목록에나오면안되는본문" + SEQ.incrementAndGet();
+		create(editor, slug(), "<p>" + secret + "</p>");
+		HttpResponse<String> r = editor.get("/api/admin/pages");
+		assertThat(r.statusCode()).isEqualTo(200);
+		assertThat(r.body()).doesNotContain("body_html").doesNotContain(secret).doesNotContain("<p>");
+	}
+
+	@Test
+	void 목록_질의는_행_수와_관계없이_같다() throws Exception {
+		TestHttp editor = login("editor").http();
+		seed(3);
+		long before = queries("%pages%");
+		list(editor, "1");
+		long few = queries("%pages%") - before;
+		f.sql("DELETE FROM pages");
+		seed(54);
+		before = queries("%pages%");
+		list(editor, "1");
+		list(editor, "2");
+		long many = queries("%pages%") - before;
+		System.out.printf("목록 질의 수: 3행 %d, 54행 두 쪽 %d%n", few, many);
+		assertThat(few).isPositive();
+		assertThat(many).isEqualTo(2 * few);
+	}
+
+	@Test
+	void page_view_만이면_목록_200_권한이_없으면_403() throws Exception {
+		seed(1);
+		assertThat(slugs(list(login(role("admin.access", "page.view")).http(), "1"))).containsExactly("ls-1");
+		assertThat(login(role("admin.access", "page.update")).http().get("/api/admin/pages").statusCode())
+			.isEqualTo(403);
+		assertThat(f.http().get("/api/admin/pages").statusCode()).isEqualTo(401);
+	}
+
+	@Test
+	void 수정_삭제_상세는_익명_401_CSRF_없으면_403() throws Exception {
+		Login editor = login("editor");
+		String s = slug();
+		UUID id = create(editor.http(), s, "<p>a</p>");
+		String before = row(id);
+		TestHttp anon = f.http();
+		assertThat(update(anon, id, s, "<p>b</p>").statusCode()).isEqualTo(401);
+		assertThat(delete(anon, id).statusCode()).isEqualTo(401);
+		assertThat(anon.get("/api/admin/pages/" + id).statusCode()).isEqualTo(401);
+		assertThat(editor.http().postRaw("/api/admin/pages/" + id, body(s, "제목", "<p>b</p>")).statusCode())
+			.isEqualTo(403);
+		assertThat(editor.http().postRaw("/api/admin/pages/" + id + "/delete", "").statusCode()).isEqualTo(403);
+		assertThat(row(id)).isEqualTo(before);
+		assertThat(logs(editor.id())).isEqualTo(1);
+	}
+
+	// ---- 수정·삭제의 작업 로그 ----
+
+	@Test
+	void 수정_삭제_뒤_그_계정_행에_슬러그_제목_본문이_없다() throws Exception {
+		Login editor = login("editor");
+		int n = SEQ.incrementAndGet();
+		String s = "secret-edit-" + n;
+		String title = "비밀수정제목" + n;
+		String text = "비밀수정본문" + n;
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		HttpResponse<String> r = editor.http().post("/api/admin/pages/" + id, body(s, title, "<p>" + text + "</p>"));
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
+		assertThat(delete(editor.http(), id).statusCode()).isEqualTo(204);
+		assertThat(logged(editor.id(), "page.update", id)).isEqualTo(1);
+		assertThat(logged(editor.id(), "page.delete", id)).isEqualTo(1);
+		String all = text("SELECT string_agg(row_to_json(o)::text, ',') FROM operation_logs o WHERE actor_user_id = ?",
+				editor.id());
+		assertThat(all).contains(id.toString()).doesNotContain(s).doesNotContain(title).doesNotContain(text);
+	}
+
+	@Test
+	void 수정_삭제의_거절은_기록하지_않는다() throws Exception {
+		Login editor = login("editor");
+		Login probe = login(role("admin.access", "page.update"));
+		String taken = slug();
+		create(editor.http(), taken, "<p>a</p>");
+		String s = slug();
+		UUID id = create(editor.http(), s, "<p>a</p>");
+		publish(editor.http(), id);
+		long base = logs(editor.id());
+		assertThat(update(probe.http(), id, s, "<p>b</p>").statusCode()).isEqualTo(403);
+		assertThat(delete(probe.http(), id).statusCode()).isEqualTo(403);
+		assertThat(update(editor.http(), UUID.randomUUID(), slug(), "<p>b</p>").statusCode()).isEqualTo(404);
+		assertThat(delete(editor.http(), UUID.randomUUID()).statusCode()).isEqualTo(404);
+		assertThat(update(editor.http(), id, taken, "<p>b</p>").statusCode()).isEqualTo(409);
+		assertThat(update(editor.http(), id, "Bad", "<p>b</p>").statusCode()).isEqualTo(422);
 		assertThat(logs(probe.id())).isZero();
 		assertThat(logs(editor.id())).isEqualTo(base);
 	}
