@@ -278,7 +278,7 @@ class UsersApiTest {
 		String other = email();
 		HttpResponse<String> r = create(probe.http(), body(other, "새 사용자", PASSWORD));
 		assertThat(r.statusCode()).as(r.body()).isEqualTo(403);
-		assertThat(json.readTree(r.body()).get("detail").asString()).isEqualTo("1-E 전에는 관리자만 계정을 만들 수 있습니다");
+		assertThat(json.readTree(r.body()).get("detail").asString()).isEqualTo("지금은 관리자만 계정을 만들 수 있습니다");
 		assertThat(one("SELECT count(*) FROM users WHERE email = ?", other)).isZero();
 		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action = 'user.denied' "
 				+ "AND target_type = 'user' AND target_id IS NULL AND summary = 'user.create superuser_only'", probe.id()))

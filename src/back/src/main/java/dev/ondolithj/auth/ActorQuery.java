@@ -69,7 +69,10 @@ public class ActorQuery {
 		}).optional();
 	}
 
-	/** 활성 여부·기준 시각을 보지 않은 유효 권한(Q20 활성화의 R2). load 와 같은 질의라 R9 가 한 곳에 남는다. 없으면 빈 값. */
+	/**
+	 * 활성 여부·기준 시각을 보지 않은 유효 권한(Q20 활성화의 R2). load 와 같은 질의라 R9 가 한 곳에 남는다. 없으면 빈 값.
+	 * 인증·요청자 판정에 쓰지 않는다 — 비활성 계정·회수된 세션의 권한도 그대로 돌려준다. 그런 판정은 load 를 쓴다.
+	 */
 	public Optional<Set<Permission>> permissions(UUID id) {
 		return jdbc.sql(SQL).param(id).query((rs, n) -> permissions(rs)).optional();
 	}

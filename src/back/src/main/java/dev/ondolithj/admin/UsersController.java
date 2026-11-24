@@ -181,7 +181,7 @@ class UsersController {
 		if (!actor.superuser()) {
 			operationLog.record(actor, Action.USER_DENIED, null, Action.USER_CREATE.key() + " superuser_only",
 					ClientIp.of(request));
-			throw new Refused(HttpStatus.FORBIDDEN, "1-E 전에는 관리자만 계정을 만들 수 있습니다");
+			throw new Refused(HttpStatus.FORBIDDEN, "지금은 관리자만 계정을 만들 수 있습니다");
 		}
 		Map<String, String> errors = new HashMap<>();
 		SiteName.error(req.displayName(), 50).ifPresent(m -> errors.put("display_name", m));
