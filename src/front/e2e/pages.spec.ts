@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { ALLOWED_TAGS, frontInvariant, vectors } from "../src/test-vectors";
-import { expect, installSite, loginAdmin, test, watch } from "./stack";
+import { expect, installSite, loginAdmin, offline, test, watch } from "./stack";
 
 // 1-C1 스펙 8.3 문자열 그대로 적는다 — vite.config.ts 의 상수를 읽으면 스스로와 비교하게 된다
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; "
@@ -9,15 +9,6 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inl
 // 계획 「다르게 정한 것」 5: 대화상자 대신 표시를 남긴다. vectors.json 은 스펙 표 그대로 둔다
 const xss = (input: string) => input.replaceAll("alert(1)", "window.__xss=1");
 const marker = (page: Page) => page.evaluate(() => Reflect.get(window, "__xss"));
-
-/** 스택 없이: 운영 상태·사이트·비로그인. 그 밖의 /api 는 404 — preview 가 죽은 8080 으로 넘기지 않게(뒤에 건 route 가 먼저 받는다) */
-async function offline(page: Page) {
-  // 글로브 `**/api/**` 는 모듈 주소(/src/shared/api/…)까지 잡는다 — 경로 앞머리로 본다
-  await page.route((url) => url.pathname.startsWith("/api/"), (r) => r.fulfill({ status: 404 }));
-  await page.route("**/api/health", (r) => r.fulfill({ json: { state: "running", version: "e2e" } }));
-  await page.route("**/api/site", (r) => r.fulfill({ json: { name: "E2E 사이트", type: "cms" } }));
-  await page.route("**/api/me", (r) => r.fulfill({ status: 401, contentType: "application/problem+json", body: "{}" }));
-}
 
 test("CSP 가 실제로 걸려 있다", async ({ page, guard }) => {
   await offline(page);

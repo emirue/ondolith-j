@@ -8,6 +8,11 @@ export const vectors: Vector[] = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../../back/src/test/resources/richtext/vectors.json"), "utf8"),
 );
 
+// 서버 LinkCheck 시험과 같은 파일(1-C1 스펙 13.3). 프런트 linkHref 가 같은 값을 본다(1-C2 스펙 4절)
+export const links: { reject: string[]; allow: string[] } = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, "../../back/src/test/resources/richtext/links.json"), "utf8"),
+);
+
 export const ALLOWED_TAGS = ["p", "br", "strong", "em", "h2", "h3", "ul", "ol", "li", "blockquote", "a", "img"];
 
 // 1-C1 스펙 13.2 프런트 불변식. E2E(pages.spec.ts)가 이 함수를 그대로 브라우저에 넘긴다(locator.evaluate) —

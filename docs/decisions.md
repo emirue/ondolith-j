@@ -676,3 +676,31 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 1. 발행 권한만 가진 승인자가 초안 본문을 읽는 곳 → **(다) 상세 GET 을 `page.view` 로**(원문 D19:2632 와 다르다). 발행 승인자 역할은 `page.view` + `page.publish` — 작성자는 혼자 공개하지 못하고 승인자는 본문을 고치지 못한다. (가)는 승인자 혼자 고치고 발행해 2인 승인이 서지 않는다. 화면은 `page.update` 가 없으면 편집기가 아니라 `RichHtml` 로 본문을 그린다(결정 2).
 2. **렌더러 — 편집기는 저장 단추가 있을 때만 띄운다.** 그 밖(`page.update` 없음, 또는 발행본인데 `page.publish` 없음)에는 응답의 `body_html` 을 `RichHtml` 로 그린다. 「발행」 확인 대화상자의 설명 아래에 같은 응답의 `body_html` 을 `RichHtml` 로 미리보기(높이 제한·스크롤) — 발행이 싣는 `updated_at` 과 같은 응답. `ConfirmButton` 에 `children` 하나를 더한다. 이유: 편집기는 `img`(Image 확장 없음)와 `linkHref` 가 서버보다 엄격해 떨어지는 링크를 버려, 편집기로 보여 주면 승인자가 보지 못한 것이 공개된다(I-2 의 다른 경로). 시드가 editor·operator 에 `page.*` 를 다 줘 권한 토글로는 막지 못한다. 대가: 관리 chunk 에 DOMPurify 가 든다. 한계: 승인자가 미리보기를 실제로 읽었는지는 보장하지 못한다. 두 권한을 다 가진 편집자는 편집 화면에서 편집기 모양을 본다(대신 발행 대화상자 미리보기가 공개 렌더러).
 3. **발행본 삭제는 `page.publish` 도 요구한다**(원문과 다르다). 요청자가 `page.publish` 를 갖지 않으면 `DELETE FROM pages WHERE id = ? AND status = 'draft'` 한 문장, 0행이면 `EXISTS` 로 가른다 — 있으면 403 「발행된 페이지는 발행 권한이 있어야 지울 수 있습니다」(기록 없음), 없으면 404. 화면의 「삭제」는 `can["page.delete"]` 이고 (초안이거나 `can["page.publish"]`), 발행본이라 숨기면 「발행을 취소한 뒤 지울 수 있습니다」. 지우기는 공개를 끝내는 동작이라 발행 취소와 같은 무게다.
+
+## Phase 1-C2 구현 중 결정과 보안 점검 (2026-11-24)
+
+스펙 `docs/superpowers/specs/2026-11-25-phase1c2-editor-design.md`, 계획 `docs/superpowers/plans/2026-11-25-phase1c2-editor.md`.
+
+### Task 1 — 한글 IME 관문: **통과**
+
+- 판·OSV(넣기 직전, 2026-11-24): `@tiptap/react`·`pm`·`starter-kit`·`extension-link`·`extension-list` 모두 3.35.0, `prosemirror-view` 1.43.1 이 그대로 최신. 새로 드는 패키지 48개를 OSV querybatch 로 조회해 0건(질의 48·결과 48). 스펙 1절의 51 과의 차이 3 은 `@floating-ui/core`·`dom`·`utils` 가 이미 lock 에 같은 판(radix-ui 경유)으로 있어서다.
+- 브라우저: E2E 기본 `chromium` 프로젝트(headless shell). 대조군이 통과해 채널을 바꾸지 않았다(`playwright.config.ts`·`ci.yml` 그대로).
+- 흉내: 낱자마다 `Input.imeSetComposition`, 확정은 `Input.insertText`. **`insertText` 가 조합을 끝낸다** — 확정마다 `compositionend` 1, `compositionupdate` 는 글자당 4(조합 3 + 확정 1).
+- 대조군(제목 `<input>`): 값 「한글 입력」, start 4 · update 16 · end 4. 대조 단언 Red: `imeSetComposition` 을 빼고 `insertText` 만 보내면 start 0 으로 「`compositionstart` ≥ 1」에서 실패한다.
+- 장면(① DOM 판정 ② 바이트 ③ 대조 단언 ④ `pageerror` 0·받지 않은 CSP 위반 0·대화상자 0 — 다섯 모두 성립. 조합 수는 start · update · end)
+
+| 장면 | 보낸 `body_html`(바이트 기대) | 조합 이벤트 |
+|---|---|---|
+| I-1 빈 문단 | `<p>한글 입력x</p>` | 4 · 16 · 4 |
+| I-2 굵게 | `<p><strong>한글 입력</strong></p>` | 4 · 16 · 4 |
+| I-3 목록 안 | `<ul><li><p>한글 입력</p></li></ul>` | 4 · 16 · 4 |
+| I-4 링크 바로 뒤 | `<p><a href="/about">안</a>한글 입력</p>` | 4 · 16 · 4 |
+| I-5 받침 넘김 | `<p>하나</p>` | 2 · 8 · 2 |
+
+- 바이트 기대 다섯은 스펙 2.3 표와 실제 출력이 같았다 — 3절 설정을 고치지 않았다.
+- I-4 의 시험 순서 두 가지(IME 경로가 아니다)
+  - 계획의 `End` 대신 `ArrowRight`. Playwright 는 macOS 에서 `End` 를 `scrollToEndOfDocument:` 로 보내 캐럿이 그대로다(`playwright-core` macEditingCommands). 그대로면 고른 「안」 위에서 조합이 시작돼 `<p>한글 입력</p>` 가 나갔다. `ArrowRight` 는 선택을 끝으로 접어 macOS·Linux 에서 같다.
+  - `Shift+ArrowLeft` 직후 곧바로 링크 칸으로 가면 편집기가 `selectionchange` 를 읽기 전이라 선택을 버린다(DOM 선택은 바뀌었고 편집기 선택은 접힌 채였다). 시험이 편집기 선택을 기다린 뒤 다음 동작을 한다. 사람 손 입력에서 나는지는 수동 확인 몫이다.
+- jsdom: `new Editor` 가 돈다 — 편집기 단위 시험을 E2E 로 옮기지 않는다. `focus` 명령의 `scrollIntoView` 가 jsdom 에 없는 `Range.getClientRects` 를 불러 시험 파일에서만 빈 값으로 채웠다.
+- `linkHref`: `https://a.1/` 은 서버 `LinkCheck` 는 받고 jsdom `new URL` 은 던진다 → `null`(시험 한 줄로 고정). Chromium 결과는 Task 3 이 본다.
+- **사용자 수동 확인(맥 한글 입력기, Chrome·Safari): 미실행 — 사용자 확인 요청.**

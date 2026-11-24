@@ -129,6 +129,23 @@ export const test = base.extend<{ stack: Stack; guard: Watch }>({
 
 export { expect } from "@playwright/test";
 
+/**
+ * 스택 없이: 운영 상태·사이트. can 이 없으면 비로그인(/api/me 401), 있으면 그 권한으로 로그인한 관리자(/api/admin 200).
+ * 그 밖의 /api 는 404 — preview 가 죽은 8080 으로 넘기지 않게(뒤에 건 route 가 먼저 받는다)
+ */
+export async function offline(page: Page, can?: Record<string, boolean>) {
+  // 글로브 `**/api/**` 는 모듈 주소(/src/shared/api/…)까지 잡는다 — 경로 앞머리로 본다
+  await page.route((url) => url.pathname.startsWith("/api/"), (r) => r.fulfill({ status: 404 }));
+  await page.route("**/api/health", (r) => r.fulfill({ json: { state: "running", version: "e2e" } }));
+  await page.route("**/api/site", (r) => r.fulfill({ json: { name: "E2E 사이트", type: "cms" } }));
+  if (!can) {
+    await page.route("**/api/me", (r) => r.fulfill({ status: 401, contentType: "application/problem+json", body: "{}" }));
+    return;
+  }
+  await page.route("**/api/me", (r) => r.fulfill({ json: { user: { email: "editor@ondolith.test", display_name: "편집자" }, can } }));
+  await page.route("**/api/admin", (r) => r.fulfill({ json: {} }));
+}
+
 export const ADMIN_EMAIL = "admin@ondolith.test";
 export const ADMIN_PASSWORD = "e2e-admin-pass";
 
