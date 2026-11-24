@@ -619,7 +619,7 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 | 항목 | 갈 곳 |
 |---|---|
 | m-1 공개 조회가 익명 요청마다 `clean` 을 (이제 고정점까지) 돈다 — 시간은 재지 않았다 | 1-C 끝 메모리 측정 때 함께 잰다 |
-| m-2 `alt` 에 `</style>` 같은 닫는 꼴이 있으면 DOMPurify 가 속성째 지운다(서버는 남김) — 짝 시험 밖 | 1-C2(편집기 `alt` 입력 규칙) |
+| m-2 `alt` 에 `</style>` 같은 닫는 꼴이 있으면 DOMPurify 가 속성째 지운다(서버는 남김) — 짝 시험 밖 | 1-C3(`alt` 칸이 사진 단추와 함께 생긴다 — 1-C2 스펙 10절) |
 | m-3 `RichHtml` 이 렌더마다 `sanitize` 를 다시 부른다 — `useMemo` | 1-C2 |
 | m-4 E2E 일곱 줄 예외가 건수를 고정하지 않는다(줄마다 2건은 재렌더 — 검토자가 실행으로 확인) | 1-C2 |
 | m-5 싱크 검사의 금지 이름 보강(`ADD_ATTR`·`ALLOW_UNKNOWN_PROTOCOLS`·`setHTMLUnsafe` 등) | 1-C2 |
@@ -631,3 +631,44 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 | m-11 비-superuser 에게 admin 「빼기」 단추가 보인다(R3 가 늘 거절) | 1-C2 |
 | m-13 「사용자 확인 전」 문구가 공개 문서에 남는다 | Phase 1 끝 사용자 확인 뒤 일괄 정리 |
 | m-14 시험의 DB 접속에 시한이 없다 — `RequestSizeLimitTest.start` 가 12분 CPU 0% 로 멈췄다(재실행 통과, 원인 미확인. 1-B 의 `SwitchTest` 멈춤과 같은 꼴) | 원인을 모른 채 시한을 넣지 않는다. 다음에 멈추면 `jcmd <pid> Thread.print` 로 원인부터 잡는다 |
+
+## Phase 1-C2 스펙 (2026-11-24, 설계 담당 — 사용자 확인 전)
+
+스펙 `docs/superpowers/specs/2026-11-25-phase1c2-editor-design.md`. 리치 텍스트 후속 결정(1-C2 행, 3절 편집기, 5절 CSP)·1-C 결정 Q16·Q19·Q21 과 「1-C1 최종 검토」의 1-C2 몫을 옮기고, 결정 밖의 설계는 아래처럼 정했다.
+
+정한 것:
+
+- 첫 Task 는 IME 관문이다. 최종 부품 `RichEditor` 와 최소 작성 화면(`/admin/pages/new`)을 빌드 산출물 + CSP 위에서, 스택 없이 `page.route` 로 띄운다. 시험용 라우트는 두지 않는다. Playwright CDP `Input.imeSetComposition` → `Input.insertText` 로 다섯 장면(빈 문단·굵게·목록 안·링크 바로 뒤·받침 넘김)을 치고, 가로챈 저장 요청의 `body_html` 로 판정한다(편집기에 묶이지 않아 Lexical 에도 같은 시험). `compositionstart`·`compositionend` 를 세는 대조 단언과 제목 `<input>` 대조군을 둔다. 실패하면 설정으로 한 번 보고 Lexical, 둘 다 실패하면 멈춘다. 사용자 수동 확인(맥 한글 입력기, Chrome·Safari)은 완료 보고에 결과 또는 「미실행」.
+- 새 의존성 다섯(프런트): `@tiptap/react`·`@tiptap/pm`·`@tiptap/starter-kit`·`@tiptap/extension-link`·`@tiptap/extension-list` 모두 3.35.0(npm `latest`, 2026-11-20, MIT). lock 에 새로 드는 패키지 51개, OSV(2026-11-24) 모두 0건. `prosemirror-view` 1.43.1 은 게시 하루째라 구현 때 다시 본다. context7 은 이 세션에 도구가 없어 레지스트리 tarball 의 배포 소스로 확인했다.
+- 확장 = 서버 허용 목록. StarterKit 에서 Code·CodeBlock·Strike·Underline·HorizontalRule·TrailingNode 를 끄고, Link 는 속성을 `href` 하나로, OrderedList 는 `start` 하나(`^[0-9]{1,6}$` 가 아니면 1)로 `extend` 한다. 소스 확인: Link 는 `title`·`class`·`target`·`rel` 을 붙여넣은 HTML 에서 그대로 읽고, OrderedList 는 `type` 을 `type`·`style`·첫 `li` 의 `style` 에서 읽으며 `start` 범위를 보지 않는다. TrailingNode 는 문서를 바꾼 뒤에만 빈 문단을 붙여 출력이 정해지지 않는다.
+- Link 는 `isAllowedUri: url => linkHref(url) !== null`, `autolink`·`linkOnPaste`·`openOnClick` 끔, `target`·`rel` null. 링크 입력은 `window.prompt` 가 아닌 같은 화면의 칸(E2E 대화상자 0건 단언). 저장값은 입력 문자열 그대로.
+- 프런트 링크 판정 `linkHref`(`shared/lib`)는 서버 `LinkCheck` 규칙 + 브라우저 URL 파서(`safeNext`·`new URL`, 예외는 `null`). `links.json` 의 거부 40·허용 9를 그대로 읽는다.
+- 짝 시험은 새 고정 파일 `richtext/editor.json`(`{id, input, editor}`): 편집기 출력 = 서버 `clean` 출력 = DOMPurify 출력. A1 은 `img` 가 있고 `li` 안에 `p` 가 없어 1-C2 에서 그대로 쓸 수 없다. Chromium 쪽은 E2E 에서 저장 요청과 상세 응답의 `body_html` 을 비교한다. m-10 으로 W1~W4 를 `vectors.json` 에 옮긴다(96줄).
+- I-2: 발행 본문 `{updated_at}`(불투명 문자열, 화면은 상세 응답 값을 그대로 보낸다). `… WHERE id = ? AND status = 'draft' AND updated_at = ?`, 0행이면 없음 404 → 이미 발행 204(Q7, 기록 없음) → 초안인데 다름 409 「그사이 페이지가 바뀌었습니다. 바뀐 내용을 확인한 뒤 발행하세요」(기록 없음). 발행 취소는 그대로(값을 받지 않는다). 발행은 `updated_at = now()` 를 그대로 바꾼다(1-C1·원문 `store.sql:33`).
+- 화면 쪽 I-2: 폼과 편집기는 상세 응답의 `updated_at` 이 바뀔 때마다 다시 채우되 고치는 중이면 채우지 않는다. 발행은 「지금 폼에 실린 응답」의 값을 싣는다. 고치는 중이거나 다시 읽는 중이면 발행 단추가 `aria-disabled` 다. 상세 쿼리는 창 초점 다시 읽기를 끈다(남이 고친 본문이 알림 없이 실려 409 를 비켜 가지 않게). 409 뒤에는 다시 읽기만 하고 자동으로 다시 보내지 않는다.
+- 수정의 동시성: 나중 저장이 이긴다(그대로). 1-C1 17절 3 의 조건(자동 저장·편집이 사라졌다는 보고)이 서지 않았다 — 1-C2 는 자동 저장을 넣지 않는다(요청서·원문에 「자동 저장」·「임시 저장」 0건).
+- m-8: 발행본 수정 403 은 기록하지 않는다(원문 D19:2653, 1-C1 7절). 낡은 `updated_at` 409 도 같다.
+- m-7: 413 응답에 API 보안 헤더 넷(`nosniff`·CSP·`X-Frame-Options`·`Cache-Control`)이 없을 것(추정) — Red 로 먼저 보고, 맞으면 필터가 직접 단다.
+- 화면: A-301 `PagesPage`(1-B 사용자 목록 꼴), A-302 `PageEditPage`(작성·수정, 422 첫 칸 초점 — 본문이면 편집기), A-303 은 같은 화면의 단추(원문은 따로 주소). 발행·발행 취소·삭제는 확인 대화상자 — `ConfirmButton` 에 `ask` 하나를 더해 빨간 단추가 아니어도 묻는다. 발행본인데 발행 권한이 없으면 저장 단추를 그리지 않고 편집기를 읽기 전용으로. 쿼리 키 `["admin", "pages", page]`·`["admin", "page", id]`, `gcTime: 0`.
+- 넘어온 것: (h) 역할 권한 변경 성공 때 `["me"]` 도 무효화, m-11 superuser 역할의 「빼기」는 `assignable_roles` 에 있을 때만, m-3 `useMemo` 를 `dangerouslySetInnerHTML` 과 같은 식 안에(싱크 검사의 같은 줄 규칙 그대로), m-4 E2E 예외를 경로마다 건수 고정, m-5 싱크 검사 금지 이름 보강, m-2 는 1-C3 으로.
+- 코드 분할: 경계 하나(`/admin/*` 를 lazy `AdminTree`). 옛 chunk 404 는 `import().catch` 로 대체 화면(오류 경계는 여전히 없다). 검사는 E2E — 공개 화면에서 내려받은 JS 에 `ProseMirror`·`tiptap` 표지가 없고, 편집 화면에서는 있다(반대 단언). 관리자 chunk 가 500kB 를 넘으면 `RichEditor` 를 둘째 경계로.
+- CSP: 1-C1 정책 그대로 시작. Tiptap `injectCSS` 의 `<style>` 은 `style-src 'unsafe-inline'`(Radix) 아래라 그대로 둔다. ProseMirror 의 인라인 스타일은 CSSOM 이다(소스 확인). m-6 `style-src-attr 'none'` 은 E2E 실험으로 정한다 — 붙인 DOM 의 위반이 0이면 더하고, 하나라도 있으면 증거를 적고 더하지 않는다.
+
+리치 텍스트 후속 결정과 다른 곳:
+
+- IME 장면에 받침 넘김(「하나」)을 더했다(결정 3.3 보다 좁힘).
+- 결정 3.2 의 Link 설정에 `linkOnPaste: false` 를 더하고, 결정에 없던 `extend`(Link·OrderedList 속성 줄이기)와 TrailingNode 끄기를 더했다.
+- 결정 3.4 의 고정 입력(A1 하나)을 편집기 꼴 고정 파일로 바꿨다(A1 은 1-C3 의 Image 확장 뒤 다시 짝에 쓴다).
+- 결정 3.2 「Tiptap 이 내용을 비활성 문서로 파싱하는지」 → 확인(`DOMParser`). 결정 8절 「Tiptap 이 기본으로 `<style>` 을 넣는지」 → 확인(`injectCSS`), 끄는 옵션도 있다.
+
+원문과 다른 곳:
+
+| 원문 | 1-C2 | 이유 |
+|---|---|---|
+| A-303 은 따로 주소(`/admin/pages/{id}/publish`)의 화면 | A-302 화면의 확인 단추 | 발행은 본문 없는 동작이다(1-B 사용자 상세와 같은 꼴) |
+| 발행 입력은 `publish`·`unpublish` 뿐(D19:2663) | 발행에 읽은 `updated_at` | 발행 승인 분리(D13:266)가 「승인자가 읽은 본문」에 걸리게(I-2) |
+| 에디터가 서식·사진·표·링크·유튜브를 쓴다(FR-513) | 굵게·기울임·h2·h3·목록·인용·링크. 사진은 1-C3 | 사용자 답 「굵게·링크·사진」, 서버 허용 목록과 같게 |
+
+결정 필요(스펙 16절, 추천 없음 — 답이 오기 전에는 (가)):
+
+1. 발행 권한만 가진 승인자가 초안 본문을 어디서 읽나 — (가) 상세는 `page.update` 그대로(승인자 역할에 `page.update` 도 준다) / (나) 상세를 `page.update` 또는 `page.publish` 로(표시 하나·기동 점검 한 갈래) / (다) 상세를 `page.view` 로. 근거: D19:2632(상세 = `page.update`)와 D15:112(`page.view` = 「목록·초안 열람」), D13:266.
