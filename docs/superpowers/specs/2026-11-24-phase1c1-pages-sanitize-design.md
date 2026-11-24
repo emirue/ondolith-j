@@ -161,8 +161,8 @@ CREATE TABLE pages (
 ### 5.3 상세·목록·삭제
 
 - **목록** `GET /api/admin/pages?page=1`(A-301, `page.view`): 1-B2 사용자 목록과 같은 방식(Q19) — 쪽당 50, 한 행 더 읽어 `has_next`, 전체 건수 없음, 정렬 `updated_at DESC, id`. `page` 는 A-601 과 같다(1 미만 422 `errors.page`, 정수가 아니면 400, offset 은 long). **본문을 읽지 않는다** — 슬러그·제목·상태·수정 시각만(SC-4, 초안 본문이 목록 캐시에 남지 않는다).
-- **상세** `GET /api/admin/pages/{id}`(`page.update` — D19:2632 「편집 폼 조회 GET = `page.update`」): 모든 칸, `body_html` 은 `clean` 을 지난 값. 초안도 여기서만 나온다(Q16).
-- **삭제** `POST /api/admin/pages/{id}/delete`(`page.delete`): `DELETE … WHERE id = ?` → 0행 404 → 204, 기록 `page.delete`. 메뉴를 건드리지 않는다(Q14 — 원문 코드는 메뉴를 함께 지워, `page.delete` 만 가진 사람이 `menu.manage` 몫을 바꿨다). 발행 중인 페이지의 삭제 확인(D19:2647)은 화면의 확인 대화상자다(1-C2).
+- **상세** `GET /api/admin/pages/{id}`(`page.update` — D19:2632 「편집 폼 조회 GET = `page.update`」. **1-C2 고침: `page.view`** — 1-C2 스펙 6.1-2·16절 1): 모든 칸, `body_html` 은 `clean` 을 지난 값. 초안도 여기서만 나온다(Q16).
+- **삭제** `POST /api/admin/pages/{id}/delete`(`page.delete`): `DELETE … WHERE id = ?` → 0행 404 → 204, 기록 `page.delete`(**1-C2 고침: 발행본은 `page.publish` 도 요구, 없으면 403** — 1-C2 스펙 6.1-3·16절 3). 메뉴를 건드리지 않는다(Q14 — 원문 코드는 메뉴를 함께 지워, `page.delete` 만 가진 사람이 `menu.manage` 몫을 바꿨다). 발행 중인 페이지의 삭제 확인(D19:2647)은 화면의 확인 대화상자다(1-C2).
 - 경로 `{id}` 는 1-B2 그대로 `@PathVariable UUID` + 형식 불량·공백 404(`ApiErrors`).
 
 ### 5.4 발행·발행 취소 (A-303, `page.publish`)
@@ -189,9 +189,9 @@ CREATE TABLE pages (
 |---|---|---|---|---|
 | `/api/admin/pages` (A-301) | GET | `@AdminPermission(PAGE_VIEW)` | `page`(기본 1) | 200 `{items: [{id, slug, title, status, updated_at}], page, page_size: 50, has_next}` / 400 / 401 / 403 / 422 / 429 |
 | `/api/admin/pages` (A-302 작성) | POST | `@AdminPermission(PAGE_CREATE)` | `{slug, title, body_html}` | 201 `{id}` / 400 / 401 / 403(권한·CSRF) / 409 / 422 / 429 |
-| `/api/admin/pages/{id}` (A-302 상세) | GET | `@AdminPermission(PAGE_UPDATE)` | — | 200 `{id, slug, title, body_html, status, created_at, updated_at}` / 401 / 403 / 404 / 429 |
+| `/api/admin/pages/{id}` (A-302 상세) | GET | `@AdminPermission(PAGE_UPDATE)`(**1-C2 고침: `PAGE_VIEW`**) | — | 200 `{id, slug, title, body_html, status, created_at, updated_at}` / 401 / 403 / 404 / 429 |
 | `/api/admin/pages/{id}` (A-302 수정) | POST | `@AdminPermission(PAGE_UPDATE)` | `{slug, title, body_html}` | 204 / 400 / 401 / 403(권한·CSRF·발행본인데 `page.publish` 없음) / 404 / 409 / 422 / 429 |
-| `/api/admin/pages/{id}/delete` | POST | `@AdminPermission(PAGE_DELETE)` | — | 204 / 401 / 403 / 404 / 429 |
+| `/api/admin/pages/{id}/delete` | POST | `@AdminPermission(PAGE_DELETE)` | — | 204 / 401 / 403(**1-C2 고침: 발행본인데 `page.publish` 없음도**) / 404 / 429 |
 | `/api/admin/pages/{id}/publish` (A-303) | POST | `@AdminPermission(PAGE_PUBLISH)` | — | 204 / 401 / 403 / 404 / 409(예약어) / 429 |
 | `/api/admin/pages/{id}/unpublish` (A-303) | POST | `@AdminPermission(PAGE_PUBLISH)` | — | 204 / 401 / 403 / 404 / 429 |
 | `/api/pages/{slug}` (P-202) | GET | `@PublicApi` | — | 200 `{slug, title, body_html}` / 404 |
