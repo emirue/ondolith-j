@@ -36,6 +36,8 @@ class RichTextTest {
 	static final Pattern MEDIA = Pattern
 		.compile("/api/media/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
+	static final Pattern HREF = Pattern.compile("^(https?://|/(?![/\\\\]))");
+
 	static final String U = "00000000-0000-4000-8000-000000000001";
 
 	static List<Vector> load() {
@@ -50,7 +52,7 @@ class RichTextTest {
 
 	@Test
 	void 벡터_표의_모든_줄이_server_와_바이트까지_같다() {
-		assertThat(VECTORS).hasSize(37);
+		assertThat(VECTORS).hasSize(92);
 		for (Vector v : VECTORS) {
 			assertThat(RichText.clean(v.input())).as(v.id()).isEqualTo(v.server());
 		}
@@ -82,6 +84,10 @@ class RichTextTest {
 			}
 			if (e.tagName().equals("img") && !MEDIA.matcher(e.attr("src")).matches()) {
 				bad.add("img src " + e.attr("src"));
+			}
+			// 스펙 13.2 프런트 불변식의 href 꼴. 구현의 LinkCheck 를 부르지 않고 따로 적는다
+			if (e.hasAttr("href") && !HREF.matcher(e.attr("href")).find()) {
+				bad.add("a href " + e.attr("href"));
 			}
 		}
 		String lower = out.toLowerCase(java.util.Locale.ROOT);

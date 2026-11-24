@@ -60,6 +60,12 @@ public final class RichText {
 				img.remove();
 			}
 		}
+		// 검사기는 jsoup 이 엔티티를 푼 값을 본다(&#x6A;avascript: 는 javascript: 로). 못 지나면 href 만 지우고 글자는 남긴다
+		for (Element a : doc.select("a[href]")) {
+			if (!LinkCheck.ok(a.attr("href"))) {
+				a.removeAttr("href");
+			}
+		}
 		for (Element ol : doc.select("ol[start]")) {
 			if (!START.matcher(ol.attr("start")).matches()) {
 				ol.removeAttr("start");
