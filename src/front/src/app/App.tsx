@@ -9,7 +9,9 @@ import { UserMenu } from "@/features/auth/UserMenu";
 import { HomePage } from "@/features/home/HomePage";
 import { InstallPage } from "@/features/install/InstallPage";
 import { WaitingScreen } from "@/features/install/WaitingScreen";
+import { PageView } from "@/features/page/PageView";
 import { NoticeProvider } from "@/shared/ui/notice";
+import { NotFound } from "@/shared/ui/NotFound";
 
 type Screen = "install" | "waiting" | "home";
 
@@ -41,7 +43,8 @@ function Running() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminGate />}>{adminRoutes}</Route>
-        <Route path="*" element={<main className="mx-auto max-w-lg p-6"><h1 className="text-2xl font-semibold">없는 화면입니다</h1></main>} />
+        <Route path="/:slug" element={<PageView />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </NoticeProvider>
   );

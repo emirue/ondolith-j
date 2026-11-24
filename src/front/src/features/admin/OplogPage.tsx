@@ -7,7 +7,7 @@ import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 
 type OplogItem = components["schemas"]["OplogItem"];
 
-/** 동작 이름표(1-B1 스펙 6절, 1-B2 스펙 8절). 모르는 키는 그대로 보인다. */
+/** 동작 이름표(1-B1 스펙 6절, 1-B2 스펙 8절, 1-C1 스펙 7절). 모르는 키는 그대로 보인다. */
 const ACTIONS: Record<string, string> = {
   "auth.login": "로그인",
   "settings.update": "사이트 설정 변경",
@@ -20,6 +20,11 @@ const ACTIONS: Record<string, string> = {
   "role.revoke_permission": "역할에서 권한 빼기",
   "user.denied": "사용자 작업 거절",
   "role.denied": "역할 작업 거절",
+  "page.create": "페이지 작성",
+  "page.update": "페이지 수정",
+  "page.delete": "페이지 삭제",
+  "page.publish": "페이지 발행",
+  "page.unpublish": "페이지 발행 취소",
 };
 
 function actor(item: OplogItem) {
