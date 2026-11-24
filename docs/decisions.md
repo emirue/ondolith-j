@@ -698,8 +698,10 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 | I-5 받침 넘김 | `<p>하나</p>` | 2 · 8 · 2 |
 
 - 바이트 기대 다섯은 스펙 2.3 표와 실제 출력이 같았다 — 3절 설정을 고치지 않았다.
+- 변이 Red: `autolink: true` 면 I-4 가 `<p><a href="/about">안한글</a> 입력</p>` 로 DOM 판정에서, `trailingNode: {}`(켬)면 I-3 이 `…</ul><p></p>` 로 바이트 기대에서 실패한다(둘 다 되돌림).
+- 실행 환경: macOS 로컬만. Linux(CI) 실행은 아직 없다.
 - I-4 의 시험 순서 두 가지(IME 경로가 아니다)
-  - 계획의 `End` 대신 `ArrowRight`. Playwright 는 macOS 에서 `End` 를 `scrollToEndOfDocument:` 로 보내 캐럿이 그대로다(`playwright-core` macEditingCommands). 그대로면 고른 「안」 위에서 조합이 시작돼 `<p>한글 입력</p>` 가 나갔다. `ArrowRight` 는 선택을 끝으로 접어 macOS·Linux 에서 같다.
+  - 계획의 `End` 대신 `ArrowRight`. Playwright 는 macOS 에서 `End` 를 `scrollToEndOfDocument:` 로 보내 캐럿이 그대로다(`playwright-core` macEditingCommands). 그대로면 고른 「안」 위에서 조합이 시작돼 `<p>한글 입력</p>` 가 나갔다. `ArrowRight` 는 선택을 끝으로 접는다 — macOS 에서 확인, Linux(CI)에서도 같을 것은 추정(CI 에서 확인).
   - `Shift+ArrowLeft` 직후 곧바로 링크 칸으로 가면 편집기가 `selectionchange` 를 읽기 전이라 선택을 버린다(DOM 선택은 바뀌었고 편집기 선택은 접힌 채였다). 시험이 편집기 선택을 기다린 뒤 다음 동작을 한다. 사람 손 입력에서 나는지는 수동 확인 몫이다.
 - jsdom: `new Editor` 가 돈다 — 편집기 단위 시험을 E2E 로 옮기지 않는다. `focus` 명령의 `scrollIntoView` 가 jsdom 에 없는 `Range.getClientRects` 를 불러 시험 파일에서만 빈 값으로 채웠다.
 - `linkHref`: `https://a.1/` 은 서버 `LinkCheck` 는 받고 jsdom `new URL` 은 던진다 → `null`(시험 한 줄로 고정). Chromium 결과는 Task 3 이 본다.
