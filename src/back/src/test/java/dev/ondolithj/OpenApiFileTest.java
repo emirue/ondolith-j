@@ -65,7 +65,7 @@ class OpenApiFileTest {
 		Files.writeString(OUT, json.writeValueAsString(sorted(merged)) + "\n");
 
 		JsonNode written = json.readTree(Files.readString(OUT));
-		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/reauth", "/api/admin/roles", "/api/admin/roles/{id}/permissions", "/api/admin/roles/{id}/permissions/revoke", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/admin/users/{id}/roles", "/api/admin/users/{id}/roles/revoke", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/site");
+		assertThat(fieldNames(written.get("paths"))).containsExactly("/api/admin", "/api/admin/oplog", "/api/admin/pages", "/api/admin/pages/{id}", "/api/admin/pages/{id}/delete", "/api/admin/pages/{id}/publish", "/api/admin/pages/{id}/unpublish", "/api/admin/reauth", "/api/admin/roles", "/api/admin/roles/{id}/permissions", "/api/admin/roles/{id}/permissions/revoke", "/api/admin/settings", "/api/admin/system", "/api/admin/users", "/api/admin/users/{id}", "/api/admin/users/{id}/activate", "/api/admin/users/{id}/deactivate", "/api/admin/users/{id}/roles", "/api/admin/users/{id}/roles/revoke", "/api/auth/login", "/api/auth/logout", "/api/health", "/api/install", "/api/me", "/api/pages/{slug}", "/api/site");
 		assertThat(fieldNames(written.at("/components/schemas/InstallRequest/properties"))).contains("db_host",
 				"admin_password_confirm");
 		// 프런트가 응답을 캐스팅하지 않게, 실제로 내는 상태 코드와 Problem Details 본문을 문서에 담는다
@@ -176,13 +176,61 @@ class OpenApiFileTest {
 		assertThat(fieldNames(written.at("/components/schemas/RolesView/properties"))).containsExactlyInAnyOrder("roles",
 				"permissions");
 		assertThat(fieldNames(written.at("/components/schemas/RoleView/properties"))).containsExactlyInAnyOrder("id", "key",
-				"name", "description", "is_builtin", "is_superuser", "is_assignable", "permissions");
+				"name", "description", "is_builtin", "is_superuser", "is_assignable", "visitor_only", "permissions");
 		assertThat(fieldNames(written.at("/components/schemas/Grant/properties"))).containsExactlyInAnyOrder("key",
 				"effective");
 		assertThat(fieldNames(written.at("/components/schemas/PermissionView/properties"))).containsExactlyInAnyOrder("key",
-				"description");
+				"description", "visitor");
 		assertThat(fieldNames(written.at("/components/schemas/PermissionRequest/properties"))).containsExactly("permission");
 		assertThat(fieldNames(written.at("/components/schemas/RoleRequest/properties"))).containsExactly("role_id");
+		// A-302 작성·A-303 발행·발행 취소·P-202 공개 조회(1-C1 스펙 6절). status 는 거절하려고 받는 칸이라 문서에 적지 않는다
+		JsonNode createPage = written.at("/paths/~1api~1admin~1pages/post/responses");
+		assertThat(fieldNames(createPage)).containsExactlyInAnyOrder("201", "400", "401", "403", "409", "422", "429");
+		assertThat(createPage.at("/422/description").asString()).contains("errors.status");
+		JsonNode publish = written.at("/paths/~1api~1admin~1pages~1{id}~1publish/post/responses");
+		assertThat(fieldNames(publish)).containsExactlyInAnyOrder("204", "401", "403", "404", "409", "429");
+		JsonNode unpublish = written.at("/paths/~1api~1admin~1pages~1{id}~1unpublish/post/responses");
+		assertThat(fieldNames(unpublish)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		JsonNode publicPage = written.at("/paths/~1api~1pages~1{slug}/get/responses");
+		assertThat(fieldNames(publicPage)).containsExactlyInAnyOrder("200", "404");
+		for (JsonNode r : java.util.List.of(publish, unpublish)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+		}
+		for (JsonNode r : java.util.List.of(createPage.get("409"), createPage.get("422"), publish.get("404"),
+				publish.get("409"), unpublish.get("403"), publicPage.get("404"))) {
+			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
+				.isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		// A-301 목록·A-302 상세·수정·삭제(1-C1 스펙 6절, 17절 1)
+		JsonNode listPages = written.at("/paths/~1api~1admin~1pages/get/responses");
+		assertThat(fieldNames(listPages)).containsExactlyInAnyOrder("200", "400", "401", "403", "422", "429");
+		JsonNode detailPage = written.at("/paths/~1api~1admin~1pages~1{id}/get/responses");
+		assertThat(fieldNames(detailPage)).containsExactlyInAnyOrder("200", "401", "403", "404", "429");
+		JsonNode updatePage = written.at("/paths/~1api~1admin~1pages~1{id}/post/responses");
+		assertThat(fieldNames(updatePage)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "409", "422", "429");
+		assertThat(updatePage.at("/403/description").asString()).contains("발행본인데 page.publish 없음");
+		assertThat(updatePage.at("/422/description").asString()).contains("errors.status");
+		JsonNode deletePage = written.at("/paths/~1api~1admin~1pages~1{id}~1delete/post/responses");
+		assertThat(fieldNames(deletePage)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		for (JsonNode r : java.util.List.of(updatePage, deletePage)) {
+			assertThat(r.at("/204/content").isMissingNode()).isTrue();
+		}
+		for (JsonNode r : java.util.List.of(listPages.get("400"), listPages.get("422"), detailPage.get("404"),
+				updatePage.get("403"), updatePage.get("404"), updatePage.get("409"), updatePage.get("422"),
+				deletePage.get("404"))) {
+			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
+				.isEqualTo("#/components/schemas/ProblemDetail");
+		}
+		assertThat(fieldNames(written.at("/components/schemas/PageList/properties"))).containsExactlyInAnyOrder("items",
+				"page", "page_size", "has_next");
+		assertThat(fieldNames(written.at("/components/schemas/PageItem/properties"))).containsExactlyInAnyOrder("id",
+				"slug", "title", "status", "updated_at");
+		assertThat(fieldNames(written.at("/components/schemas/PageDetail/properties"))).containsExactlyInAnyOrder("id",
+				"slug", "title", "body_html", "status", "created_at", "updated_at");
+		assertThat(fieldNames(written.at("/components/schemas/PageInput/properties"))).containsExactlyInAnyOrder("slug",
+				"title", "body_html");
+		assertThat(fieldNames(written.at("/components/schemas/PublicPage/properties"))).containsExactlyInAnyOrder("slug",
+				"title", "body_html");
 		JsonNode problem = written.at("/components/schemas/ProblemDetail/properties");
 		assertThat(fieldNames(problem)).contains("detail", "errors").doesNotContain("properties");
 		assertThat(problem.at("/errors/additionalProperties/type").asString()).isEqualTo("string");

@@ -83,7 +83,21 @@ describe("작업 로그", () => {
     expect(cells).toEqual(Object.values(labels));
   });
 
-  it("total 101, 1쪽 → 「다음」은 ?page=2, 「이전」 없음. 누르면 page=2 를 부르고 「이전」이 생긴다", async () => {
+  it("페이지 동작 다섯의 이름표(1-C1 스펙 7절)", async () => {
+    const labels = {
+      "page.create": "페이지 작성",
+      "page.update": "페이지 수정",
+      "page.delete": "페이지 삭제",
+      "page.publish": "페이지 발행",
+      "page.unpublish": "페이지 발행 취소",
+    };
+    renderOplog(() => json(200, { items: Object.keys(labels).map((action) => row({ action })), page: 1, page_size: 100, total: 5 }));
+    const table = await screen.findByRole("table", { name: "작업 로그" });
+    const cells = within(table).getAllByRole("row").slice(1).map((tr) => within(tr).getAllByRole("cell")[2]!.textContent);
+    expect(cells).toEqual(Object.values(labels));
+  });
+
+  it("total 101, 1쪽 →「다음」은 ?page=2, 「이전」 없음. 누르면 page=2 를 부르고 「이전」이 생긴다", async () => {
     const f = renderOplog((page) => json(200, { items: [row({})], page: Number(page), page_size: 100, total: 101 }));
     const next = await screen.findByRole("link", { name: "다음" });
     expect(next).toHaveAttribute("href", "/admin/oplog?page=2");

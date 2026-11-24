@@ -36,6 +36,23 @@ describe("첫 진입 분기", () => {
     expect(await screen.findByRole("heading", { name: "로그인" })).toBeInTheDocument();
   });
 
+  it("운영 상태에서 없는 주소면 찾을 수 없습니다", async () => {
+    mockApi((req) => (req.url.endsWith("/api/me") ? json(200, { user: null, can: {} }) : json(200, { state: "running", version: "t" })));
+    renderWithQuery(<App />, "/없는/주소");
+    expect(await screen.findByRole("heading", { name: "찾을 수 없습니다" })).toBeInTheDocument();
+  });
+
+  it("운영 상태에서 /about 이면 공개 페이지", async () => {
+    mockApi((req) => {
+      if (req.url.endsWith("/api/me")) return json(200, { user: null, can: {} });
+      if (req.url.endsWith("/api/site")) return json(200, { name: "내 사이트", type: "cms" });
+      if (req.url.endsWith("/api/pages/about")) return json(200, { slug: "about", title: "소개", body_html: "<p>a</p>" });
+      return json(200, { state: "running", version: "t" });
+    });
+    renderWithQuery(<App />, "/about");
+    expect(await screen.findByRole("heading", { level: 1, name: "소개" })).toBeInTheDocument();
+  });
+
   it("응답이 없으면(전환 중 새로고침) 대기 화면", async () => {
     mockApi(() => {
       throw new TypeError("연결 실패");

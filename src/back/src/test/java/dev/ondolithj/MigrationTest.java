@@ -68,7 +68,7 @@ class MigrationTest {
 		f.clean();
 		assertThatThrownBy(f::migrate).isInstanceOf(FlywayException.class);
 		assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_name = 'half_done'")).isEmpty();
-		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1", "2", "3", "4");
+		assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1", "2", "3", "4", "5");
 	}
 
 	@Test
@@ -114,7 +114,8 @@ class MigrationTest {
 
 	@Test
 	void V4_가_사용자_역할_권한_여섯을_심고_operator_에는_보기_둘만_준다() throws SQLException {
-		Flyway f = flyway("classpath:db/migration");
+		Flyway f = Flyway.configure().dataSource(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword())
+			.locations("classpath:db/migration").target("4").cleanDisabled(false).load();
 		f.clean();
 		f.migrate();
 		assertThat(rows("SELECT key FROM permissions")).containsExactlyInAnyOrder("admin.access", "settings.view",
@@ -126,6 +127,36 @@ class MigrationTest {
 		for (String role : List.of("admin", "member", "anonymous")) {
 			assertThat(rows(permsOf(role))).as(role).isEmpty();
 		}
+	}
+
+	@Test
+	void V5_가_pages_표와_권한_다섯을_심고_editor_operator_에만_준다() throws SQLException {
+		Flyway f = flyway("classpath:db/migration");
+		f.clean();
+		f.migrate();
+		List<String> pagePerms = List.of("page.view", "page.create", "page.update", "page.delete", "page.publish");
+		assertThat(rows("SELECT key FROM permissions WHERE key LIKE 'page.%'")).containsExactlyInAnyOrderElementsOf(pagePerms);
+		assertThat(rows("SELECT count(*) FROM permissions")).containsExactly("15");
+		for (String role : List.of("editor", "operator")) {
+			assertThat(rows(permsOf(role) + " AND p.key LIKE 'page.%'")).as(role).containsExactlyInAnyOrderElementsOf(pagePerms);
+		}
+		assertThat(rows(permsOf("editor"))).hasSize(6);
+		for (String role : List.of("admin", "member", "anonymous")) {
+			assertThat(rows(permsOf(role))).as(role).isEmpty();
+		}
+		exec("INSERT INTO pages (slug, title, body_html) VALUES ('ok-1', 't', '')");
+		assertThat(rows("SELECT status FROM pages WHERE slug = 'ok-1'")).containsExactly("draft");
+		exec("INSERT INTO pages (slug, title, body_html) VALUES (?, ?, ?)", "a".repeat(100), "가".repeat(200), "b".repeat(200_000));
+		// 형식·길이·중복, 제목 길이, 본문 길이, 상태
+		for (Object[] bad : List.of(new Object[] { "Foo", "t", "", "draft" }, new Object[] { "-a", "t", "", "draft" },
+				new Object[] { "a/b", "t", "", "draft" }, new Object[] { "about\n", "t", "", "draft" },
+				new Object[] { "a".repeat(101), "t", "", "draft" }, new Object[] { "ok-1", "t", "", "draft" },
+				new Object[] { "ok-2", "", "", "draft" }, new Object[] { "ok-3", "가".repeat(201), "", "draft" },
+				new Object[] { "ok-4", "t", "b".repeat(200_001), "draft" }, new Object[] { "ok-5", "t", "", "Published" })) {
+			assertThatThrownBy(() -> exec("INSERT INTO pages (slug, title, body_html, status) VALUES (?, ?, ?, ?)", bad))
+				.as("%s", bad[0]).isInstanceOf(SQLException.class);
+		}
+		assertThat(rows("SELECT count(*) FROM pages")).containsExactly("2");
 	}
 
 	@Test

@@ -24,7 +24,9 @@ public class OperationLog {
 		USER_CREATE("user.create", "user"), USER_DEACTIVATE("user.deactivate", "user"), USER_ACTIVATE("user.activate", "user"), USER_DENIED("user.denied", "user"),
 		USER_GRANT_ROLE("user.grant_role", "user"), USER_REVOKE_ROLE("user.revoke_role", "user"),
 		ROLE_GRANT_PERMISSION("role.grant_permission", "role"), ROLE_REVOKE_PERMISSION("role.revoke_permission", "role"),
-		ROLE_DENIED("role.denied", "role");
+		ROLE_DENIED("role.denied", "role"),
+		PAGE_CREATE("page.create", "page"), PAGE_UPDATE("page.update", "page"), PAGE_DELETE("page.delete", "page"),
+		PAGE_PUBLISH("page.publish", "page"), PAGE_UNPUBLISH("page.unpublish", "page");
 
 		private final String key;
 

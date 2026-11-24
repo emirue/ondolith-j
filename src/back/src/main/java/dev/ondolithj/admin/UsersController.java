@@ -211,14 +211,15 @@ class UsersController {
 	@ApiResponse(responseCode = "403", description = "user.update 권한 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "없는 사용자·UUID 가 아닌 경로", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	UserDetail detail(@PathVariable UUID id) {
+	UserDetail detail(@PathVariable UUID id, @AuthenticationPrincipal Actor actor) {
 		UserRow u = jdbc.sql("SELECT id, email, display_name, is_active, created_at FROM users WHERE id = ?").param(id)
 			.query(UserRow.class).optional().orElseThrow(() -> new Refused(HttpStatus.NOT_FOUND, NOT_FOUND));
 		List<RoleRef> roles = jdbc.sql("SELECT " + ROLE_COLUMNS
 				+ " FROM roles r JOIN user_roles ur ON ur.role_id = r.id WHERE ur.user_id = ? ORDER BY r.key")
 			.param(id).query(RoleRef.class).list();
-		List<RoleRef> assignable = jdbc.sql("SELECT " + ROLE_COLUMNS + " FROM roles r WHERE r.is_assignable ORDER BY r.key")
-			.query(RoleRef.class).list();
+		// 요청자가 superuser 가 아니면 superuser 역할을 내놓지 않는다 — R3 이 늘 거절한다(1-C1 스펙 9절 M-12)
+		List<RoleRef> assignable = jdbc.sql("SELECT " + ROLE_COLUMNS + " FROM roles r WHERE r.is_assignable AND (? OR NOT "
+				+ ActorQuery.SUPERUSER_ROLE + ") ORDER BY r.key").param(actor.superuser()).query(RoleRef.class).list();
 		return new UserDetail(u.id(), u.email(), u.displayName(), u.isActive(), u.createdAt(), roles, assignable);
 	}
 

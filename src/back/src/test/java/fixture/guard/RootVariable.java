@@ -1,0 +1,18 @@
+package fixture.guard;
+
+import dev.ondolithj.auth.Permission;
+import dev.ondolithj.auth.RequiresPermission;
+import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/** 첫 마디가 변수인 매핑 — /api/admin/probe 를 받지만 관리자 경로로 세지 않는다. 기동 점검이 막아야 한다(1-C1 스펙 9절 M-11). */
+@RestController
+public class RootVariable {
+
+	@RequiresPermission(Permission.ADMIN_ACCESS)
+	@GetMapping("/{area}/admin/probe")
+	public Map<String, Object> probe() {
+		return Map.of();
+	}
+}

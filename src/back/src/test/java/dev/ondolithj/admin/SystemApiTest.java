@@ -58,7 +58,7 @@ class SystemApiTest {
 			assertThat(m.get("description").asString()).isNotBlank();
 			OffsetDateTime.parse(m.get("installed_on").asString());
 		}
-		assertThat(versions).containsExactly("1", "2", "3", "4");
+		assertThat(versions).containsExactly("1", "2", "3", "4", "5");
 		assertThat(s.get("pending_count").asInt()).isZero();
 		assertThat(s.at("/database/server_version").asString()).isNotBlank();
 	}

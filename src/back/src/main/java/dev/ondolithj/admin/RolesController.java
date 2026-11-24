@@ -69,11 +69,12 @@ class RolesController {
 	record Grant(String key, boolean effective) {
 	}
 
+	/** visitorOnly: 모두가 갖는 역할(EVERYONE) — 방문자 권한만 줄 수 있다(R9). */
 	record RoleView(UUID id, String key, String name, String description, boolean isBuiltin, boolean isSuperuser,
-			boolean isAssignable, List<Grant> permissions) {
+			boolean isAssignable, boolean visitorOnly, List<Grant> permissions) {
 	}
 
-	record PermissionView(String key, String description) {
+	record PermissionView(String key, String description, boolean visitor) {
 	}
 
 	record RolesView(List<RoleView> roles, List<PermissionView> permissions) {
@@ -133,11 +134,13 @@ class RolesController {
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	RolesView list() {
 		List<RoleView> roles = jdbc.sql(LIST).query((rs, n) -> role(rs)).list().stream().map(r -> new RoleView(r.id(),
-				r.key(), r.name(), r.description(), r.builtin(), r.superuser(), r.assignable(),
+				r.key(), r.name(), r.description(), r.builtin(), r.superuser(), r.assignable(), EVERYONE.contains(r.key()),
 				r.superuser() ? List.of() : r.perms().stream().map(k -> new Grant(k, effective(r.key(), k))).toList()))
 			.toList();
 		List<PermissionView> perms = jdbc.sql("SELECT key, description FROM permissions ORDER BY key")
-			.query(PermissionView.class).list();
+			.query((rs, n) -> new PermissionView(rs.getString("key"), rs.getString("description"),
+					Permission.ofKey(rs.getString("key")).map(Permission::visitor).orElse(false)))
+			.list();
 		return new RolesView(roles, perms);
 	}
 
@@ -209,8 +212,8 @@ class RolesController {
 					new FieldErrors(Map.of("permission", "모두가 갖는 역할에는 방문자 권한만 줄 수 있습니다")));
 		}
 		if (!covers(actor, EnumSet.of(p))) {
-			throw deny(actor, Action.ROLE_DENIED, id, tried + " r4", request,
-					new Refused(HttpStatus.FORBIDDEN, "보유하지 않은 권한은 부여할 수 없습니다"));
+			throw deny(actor, Action.ROLE_DENIED, id, tried + " r4", request, new Refused(HttpStatus.FORBIDDEN,
+					action == Action.ROLE_GRANT_PERMISSION ? "보유하지 않은 권한은 부여할 수 없습니다" : "보유하지 않은 권한은 뺄 수 없습니다"));
 		}
 		return p;
 	}

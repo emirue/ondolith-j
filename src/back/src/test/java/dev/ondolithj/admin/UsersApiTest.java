@@ -228,6 +228,55 @@ class UsersApiTest {
 		assertThat(many).isEqualTo(2);
 	}
 
+	/** 앱이 users 또는 roles 가 든 문장을 보낸 횟수(user_roles 도 roles 로 센다). */
+	static long userOrRoleCalls() throws SQLException {
+		return one("SELECT coalesce(sum(calls), 0) FROM pg_stat_statements "
+				+ "WHERE (query ILIKE '%users%' OR query ILIKE '%roles%') AND query NOT ILIKE '%pg_stat_statements%'");
+	}
+
+	@Test
+	void 상세_질의_수는_역할_수와_관계없이_같다() throws Exception {
+		List<String> extra = new ArrayList<>();
+		for (int i = 0; i < 4; i++) {
+			String key = "probe_d" + SEQ.incrementAndGet();
+			f.sql("INSERT INTO roles (key, name) VALUES (?, '시험')", key);
+			extra.add(key);
+		}
+		UUID one = f.user(email(), "editor");
+		List<String> five = new ArrayList<>(extra);
+		five.add("editor");
+		UUID many = f.user(email(), five.toArray(String[]::new));
+		TestHttp http = login("admin").http();
+
+		long before = userOrRoleCalls();
+		assertThat(ok(http.get("/api/admin/users/" + one)).get("roles")).hasSize(1);
+		long few = userOrRoleCalls() - before;
+		before = userOrRoleCalls();
+		assertThat(ok(http.get("/api/admin/users/" + many)).get("roles")).hasSize(5);
+		long more = userOrRoleCalls() - before;
+		// 인증(ActorQuery) 하나 + 상세 셋(사용자, 가진 역할, 줄 수 있는 역할)
+		assertThat(few).isEqualTo(4);
+		assertThat(more).isEqualTo(4);
+	}
+
+	static List<String> assignableKeys(TestHttp http, UUID user) throws Exception {
+		List<String> out = new ArrayList<>();
+		ok(http.get("/api/admin/users/" + user)).get("assignable_roles").forEach(r -> out.add(r.get("key").asString()));
+		return out;
+	}
+
+	@Test
+	void 비superuser_의_상세에는_superuser_역할이_없다() throws Exception {
+		String key = "probe_s" + SEQ.incrementAndGet();
+		f.sql("INSERT INTO roles (key, name) VALUES (?, '시험')", key);
+		f.sql("INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p "
+				+ "WHERE r.key = ? AND p.key IN ('admin.access', 'user.update')", key);
+		UUID target = f.user(email(), "editor");
+		// R3 이 늘 거절하는 선택지를 내놓지 않는다(1-C1 스펙 9절 M-12)
+		assertThat(assignableKeys(login(key).http(), target)).doesNotContain("admin").contains("editor", "operator");
+		assertThat(assignableKeys(login("admin").http(), target)).contains("admin", "editor", "operator");
+	}
+
 	@Test
 	void 목록에_비밀번호_해시와_기준_시각이_없다() throws Exception {
 		String email = email();

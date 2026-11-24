@@ -184,6 +184,12 @@ describe("사용자 상세", () => {
     await waitFor(() => expect(heading()).toHaveFocus());
   });
 
+  it("상세_응답에_superuser_역할이_없으면_고르기에도_없다", async () => {
+    renderDetail({ initial: user({ assignable_roles: [EDITOR, OPERATOR] }) });
+    const select = await screen.findByRole("combobox", { name: "줄 역할" });
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["운영자"]);
+  });
+
   it("역할_빼기는_확인_뒤_POST_하나_줄이_사라지면_초점은_h2", async () => {
     const { state } = renderDetail({
       initial: user({ roles: [EDITOR, OPERATOR] }),

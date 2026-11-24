@@ -36,11 +36,13 @@ class ReauthTargetsTest {
 			"POST /api/admin/roles/{id}/permissions", "POST /api/admin/roles/{id}/permissions/revoke",
 			"POST /api/admin/users/{id}/roles", "POST /api/admin/users/{id}/roles/revoke");
 
+	/** 페이지 저장·발행은 일상 편집이다(1-C1 스펙 5절, D15:545). */
 	static final Set<String> NOT_TARGETS = Set.of("POST /api/admin/settings", "POST /api/admin/reauth",
-			"POST /api/admin/users");
+			"POST /api/admin/users", "POST /api/admin/pages", "POST /api/admin/pages/{id}/publish",
+			"POST /api/admin/pages/{id}/unpublish", "POST /api/admin/pages/{id}", "POST /api/admin/pages/{id}/delete");
 
-	/** role 은 editor, operator 는 A-405 로 줄 역할. */
-	record Ids(UUID user, UUID role, UUID operator) {
+	/** role 은 editor, operator 는 A-405 로 줄 역할, page·doomed 는 @BeforeAll 이 만든 페이지(doomed 는 삭제만 쓴다). */
+	record Ids(UUID user, UUID role, UUID operator, UUID page, UUID doomed) {
 	}
 
 	record Call(String path, String body) {
@@ -53,6 +55,8 @@ class ReauthTargetsTest {
 	@BeforeAll
 	static void start() throws Exception {
 		f = new AuthFixture().start(false);
+		f.sql("INSERT INTO pages (slug, title, body_html) VALUES ('rt-page', '시험', '<p>a</p>'), "
+				+ "('rt-doomed', '시험', '<p>a</p>')");
 	}
 
 	@AfterAll
@@ -102,6 +106,14 @@ class ReauthTargetsTest {
 					"{\"role_id\": \"" + ids.operator() + "\"}");
 			case "POST /api/admin/users/{id}/roles/revoke" -> new Call("/api/admin/users/" + ids.user() + "/roles/revoke",
 					"{\"role_id\": \"" + ids.operator() + "\"}");
+			case "POST /api/admin/pages" -> new Call("/api/admin/pages", "{\"slug\": \"rt-" + SEQ.incrementAndGet()
+					+ "\", \"title\": \"시험\", \"body_html\": \"<p>a</p>\"}");
+			case "POST /api/admin/pages/{id}/publish" -> new Call("/api/admin/pages/" + ids.page() + "/publish", "");
+			case "POST /api/admin/pages/{id}/unpublish" -> new Call("/api/admin/pages/" + ids.page() + "/unpublish", "");
+			// 같은 값으로 고친다 — 다른 키의 call 과 도는 순서에 상관없이 204
+			case "POST /api/admin/pages/{id}" -> new Call("/api/admin/pages/" + ids.page(),
+					"{\"slug\": \"rt-page\", \"title\": \"시험\", \"body_html\": \"<p>a</p>\"}");
+			case "POST /api/admin/pages/{id}/delete" -> new Call("/api/admin/pages/" + ids.doomed() + "/delete", "");
 			default -> throw new IllegalStateException("표에 요청을 더한다: " + key);
 		};
 	}
@@ -130,10 +142,12 @@ class ReauthTargetsTest {
 		UUID user = f.user("target" + SEQ.incrementAndGet() + "@ondolith.test");
 		try (Connection c = f.db();
 				PreparedStatement s = c.prepareStatement(
-						"SELECT (SELECT id FROM roles WHERE key = 'editor'), (SELECT id FROM roles WHERE key = 'operator')");
+						"SELECT (SELECT id FROM roles WHERE key = 'editor'), (SELECT id FROM roles WHERE key = 'operator'), "
+								+ "(SELECT id FROM pages WHERE slug = 'rt-page'), (SELECT id FROM pages WHERE slug = 'rt-doomed')");
 				ResultSet r = s.executeQuery()) {
 			r.next();
-			return new Ids(user, r.getObject(1, UUID.class), r.getObject(2, UUID.class));
+			return new Ids(user, r.getObject(1, UUID.class), r.getObject(2, UUID.class), r.getObject(3, UUID.class),
+					r.getObject(4, UUID.class));
 		}
 	}
 

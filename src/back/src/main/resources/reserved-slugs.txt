@@ -1,0 +1,28 @@
+# 페이지 슬러그로 쓸 수 없는 첫 마디(1-C1 스펙 5.1). 한 줄 한 단어, # 줄과 빈 줄은 읽지 않는다.
+# 프런트 시험(PageView/예약어 대조)도 이 파일을 읽는다.
+# 원문 D19:2615~2616 의 스물하나
+admin
+login
+logout
+signup
+password
+auth
+me
+verify
+board
+comments
+attachments
+search
+shop
+cart
+checkout
+orders
+webhooks
+static
+install
+sitemap.xml
+robots.txt
+# 더한 셋: API 경로, Vite assetsDir, Boot 오류 처리기
+api
+assets
+error

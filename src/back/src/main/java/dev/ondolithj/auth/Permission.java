@@ -36,7 +36,22 @@ public enum Permission {
 	ROLE_ASSIGN("role.assign", false),
 
 	/** 역할 권한 부여·빼기(A-404). */
-	ROLE_MANAGE("role.manage", false);
+	ROLE_MANAGE("role.manage", false),
+
+	/** 페이지 목록(A-301). */
+	PAGE_VIEW("page.view", false),
+
+	/** 페이지 작성(A-302). */
+	PAGE_CREATE("page.create", false),
+
+	/** 페이지 상세·수정(A-302). */
+	PAGE_UPDATE("page.update", false),
+
+	/** 페이지 삭제(A-302). */
+	PAGE_DELETE("page.delete", false),
+
+	/** 페이지 발행·발행 취소(A-303). 발행된 페이지의 수정에도 요구한다(1-C1 스펙 17절 1). */
+	PAGE_PUBLISH("page.publish", false);
 
 	private final String key;
 

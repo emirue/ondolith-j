@@ -424,12 +424,210 @@ D86(ondolith 보안 점검 목록) 대조 — 1-B2 범위(스펙 13절):
 | (a) 경로 UUID 형식 불량이 익명·운영자에게도 404(401·403 이 아니다). 새는 것은 공개된 상수 문구뿐 | 한계로 둔다 |
 | (b) `@Valid` 가 권한 검사보다 먼저 돌아 익명에게도 422 | 한계로 둔다(같은 이유) |
 | (d) 서버는 이메일 앞뒤 공백을 빼고 프런트 zod 는 빼지 않는다(설치와 같다). 잘못 보내는 값은 없다 | 1-E(가입 폼과 함께) |
-| (e) A-402 상세의 질의 수 시험 없음, (f) 권한 빼기 E2E 없음 | 1-C 시작 때 시험 보강 |
-| (g) 빌드 chunk 500kB 경고(AlertDialog) | 화면이 늘어나는 1-C 에서 경로별 분할을 본다 |
-| (h) 자기 역할 권한을 바꿔도 `["me"]` 를 무효화하지 않는다 | 1-C |
+| (e) A-402 상세의 질의 수 시험 없음, (f) 권한 빼기 E2E 없음 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
+| (g) 빌드 chunk 500kB 경고(AlertDialog) | 1-C2(공개·관리자 코드 분할, Q21) |
+| (h) 자기 역할 권한을 바꿔도 `["me"]` 를 무효화하지 않는다 | 1-C2(페이지 단추를 `can` 으로 그리는 단계) |
 | M-9 Docker 가 꺼졌을 때 측정 하네스 문구가 「PLATFORM()이 Docker 서버와 다르다」로 원인이 안 보인다 | 다음 측정 때 |
-| M-11 M-7 검사가 첫 마디 와일드카드(`/{x}/admin/y`, `/**`)를 놓친다(지금 그런 매핑 없음) | 1-C |
-| M-12 화면이 늘 실패하는 선택지를 내놓는다(비-superuser 의 「줄 역할」에 admin, member·anonymous 부여는 늘 422) — 누를 때마다 지울 수 없는 거절 행 | 1-C |
-| M-13 로그인·재인증 주석의 「인코더가 던진다」가 이 판(7.1.2)에서 사실이 아니다 | 1-C |
-| M-14 A-404 빼기의 R4 거절 문구가 「부여할 수 없습니다」 | 1-C |
+| M-11 M-7 검사가 첫 마디 와일드카드(`/{x}/admin/y`, `/**`)를 놓친다(지금 그런 매핑 없음) | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
+| M-12 화면이 늘 실패하는 선택지를 내놓는다(비-superuser 의 「줄 역할」에 admin, member·anonymous 부여는 늘 422) — 누를 때마다 지울 수 없는 거절 행 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
+| M-13 로그인·재인증 주석의 「인코더가 던진다」가 이 판(7.1.2)에서 사실이 아니다 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
+| M-14 A-404 빼기의 R4 거절 문구가 「부여할 수 없습니다」 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
 | `user.create` 를 받은 비-superuser 에게 「새 사용자」 링크가 늘 403(Q21, `/api/me` 에 superuser 칸 없음) | 1-E 에서 Q21 을 풀 때 |
+
+## Phase 1-C 사용자 결정 (2026-11-24, 사용자 답)
+
+1-C 결정 질문 22개 가운데 승인된 결정과 부딪히는 다섯을 사용자에게 물었다(Q3 은 Q2 에 묶었다). 나머지 열일곱은 역할 에이전트가 정했다(사용자 확인 전, 스펙에 옮긴다).
+
+| 질문 | 사용자 답 |
+|---|---|
+| Q1 페이지 본문 형식 | **리치 텍스트를 1-C 로 앞당긴다**(굵게·링크·사진). 요청서의 「페이지 사진 올리기」(A-310)도 함께 1-C 다. HTML 정화가 들어온다 — 공개 화면과 관리자가 같은 출처라, 정화의 구멍 하나가 관리자 권한 탈취로 이어진다 |
+| Q2 검색·공유 미리보기 메타(D-2 ①) | 배포 단계(Phase 4)로 미룬다. 없는 페이지의 HTML 404 상태·sitemap·robots·기본 설명 설정도 함께. 그동안 미리보기는 고정 제목 |
+| Q3 서버가 HTML 원본을 얻는 곳 | Q2 를 미뤄 지금은 정하지 않는다(그때의 기본안: S3 에서 가져오고 주소는 설정 파일에만) |
+| Q15 페이지별 템플릿(FR-404) | 테마 단계(1-D) |
+| Q22 공개 API 캐시 | 캐시 없음(`no-store` 그대로) |
+| 사진 공개 범위(리치 텍스트 후속 7.1) | **주소를 아는 누구나**(원문과 같다). 사진 주소는 무작위 이름이다. 초안·지운 페이지의 사진도 주소를 알면 열린다 |
+
+리치 텍스트 후속 결정(역할 에이전트, 사용자 확인 전): 1-C 를 넷으로 나눈다 — 1-C1 정화·페이지 API·공개 화면, 1-C2 편집기·관리 화면, 1-C3 페이지 사진(A-310), 1-C4 메뉴·공개 셸. 정화기 jsoup, 편집기 Tiptap(한글 IME 시험 통과가 조건, 실패하면 Lexical), 이미지 JDK ImageIO + TwelveMonkeys. 정화는 저장·내보낼 때 두 번, 프런트는 한 곳(`RichHtml`)에서 DOMPurify 로 한 번 더. 세부는 각 스펙에 옮긴다. 조건부 질문 하나는 1-C3 측정 뒤에 묻는다(512MB 에서 큰 사진이 실패할 때).
+
+## Phase 1-C 스펙 (2026-11-24, 설계 담당 — 사용자 확인 전)
+
+스펙 `docs/superpowers/specs/2026-11-24-phase1c1-pages-sanitize-design.md`(1-C1). 위 「Phase 1-C 사용자 결정」과 역할 에이전트 결정(1-C 결정 Q1~Q22, 리치 텍스트 후속 결정 — 사용자 확인 전)을 옮기고, 결정 밖의 설계는 아래처럼 정했다. 1-C2·1-C3·1-C4 는 각자의 스펙에서 정한다.
+
+정한 것(1-C1):
+
+- 나누기: 1-C1 정화·페이지 API·공개 화면 → 1-C2 편집기·관리 화면 → 1-C3 페이지 사진 → 1-C4 메뉴·공개 셸. 1-C1 에는 관리 화면이 없고 시험은 API 로 HTML 을 넣는다.
+- 새 의존성 둘: jsoup 1.24.1(Maven Central `maven-metadata.xml`, MIT), DOMPurify 3.5.0(npm `latest`, MPL-2.0 OR Apache-2.0). OSV 2026-11-24 둘 다 0건. context7 은 월 한도 초과로 쓰지 못했다.
+- 정화: 함수 둘. `clean`(내보낼 때·저장 때, 예외 없음)과 `forSave`(저장 때만 — 200,000자·제어 문자·정화 뒤 길이·빈 본문 422). 허용 요소 `p br strong em h2 h3 ul ol li blockquote a img`, 속성 `href`·`src`·`alt`·`ol start`. 실패한 `href` 는 지우고 글자는 남기며, `/api/media/<소문자 uuid>` 가 아닌 `img` 는 요소째 지운다.
+- 링크 검사기는 서버 함수 하나(`LinkCheck.ok`). 본문 링크가 1-C1 에서 쓰고 메뉴(1-C4)가 같은 함수를 쓴다. 프런트 판정 `linkHref` 는 첫 소비자(1-C2 편집기)와 함께 만든다.
+- API 여덟: 관리 일곱(목록·상세 GET, 작성·수정·삭제·발행·발행 취소 POST)과 공개 `GET /api/pages/{slug}`. 상태 변경은 1-B 관례대로 모두 POST 다. 재인증 대상이 아니다(D15:545). 작업 로그 동작 다섯(`page.create`·`page.update`·`page.delete`·`page.publish`·`page.unpublish`), 값은 남기지 않는다.
+- 공개 화면 `/:slug`(형식이 틀리면 요청 없이 404 화면), SPA 404 에 `noindex`(Google Search Central 「Avoid soft 404 errors in single-page apps」 확인), 문서 제목은 React 19 `<title>`.
+- 빌드 산출물에만 `<meta>` CSP, E2E 는 `vite preview` 로 빌드 산출물을 상대로 돈다. 모든 E2E 가 CSP 위반 0건을 단언하고, CSP 가 실제로 걸렸는지 따로 본다.
+- 첫 Task 후보: CI E2E 시간 조사. PR #6 의 「Playwright」 단계 8분 25초는 `npm ci`·`playwright install --with-deps`·`playwright test` 셋의 합이다. 원인은 추정하지 않고 로그 시각·시험별 시간·이미지 내려받기·단계별 시각으로 가른다. 빌드 E2E 로 바꾸기 전에 기준선을 잰다.
+- 메모리 측정: 1-C1 에서는 재지 않는다. 1-C 를 다 마친 뒤 1-B 와 같은 방법으로 다시 잰다. 1-C3 의 180m 사진 측정은 1-C3 완료 기준이다.
+
+결정 문서와 다른 곳(역할 에이전트 결정을 고친 것, 스펙 8.1):
+
+- DOMPurify 설정에 `ALLOW_DATA_ATTR: false`·`ALLOW_ARIA_ATTR: false`·`ADD_URI_SAFE_ATTR: ["start"]` 를 더했다. 3.5.0 배포 소스에서 확인: `data-*`·`aria-*` 판정이 기본 `true` 이고 `ALLOWED_ATTR` 보다 앞이다. URI 안전 목록에 없는 속성은 값을 `ALLOWED_URI_REGEXP` 로 보므로, 결정의 정규식이면 `ol start="3"` 이 떨어진다.
+- `img src="data:…"` 는 DOMPurify 가 정규식과 무관하게 통과시킨다(`DATA_URI_TAGS` 기본에 `img`, `ADD_DATA_URI_TAGS` 는 더하기만). 결정 문서의 「미확인」을 「확인」으로 바꾼다. 스크립트 자리가 아니라 훅으로 지우지 않는다 — 서버가 지우고 CSP `img-src 'self'` 가 막는다.
+- 그래서 XSS 벡터 파일은 하나지만 기대 열을 같이 쓰지 않는다. 서버는 바이트 일치, 프런트는 불변식(`on*`·허용 밖 요소·허용 밖 주소 없음), 그리고 `DOMPurify.sanitize(서버 출력) == 서버 출력` 의 짝 시험이다.
+- M-12 는 `/api/me` 에 superuser 칸을 더하지 않고 서버가 거른다: A-402 상세의 `assignable_roles` 에서 비-superuser 에게 superuser 역할을 뺀다. A-403 이 역할의 `visitor_only` 와 권한의 `visitor` 를 내고, 화면은 모두가 갖는 역할에 방문자 권한만 고르게 한다.
+
+원문과 다른 곳:
+
+| 원문 | 1-C1 | 이유 |
+|---|---|---|
+| 정화 HTML 허용: 표·밑줄·취소선·색·정렬·크기·유튜브 iframe·지도 블록(D60) | `p br strong em h2 h3 ul ol li blockquote a img` 만 | 사용자 답은 「굵게·링크·사진」. 필요하면 허용 목록과 시험 표를 함께 넓힌다 |
+| 링크 `http`·`https`·`mailto`·`tel`, 외부 링크에 `rel="nofollow noopener"`·새 창(D60:201) | `http`·`https`·내부 경로만, `rel`·`target` 을 받지도 붙이지도 않는다 | 메뉴와 검사기 하나(Q9). 새 창이 없으니 `noopener` 가 필요 없다. `nofollow` 는 UGC 가 생기는 Phase 2 게시판에서 다시 본다 |
+| 이미지 주소 제한 없음 | `/api/media/<uuid>` 만 | 외부 이미지는 추적 픽셀이다. CSP `img-src 'self'` |
+| `pages.body`(평문)·`template` | 없음. `body_html` 하나 | 평문은 쓸 곳이 생기면 `text()` 로. 템플릿은 1-D(Q15) |
+| `pages.slug`·`title` 에 DB CHECK 없음 | 슬러그 형식·100자, 제목 1~200자 CHECK | 공개 주소·API 경로에 들어가는 값의 마지막 둑 |
+| 예약 경로 스물하나(D19:2615) | `api`·`assets`·`error` 를 더한다 | SPA·빌드 산출물·Boot 오류 처리기의 첫 마디 |
+| 저장·발행 성공 303(폼 PRG) | 201 `{id}`·204, 오류는 Problem Details | SPA 관례(1-B Q3) |
+| 같은 상태로 발행: 문서는 멱등(D19:2688), 원문 코드는 422 | 2xx 이고 기록하지 않는다(Q7) | 문서를 따른다. 실제로 바꾼 요청만 기록 |
+| 수정 본문의 발행 상태: 원문 코드는 무시 | 422 `errors.status`(Q8) | 문서 「무시가 아니라 거부」 |
+| 페이지 삭제가 그 주소의 메뉴를 지운다(원문 코드) | 메뉴를 건드리지 않는다(Q14) | `page.delete` 만으로 `menu.manage` 몫을 바꾸지 못하게 |
+| A-301 은 전부 읽는다(원문 코드) | 쪽당 50, 한 행 더 읽어 `has_next`(Q19) | SC-4 쪽 상한 |
+| 공개 페이지가 `/{slug}` 의 서버 HTML, 없으면 404 상태 | SPA `/:slug` + `GET /api/pages/{slug}`. 문서 상태는 200 + `noindex` | HTML 404 상태·메타는 Phase 4(사용자 답 Q2) |
+| A-404 R4 거절 문구 하나(D19:3184) | 빼기는 「보유하지 않은 권한은 뺄 수 없습니다」(M-14) | 빼기에 「부여할 수 없습니다」가 어색하다 |
+| CSP 에 `script-src` 없음(D86 3.8, 테마 인라인 때문) | 빌드 `<meta>` CSP 에 `script-src 'self'` | 서버 템플릿이 없어 그 이유가 사라졌다 |
+
+결정 필요(스펙 17절, 추천 없음 — 답이 오기 전에는 원문 동작으로 둔다):
+
+1. 발행된 페이지의 수정 권한 — `page.update` 만으로 발행된 페이지를 바로 고친다(원문) / `page.publish` 도 요구 / 고치면 초안으로 내림.
+2. 인증 전 요청 본문 크기 상한 — 두지 않음(지금) / 요청 크기 상한 / Jackson 문자열 상한만.
+3. 동시 편집 — 나중 저장이 이긴다(원문) / 읽은 `updated_at` 이 다르면 409.
+
+1-C1 스펙 결정 필요 셋(2026-11-24, 역할 에이전트 결정 — 사용자 확인 전): ① 발행된 페이지의 수정·슬러그 변경은 `page.publish` 도 요구(원문과 다르다 — 발행 승인 분리가 첫 발행에만 걸리지 않게), ② 모든 요청 본문 1 MiB(맨 앞 필터, 두 컨텍스트, multipart 해석기 끔, 1-C3 업로드 한 경로만 10 MiB) — 권한 검사보다 앞서는 본문 해석으로 익명이 힙을 쓰는 길을 막는다, ③ 동시 편집은 나중 저장이 이긴다(원문). 스펙 17절.
+
+## Phase 1-C1 구현 중 결정과 보안 점검 (2026-11-24)
+
+스펙 `docs/superpowers/specs/2026-11-24-phase1c1-pages-sanitize-design.md`, 계획 `docs/superpowers/plans/2026-11-24-phase1c1-pages-sanitize.md`. Task 마다 개발 에이전트가 순서대로 맡았다. 스펙에는 아래 「고친 것」과 「구현 때 확인」의 결과를 반영했다(0·1·3.1·3.2·3.3·5.1·5.2·6·8.3·8.4·8.5·13.2·15·17절 2·18절).
+
+구현하며 찾아 고친 것(시험이 잡았다):
+
+1. **폼 본문이 1 MiB 필터를 우회했다.** 필터만 있으면 chunked 폼 1,500,000바이트가 `getParameter` 로 1,499,998자 다 해석됐다(Tomcat 이 자기 입력 버퍼에서 폼을 읽어 세는 래퍼를 지나지 않는다). `server.tomcat.max-http-form-post-size=1MB` 를 넣었다 — 계획 「다르게 정한 것」 1 의 「확인: 우회 있음 → 폼 상한 1MB」(`RequestSizeLimitTest` 「폼_chunked_초과는_1MiB_넘게_해석되지_않는다」).
+2. **chunked 폼 초과가 500·경로 든 오류 본문이 됐다.** PUT·PATCH·DELETE 폼은 `FormContentFilter` 가 MVC 밖에서 세는 스트림을 읽어 500, CSRF 헤더 없는 POST 폼은 `CsrfFilter` 의 `getParameter` 가 Tomcat 11 `InvalidParameterException`(413)을 내 Boot 기본 오류 본문(application/json, `path` 포함)이었다. 필터가 `chain.doFilter` 를 감싸, 응답이 미커밋이고 원인 사슬에 세는 스트림의 예외나 `InvalidParameterException`(errorCode 413)이 있으면 지우고 413 Problem Details 를 쓴다. Tomcat 클래스에 기대는 곳은 이 한 줄이다(「POST_가_아닌_chunked_폼_초과도_500_이_아니라_413」).
+3. **정화 한 번은 멱등이 아니다.** 허용 밖 껍데기가 빠지면 `<p>a<object><p>b</p></object></p>` → `<p>a<p>b</p></p>`(파서가 만들 수 없는 꼴)이고, 다시 걸면 `<p>a</p><p>b</p><p></p>` 다(`ul>li>section>li`·`a>object>a`·`h2>div>h2` 도 같고 셋째부터 안정). `clean = once(once(x))`, `ponytail:` 수렴하지 않으면 고정점까지(`RichTextTest` 「빠진_껍데기가_자동_닫힘을_막던_꼴도_멱등이다」). 고치지 않으면 저장값·내보낸 값·DOMPurify 결과가 서로 달라진다(스크립트 자리는 아니다).
+4. **엔티티로 쓴 제어 문자가 저장될 뻔했다.** jsoup 1.24.1 은 `&#0;` 을 U+FFFD 로 바꾸지만, 그 밖의 C0 는 출력에서 `&#x8;` 같은 엔티티로 다시 쓰고, DEL·C1 일부(U+007F·0081·008D·008F·0090·009D)는 날 문자로 낸다. 출력 문자열만 보면 엔티티 꼴이 지나간다. `forSave` 가 출력을 `Parser.unescapeEntities(out, false)` 로 푼 값을 검사한다 — `<p>&#8;</p>`·`alt="&#8;"`·`&#127;`·`&#129;` → 422 「쓸 수 없는 문자가 있습니다」, `&#0;` → U+FFFD 로 201(`RichTextTest` 「forSave_엔티티로_쓴_제어_문자는_푼_값으로_본다」, `PagesApiTest` 「엔티티_제어_문자는_422_이거나_무해한_치환이고_저장값에_제어_문자가_없다」).
+5. **빌드 CSP 아래 모든 화면에 `script-src` `eval` 위반이 났다**(첫 빌드 E2E 223건, 15개 모두 실패). zod 4.6.7 이 객체 스키마를 만들 때 `new Function("")` 으로 JIT 가능 여부를 떠본다(`v4/core/util.js` `allowsEval`). `src/zod-jitless.ts`(`z.config({ jitless: true })`)를 `main.tsx` 첫 import 로 두었다. **`script-src` 는 넓히지 않았다.** CSP 아래에서는 탐지가 원래 실패해 JIT 가 꺼지므로 빌드 동작은 같다(개발 서버에서도 꺼진다).
+6. **Radix 대화상자가 `<style>` 을 넣는다**(스펙 8.3 이 예상한 길). `style-src-elem` `blocked: "inline"` 5건 — `/admin/roles` 1, `/admin/users/{id}` 4, 시험 `users.spec.ts` 「재인증 창이 닫히면 같은 대화상자가 비밀번호를 묻고 비활성화된다」·「확인 단추를 두 번 눌러도 POST 는 하나」·「키보드만으로 대화상자를 열고 비밀번호를 넣고 확인한다」. `style-src` 에만 `'unsafe-inline'` 을 더했다(플러그인과 E2E 기대 문자열 두 곳). React 의 `style` 속성 쓰기는 위반이 없었다.
+7. **스펙 8.5-2 「`script-src` 계열 위반 0건」은 그대로 성립하지 않았다.** Chrome 은 DOMPurify 가 쓰는, 붙이지 않은 DOMParser 문서를 파싱하기만 해도 처리기 속성·`<base>` 를 위반으로 보고한다(탐침: 빌드 산출물에서 `new DOMParser().parseFromString('<p onclick="x">a</p><base href="https://evil.example/">', "text/html")` 만 불러도 `script-src-attr` 1 + `base-uri` 1). 실행이 아니다(`__xss` 0, 대화상자 0, DOM 불변식 0). 일곱 줄만 경로 완전 일치로 받고(`script-src-attr` inline: `/v-x3`·`/v-x4`·`/v-x5`·`/v-x11`·`/v-x14`·`/v-x15`, 줄마다 2건; `base-uri` `https://evil.example/`: `/v-x9`), 끝 단언을 `script-src`·`script-src-elem` 0건으로 바꿨다. `RichHtml` 에서 `sanitize` 를 빼면 X1 「허용 밖 요소 script」로 실패한다(주 세션 승인).
+8. **DOMPurify 3.5.0 은 빈 `href`·`src` 값을 설정과 무관하게 남긴다**(`dist/purify.es.mjs` 2226줄 `return !value`). 프런트 불변식이 X23-40(`<a href="">x</a>`)에서 깨졌다. 설정 여섯 줄로는 못 막고 훅은 스펙 8.1 이 금지한다. 불변식에 「값이 정확히 빈 문자열」 절을 더했다 — 빈 링크는 현재 문서로 풀려 스크립트 자리가 아니고 서버는 지운다(주 세션 승인, 스펙 13.2).
+
+정한 것:
+
+- 계획의 「스펙과 다르게 정한 것」 여덟의 결과
+  - 1 폼 상한: 우회 있음 → `max-http-form-post-size=1MB`(위 1).
+  - 2 chunked 초과: JSON 은 400(`detail` 「Failed to read request」, 운영·설치 같음). 폼은 1 MiB 넘게 해석되지 않는다 — PUT·PATCH·DELETE 와 CSRF 헤더 없는 POST 는 413(위 2), CSRF 헤더 있는 POST 는 `getParameter` 가 던져 탐침이 잡는다(200·`length` -2, 처리기 안에서 던질 때의 상태는 시험 없음). 스펙 허용 범위 「413 또는 400, 500 아님」 안이다.
+  - 3 `한글_200000자_본문은_상한_안에서_201`: 계획은 Task 4 로 옮긴다고 했으나 `RequestSizeLimitTest` 에 있다(Task 4 가 작성 API 를 만든 뒤 그 클래스에서 편집자로 `POST /api/admin/pages`).
+  - 4 X23·X24 는 속성 이스케이프해 펼쳤다 — X23 은 13.3 거부 40값 모두(`X23-01`~`X23-40`), X24 는 허용 9값, `vectors.json` 92줄.
+  - 5 E2E 는 `alert(1)` 을 `window.__xss=1` 로 바꿔 쓰고 `dialog` 도 모은다.
+  - 6 벡터는 Task 2(정화)·Task 3(링크) 순서로 더했다.
+  - 7 `<title>`: React 19.3.1 이 올린 `<title>` 을 기존 `head > title` 앞에 끼워 이긴다(E2E `toHaveTitle("소개 – E2E 사이트")`). `useEffect` 는 넣지 않았다.
+  - 8 413 본문은 필터가 직접 쓰는 Problem Details 다.
+- `PagesController.validate(PageInput)` 가 칸을 모아 검사하고 통과하면 정화된 본문을 돌려준다(계획의 `errors` Map 대신 — 정화를 두 번 더 돌지 않게). 작성 201 은 `UsersController.Created` 를 다시 쓴다. `PageInput.status` 는 OpenAPI 에서 숨겼다.
+- V5 가 editor 에 `page.*` 를 주어 「editor = admin.access 만」을 단언하던 `RolesApiTest` 셋의 권한 목록에 `page.*` 다섯을 더했다(원래 뜻 그대로).
+- `ReservedSlugsTest` 는 `org.springdoc` 처리기(`/v3/api-docs`, `scope test`)를 빼고 센다. 모은 집합에 `api`·`error` 가 있는지도 단언해 공허 통과를 막는다.
+- 벡터 저장 시험은 `<p>z</p>` 를 **앞에** 붙인다. 뒤에 붙이면 X13·S1·S2·S3 이 달라진다(붙인 문단이 열린 요소 안에 들어간다 — 스크립트 자리 아님).
+- 공개 화면 `PageView` 는 바깥(형식·100자 검사)과 안쪽(`useSite`·`useQuery`) 둘로 나눴다 — 한 부품이면 `useSite` 가 `/api/site` 를 보내 「형식이 틀린 슬러그는 요청 0」이 깨진다. 초점은 `useFocusOnMount(page.data)`, `NotFound` 도 h1 에 초점.
+- HTML 싱크 검사는 스펙보다 한 단계 엄격하다 — `RichHtml.tsx` 에서 `dangerouslySetInnerHTML` 이 든 줄마다 같은 줄에 `DOMPurify.sanitize(` 가 있어야 한다. 예외 표는 `tests/html-sinks.test.sh` 의 `EXCEPTIONS` 한 곳(1-C4 가 `href={` 한 줄을 더한다).
+- E2E: 브라우저 판정은 복사하지 않고 `frontInvariant` 를 그대로 `locator.evaluate` 로 넘긴다(바깥 변수를 읽지 않게 정규식을 함수 안으로, 허용 태그를 인자로). 스택 없는 두 시험의 나머지 `/api/` 는 404 로 받는다(`pathname.startsWith("/api/")` — 글로브 `**/api/**` 는 개발 서버 모듈 주소까지 잡는다). 기존 12개 중 `login.spec.ts` 한 줄만 포트를 4173 으로 바꿨다.
+- 「구현 때 확인」의 결과
+  - jsoup 1.24.1(`prettyPrint(false)`·UTF-8·escapeMode 기본): 상대 `href="/about"` 남는다, `&nbsp;` → `&nbsp;`, `&` → `&amp;`, `<br>` 꼴, 속성 따옴표 `"`, A1 은 바이트 그대로. 요지 줄: X11 `""`, X12 `<p></p>`, X13 `""`, S3 `<p><strong>a</strong></p><p><strong>b</strong></p>`, I10 `<img src="/api/media/U" alt="&quot; onerror=&quot;x">` — 모두 스크립트 자리 없음. `&#0;` → U+FFFD, `&#8;` 은 위 4.
+  - 깊은 중첩: `<em>`×40000 `clean` 153 ms(`RichTextTest` 단독 실행 출력), `<em>`×50000(200,000자) 작성 422 「200,000자 이하」 232 ms(`PagesApiTest` 출력). 각 한 번 찍힌 값이고 따로 재지 않았다.
+  - `body_html` 이 `[]`·`{}` → 400·행 없음, `123`·`true` → 201·저장값 `123`·`true`(Jackson 스칼라 강제 변환, 전역 설정 그대로).
+  - 질의 수(`pg_stat_statements`, `pages` 가 든 문장): 공개 조회 익명 1(200·404 모두), 형식이 틀린 슬러그(`Foo`·`a.b`·`-a`·`a_b`·101자) 0, A-301 목록 1(3행·54행 같음), A-402 상세 4(`users`·`roles` 가 든 문장, 인증 1 + 상세 셋, 역할 1개·5개 같음 — 넘어온 (e)).
+  - `page=99999999999` 400, `page=2147483647` 200·빈 `items`(offset long). 상세 응답 `Cache-Control: no-store`.
+  - 미사용 권한 WARN: Task 4 뒤 `page.view`·`page.update`·`page.delete` 셋 → Task 5 뒤 전체 백엔드 0건.
+  - M-11: 전체 백엔드의 모든 컨텍스트 기동이 새 정규식 `^/(api/)?[^/]*[{*?]` 을 통과했다(운영 매핑 중 첫 마디가 변수인 것 없음).
+  - `<meta>` CSP 는 `dist/index.html` 의 `head` 첫 자식이다(`<meta charset>` 앞). 값의 `'` 는 `&#39;` 로 나가고 브라우저가 풀어 E2E 의 `toHaveAttribute` 가 스펙 문자열과 같다. 산출물에 인라인 `<script>`·`<style>` 0, CSS `data:` 0(폰트는 woff2 파일 다섯). `assetsInlineLimit` 은 손대지 않았다.
+  - `addInitScript` 리스너는 CSP 아래에서도 붙는다(CSP 적용 시험이 위반 1건을 받는다).
+  - `vite preview` 는 `preview.proxy ?? server.proxy` 로 `/api` 를 넘기고, `/login`·`/admin/users`·`/about` 은 index.html(CSP 포함)을 낸다.
+  - Playwright `webServer.timeout` 기본 60000ms(`playwright/types/test.d.ts`) → 180000ms.
+  - 빌드 묶음 JS 527.92 kB(gzip 167.11) → 560.10 kB(gzip 179.77), +32.18 kB — DOMPurify 와 새 화면 둘(PageView·NotFound). CSS 35.07 → 35.13 kB.
+  - 시간: `npm run build`(tsc + vite build) 3.34s, `mise run e2e` 15 passed (2.5m, Playwright 출력, webServer 빌드 포함), 그중 DOMPurify 겹 51s. 벽시계 시간은 재지 못했다. CI `timeout-minutes: 20` 은 그대로이고, PR CI 의 단계 시간은 아직 보지 않았다(PR 전).
+- jsoup 판: OSV `org.jsoup:jsoup@1.24.1` 0건, Maven Central `maven-metadata.xml` `release`·`latest` 1.24.1, 전이 의존 없음.
+- DOMPurify 판과 권고 대조
+  - npm `latest` 3.5.0(2026-11-24 조회). OSV `dompurify@3.5.0` 0건이지만 OSV 에는 GHSA-hrxw·GHSA-qm7q 가 아직 없다. 그래서 근거는 GitHub 권고 목록의 patched 값이다. 전이 의존 `@types/trusted-types@2.0.7`(optional) OSV 0건. 타입은 패키지에 있다(`@types/dompurify` 불필요). context7 은 월 한도 초과 — 설정 이름은 설치된 `dist/purify.cjs.d.ts`·`purify.es.mjs` 와 설정 줄별 변이로 확인했다.
+  - 판정: GitHub 권고 30건 모두 patched ≤ 3.5.0 이고, 우리 설정(기본 모드 + 스펙 8.1 여섯 줄, 훅·`IN_PLACE`·`RETURN_DOM` 없음, 결과를 `div` 에 바로 넣음)에 닿고 고쳐지지 않은 것은 0이다. 한 줄씩 남긴 것은 29건이다(30건과의 차이 1건은 기록에 이름이 없다 — 최종 검토에 넘긴다).
+
+    | 권고 | 우리 설정에서 |
+    |---|---|
+    | GHSA-87xg(`selectedcontent` 재복제, 기본 설정·문자열 경로, 3.4.4 만) | 기본 모드라 닿는 종류였으나 3.4.5 에서 고쳐짐. `select`·`selectedcontent` 는 `ALLOWED_TAGS` 밖 |
+    | GHSA-v9jr(기본 설정 + 앞선 프로토타입 오염) | 전제가 오염이라 직접은 아님, 3.4.0 고침 |
+    | GHSA-h8r8(재맥락화 mXSS)·GHSA-v2wj·GHSA-v8jm(`SAFE_FOR_XML` rawtext) | 정화 결과를 `xmp`·`noscript`·`textarea` 같은 rawtext 감싸개 안에 다시 넣을 때만 — 우리는 `div` 에 바로 넣는다. 3.3.2·3.2.7 고침 |
+    | GHSA-cj63(`USE_PROFILES`)·GHSA-cjmm(`ADD_ATTR` 함수) | 그 옵션을 쓰지 않는다. 3.3.2 고침 |
+    | `IN_PLACE` 계열 GHSA-4w3q·x4vx·rp9w·hpcv·r47g·55q2·6688·p98j·mrv2 | 쓰지 않는다. 4w3q 는 목록 patched 3.4.4(본문 머리말은 「고칠 계획 없음」), 나머지 ≤ 3.4.17 고침 |
+    | `SAFE_FOR_TEMPLATES` 계열 GHSA-crv5·gvmj·cg2g·qm7q·hrxw | 쓰지 않는다. hrxw 가 3.5.0 에서 고쳐진 마지막 것 |
+    | `CUSTOM_ELEMENT_HANDLING`·함수형 `ADD_TAGS`·`ADD_ATTR` 계열 GHSA-c2j3·39q2·h7mw·9p3w | 쓰지 않는다. 9p3w 는 목록 patched 3.4.0(본문 머리말은 「고칠 계획 없음」) |
+    | 훅·`setConfig`·Trusted Types·XHTML 계열 GHSA-76mc·cmwh·vxr8·c6gr | 쓰지 않는다 |
+
+  - 읽은 깊이: 본문을 끝까지 읽은 것은 87xg(Impact 포함)·h8r8·hrxw·c6gr 넷, 앞 1,500자만 읽은 것은 v9jr·9p3w·4w3q 셋이다. 나머지는 제목·영향 판만 봤다.
+- DOMPurify 프런트 시험: 계획 시험 넷에 「서버_허용_목록_밖의_속성은_남지_않는다」를 더했다 — `ALLOWED_ATTR`·`ALLOW_DATA_ATTR`·`ALLOW_ARIA_ATTR` 를 빼도 다른 시험은 실패하지 않는다. 변이 일곱(설정 여섯 줄을 하나씩 빼기와 `sanitize` 빼기)이 모두 실패한다. 짝 시험 96줄(92 + W1~W4)은 처음부터 일치했다 — 서버 `OutputSettings`·`vectors.json` 은 고치지 않았다(jsdom 직렬화 기준, Chromium 은 E2E).
+
+D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
+
+| D86 | 결과 |
+|---|---|
+| **1.12 프록시 뒤 IP** | **미해결 — Phase 4 배포 전 필수.** 새 작업 로그 행의 `ip` 도 같은 한계. 공개 조회는 쓰기가 없어 새 영향이 없다 |
+| 2.1 처리기 권한·기동 점검 | ✓ `PagesApiTest` 「page_update_만_가진_역할은_작성_발행_발행취소가_403이고_기록이_없다」·「page_update_만_가진_역할은_삭제가_403」·「page_create_만_있고_admin_access_가_없으면_403」·「익명은_401」·「상세는_편집자_200_page_view_만이면_403」·「page_view_만이면_목록_200_권한이_없으면_403」·「발행_권한_없는_역할은_발행된_페이지를_고칠_수_없다_403」(스펙 17절 1, 판정을 빼면 204), `GuardCheckTest` 「첫_마디의_변수와_와일드카드도_문제다」·「첫_마디에_변수가_있으면_기동이_멈춘다」(M-11). 「어느 API 도 쓰지 않는 권한」 WARN 0건 |
+| 2.5 대량 할당 | ✓ `PagesApiTest` 「status_가_실리면_422_이고_다른_모르는_칸은_무시」·「수정의_status_는_422_이고_상태가_그대로」 |
+| 2.7 `{id}` 는 uuid 만, 형식 불량 404 | ✓ `PagesApiTest` 「없는_id_와_UUID_가_아닌_경로는_404」(발행·발행 취소 `abc`·`%20`·`1`)·「없는_id_는_404_틀린_본문이면_422」(상세·수정·삭제 같은 셋), 「형식이_틀린_슬러그는_404_이고_질의가_0」 |
+| 2.8 관리자 60/분 | 새 관리 API 일곱 모두 `/api/admin/**` 라 1-A 필터에 든다. 새 경로를 직접 친 횟수 시험은 없다 |
+| 3.1 CSRF | ✓ `PagesApiTest` 「CSRF_없으면_403」·「수정_삭제_상세는_익명_401_CSRF_없으면_403」 |
+| 3.3~3.5 이스케이프 우회 지점의 수와 출처 | ✓ `tests/html-sinks.test.sh`(고정 입력 27건, 실제 트리를 두 번 깨 실패 확인 — 다른 파일에 한 줄·`sanitize` 빼기), `RichHtml.test` 「사유_주석이_있다」·「img_onerror_와_javascript_링크가_DOM_에_남지_않는다」 |
+| 3.6 리치 텍스트 정화 두 번, 열린 태그를 본문 안에서 닫는다 | ✓ `RichTextTest` 「벡터_표의_모든_줄이_server_와_바이트까지_같다」·「멱등이다」·「빠진_껍데기가_자동_닫힘을_막던_꼴도_멱등이다」·「모든_출력은_허용_목록만_남는다」, `PagesApiTest` 「벡터_입력을_저장하면_저장값과_공개_응답이_server_와_같다」·「DB_에_넣은_옛_HTML_도_공개와_상세에서_정화된다」(내보낼 때 `clean` 을 빼면 실패), `RichHtml.test` 「모든_입력에서_프런트_불변식이_성립한다」·「서버_출력은_DOMPurify_가_바꾸지_않는다」, E2E 「API 로 만든 페이지가 비로그인 방문자에게 정화된 채로 보인다」·「DOMPurify 겹: 서버를 거치지 않은 오염 HTML 도 스크립트가 돌지 않는다」. 한계: 서버 두 겹은 같은 구현(jsoup)이라 같은 우회에 함께 진다(스펙 16절 1) |
+| 3.7 보안 헤더 | ✓ 공개 HTML 은 빌드 `<meta>` CSP — E2E 「CSP 가 실제로 걸려 있다」(내용 일치·`head` 첫 자식·끼운 인라인 스크립트가 돌지 않고 위반 1건). API 헤더는 그대로. 한계: `frame-ancestors`·`X-Frame-Options` 는 Phase 4 CloudFront(`<meta>` 로 걸리지 않는다 — 추정) |
+| 3.8 CSP 에 `script-src` 없음 | **바뀐다** — `script-src 'self'` 를 건다. 모든 E2E 가 받지 않은 위반 0건을 단언한다(zod `jitless`, 위 5). `style-src` 에는 `'unsafe-inline'`(위 6) |
+| 3.10 오류가 내부를 말하지 않는다 | ✓ `PagesApiTest` 의 거절 단언(`refused`)이 상태·`application/problem+json`·`detail` 을 코드 상수와 정확히 비교한다, `PageView.test` 「500_이면_고정_문구이고_서버_detail_을_그리지_않는다」·「연결_실패도_고정_문구」. 한계: Problem Details `instance` 에 요청 경로가 실린다(아래 「넘긴 것」) |
+| 4.1 SQL 바인딩 | 직접 친 시험은 없다. 새 질의는 모두 상수 문자열 + `JdbcClient.param`(`PagesController`·`PageController`) |
+| 7.1 요청당 고정 질의 수 | ✓ `PagesApiTest` 「익명_요청의_질의는_하나」(1), 「형식이_틀린_슬러그는_404_이고_질의가_0」 |
+| 7.3 목록 질의 한 번 | ✓ `PagesApiTest` 「목록_질의는_행_수와_관계없이_같다」(1), `UsersApiTest` 「상세_질의_수는_역할_수와_관계없이_같다」(4, 넘어온 (e)) |
+
+스펙 17절 2(모든 요청 본문 1 MiB): ✓ `RequestSizeLimitTest` 열 개 — 「익명_1MiB_넘는_Content_Length_는_처리기_전에_413」·「정확히_1MiB_는_막지_않는다」·「한글_200000자_본문은_상한_안에서_201」·「chunked_1MiB_초과도_끊기고_500_이_아니다」·「폼_Content_Length_초과는_413」·「폼_chunked_초과는_1MiB_넘게_해석되지_않는다」·「POST_가_아닌_chunked_폼_초과도_500_이_아니라_413」·「multipart_해석기가_없다」·「필터가_세션과_보안_체인보다_앞이다」·「설치_컨텍스트에도_걸린다」. 남은 위험: 요청당 상한이라 동시 요청의 합은 묶지 않는다(Phase 4 앞단 제한).
+
+시험(2026-11-24, 6a2acaf 트리 — 이 커밋은 문서만 바꾼다. 시험은 `docs/` 를 읽지 않는다): `nice -n 19 mise run test` → 셸 132 통과(check-public 17·html-sinks 27·measure 67·pre-commit 4·summarize 17)·백엔드 325 통과(surefire 합: 실패 0, 오류 0, skip 0)·프런트 190 통과(파일 23)·typecheck 0, exit 0. `mise run e2e` → 이번에는 미실행(문서만 바꿨다). Task 9(6a2acaf)에서 15 통과(admin 3·install 2·login 2·users 5·pages 3, 2.5m). 메모리 측정은 1-C 끝(1-C4 뒤, 스펙 11절) — 미실행.
+
+최종 검토에 넘긴 것(고치지 않았다):
+
+- 공개 404 를 포함한 모든 Problem Details 의 `instance` 에 요청 경로(`/api/pages/<slug>`)가 실린다. 요청자가 보낸 값을 JSON 문자열로 돌려줄 뿐이고(Content-Type problem+json·nosniff) 프런트는 고정 문구만 그린다. 바꾸면 `ApiErrors` 한 곳에서 비운다(Task 4).
+- E2E DOMPurify 겹의 일곱 줄 예외(`script-src-attr`·`base-uri`, 경로 완전 일치) — 진짜 위반을 가릴 수 있다. 실행 회귀는 불변식·`__xss`·대화상자가 잡는다. `script-src-attr` 가 줄마다 2건인 까닭(탐침은 1건)은 확인하지 않았다(Task 9).
+- DOMPurify 권고 「30건」 가운데 한 줄씩 남긴 것은 29건이다. 최종 검토가 다시 세어 보니 기록에서 빠진 것은 3건이고 모두 2.x 에서 고쳐졌다(우리 3.5.0 에 닿지 않는다). 본문을 끝까지 읽은 것은 넷뿐이다(Task 7).
+- W1~W4 의 `server` 값은 백엔드 시험이 고정하지 않는다. 서버 정화가 바뀌어도 짝 시험은 낡은 값으로 통과한다 — 그때 `clean` 을 다시 돌려 고친다(Task 7).
+- 싱크 검사의 「같은 줄」 규칙은 여러 줄로 감싼 포매팅을 막는다(Task 8).
+- `GuardCheck` 의 첫 마디 변수 거부는 Phase 4 의 `/{slug}` 껍데기 처리기 전에 좁혀야 한다(`ponytail:`, Task 6).
+- `/v3` 는 예약어가 아니다 — springdoc 이 운영 의존이 되면 `/v3` 슬러그 페이지가 문서 경로에 가려진다(Task 3).
+- `body_html` 에 `123`·`true` 를 보내면 201 이고 그 글자가 본문이 된다(Jackson 스칼라 강제 변환, 전역 설정은 바꾸지 않는다, Task 4).
+- 엔티티 제어 문자는 검사가 출력을 푼 값을 본다 — jsoup 이 판마다 출력 꼴을 바꾸면 이 검사의 전제가 흔들린다. DB 왕복 시험(`PagesApiTest`)이 지킨다(Task 2).
+- Red 를 따로 보지 못한 시험: `RichTextTest` 「멱등이다」(벡터가 모두 안정 꼴 — Red 는 「빠진_껍데기…」 가 봤다), 「정규식_끝_개행은_find_에서_맞는다…」(JDK 동작 확인), 공개 조회의 `clean` 은 Task 4 시험으로는 안 보였고 Task 5 「DB_에_넣은_옛_HTML…」 이 봤다. reservedSlugs·`NotFound` noindex 정리는 처음부터 통과해 변이로 Red 를 봤다.
+- `mise run e2e` 벽시계 시간과 PR CI 단계 시간은 재지 않았다(Playwright 2.5m 만 있다).
+
+### 1-C1 최종 검토 (2026-11-24, 새 검토자) — 판정 With fixes, Critical 0 · Important 2 · Minor 14
+
+스크립트가 실행되는 길은 찾지 못했다. 검토자가 실행으로 확인했다: jsoup 무작위 입력 50만 개에서 허용 목록·값 검사 위반 0, 서버 출력 6,184개를 Chromium 에 넣어 허용 밖 요소·속성 0·실행 0, DOMPurify 단독(날 입력 3,092 + 링크 거부 값 20)으로 불변식 위반 0·실행 0, 링크 검사기 통과값 1,690만 개를 Node `URL`(표본 60만 개는 Chromium `URL`)로 풀어 `javascript:` 계열 0·다른 출처로 풀리는 내부 경로 0. 서버 정화 겹과 DOMPurify 겹이 CSP 없이도 각각 혼자 선다.
+
+고친 것:
+
+- **I-1** `clean` 을 두 번 거는 것으로는 멱등이 아니었다(`<h3><a><h2><noscript><a>x<br>` 는 세 번째에서 안정, 무작위 50만 개 중 203개). 바뀌지 않을 때까지 다시 건다(상한 8) — `RichTextTest.세_번째_통과에서야_안정하는_꼴도_멱등이다` Red→Green. 상한에 닿아도 모든 통과 결과가 정화된 값이라 안전은 그대로다.
+
+1-C2 로 넘기는 것:
+
+- **I-2 발행 승인 분리의 틈**: 발행 요청이 id 만 받아, 승인자가 읽고 누르는 사이 `page.update` 만 가진 사람이 초안을 바꾸면 바뀐 내용이 공개된다. 관리 화면이 없는 1-C1 에서는 API 를 직접 쓰는 관리자만 닿는다. **1-C2 에서 발행 요청에 승인자가 읽은 `updated_at` 을 싣고 `WHERE … AND updated_at = ?` 로 다르면 409** 를 넣는다(화면이 그 값을 보낸다).
+
+미룬 Minor와 갈 곳:
+
+| 항목 | 갈 곳 |
+|---|---|
+| m-1 공개 조회가 익명 요청마다 `clean` 을 (이제 고정점까지) 돈다 — 시간은 재지 않았다 | 1-C 끝 메모리 측정 때 함께 잰다 |
+| m-2 `alt` 에 `</style>` 같은 닫는 꼴이 있으면 DOMPurify 가 속성째 지운다(서버는 남김) — 짝 시험 밖 | 1-C2(편집기 `alt` 입력 규칙) |
+| m-3 `RichHtml` 이 렌더마다 `sanitize` 를 다시 부른다 — `useMemo` | 1-C2 |
+| m-4 E2E 일곱 줄 예외가 건수를 고정하지 않는다(줄마다 2건은 재렌더 — 검토자가 실행으로 확인) | 1-C2 |
+| m-5 싱크 검사의 금지 이름 보강(`ADD_ATTR`·`ALLOW_UNKNOWN_PROTOCOLS`·`setHTMLUnsafe` 등) | 1-C2 |
+| m-6 `style-src-attr 'none'` 으로 더 좁히기(미실행) | 1-C2(편집기가 인라인 스타일을 쓰는지 본 뒤) |
+| m-7 413 응답에 보안 헤더가 붙지 않을 것(추정) | 1-C2 |
+| m-8 발행본 수정 403 을 기록하지 않는다 | 1-C2(I-2 와 함께) |
+| m-9 `body_html` 에 숫자·불리언을 보내면 문자열로 저장(201) | 한계로 둔다 — 정화를 지난다 |
+| m-10 W1~W4 기대값이 프런트 시험에만 있다 | 1-C2(백엔드 시험에도 고정) |
+| m-11 비-superuser 에게 admin 「빼기」 단추가 보인다(R3 가 늘 거절) | 1-C2 |
+| m-13 「사용자 확인 전」 문구가 공개 문서에 남는다 | Phase 1 끝 사용자 확인 뒤 일괄 정리 |
+| m-14 시험의 DB 접속에 시한이 없다 — `RequestSizeLimitTest.start` 가 12분 CPU 0% 로 멈췄다(재실행 통과, 원인 미확인. 1-B 의 `SwitchTest` 멈춤과 같은 꼴) | 원인을 모른 채 시한을 넣지 않는다. 다음에 멈추면 `jcmd <pid> Thread.print` 로 원인부터 잡는다 |

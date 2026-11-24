@@ -160,6 +160,27 @@ describe("역할", () => {
     expect(button.getAttribute("aria-describedby")).toBe(error.id);
   });
 
+  it("visitor_only_역할에는_부여_고르기가_없다 — 방문자 권한이 없으면 R9 가 늘 거절한다", async () => {
+    const list = roles().map((r) => ({ ...r, visitor_only: r.key === "member" }));
+    renderRoles({ get: () => json(200, { roles: list, permissions: PERMISSIONS.map((p) => ({ ...p, visitor: false })) }) });
+    const member = await role("회원");
+    expect(within(member).queryByRole("combobox", { name: "줄 권한" })).toBeNull();
+    expect(within(member).queryByRole("button", { name: "부여" })).toBeNull();
+    // 빼기는 그대로 — 잘못 들어간 것을 빼는 길이다
+    expect(within(grant(member, "log.view")).getByRole("button", { name: "빼기" })).toBeInTheDocument();
+    expect(within(await role("운영자")).getByRole("combobox", { name: "줄 권한" })).toBeInTheDocument();
+  });
+
+  it("visitor_only_역할의_고르기에는_visitor_권한만", async () => {
+    const list = roles().map((r) => ({ ...r, visitor_only: r.key === "member" }));
+    const perms = PERMISSIONS.map((p) => ({ ...p, visitor: p.key === "user.view" }));
+    renderRoles({ get: () => json(200, { roles: list, permissions: perms }) });
+    const select = within(await role("회원")).getByRole("combobox", { name: "줄 권한" });
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["user.view"]);
+    const op = within(await role("운영자")).getByRole("combobox", { name: "줄 권한" });
+    expect(within(op).getAllByRole("option").map((o) => o.textContent)).toEqual(["user.view"]);
+  });
+
   it("그 밖의 실패 → 「역할을 불러오지 못했습니다」", async () => {
     renderRoles({ get: () => json(500, {}) });
     expect(await screen.findByRole("alert")).toHaveTextContent("역할을 불러오지 못했습니다");
