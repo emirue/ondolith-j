@@ -23,6 +23,9 @@ export function AdminGate() {
   const location = useLocation();
   const admin = useQuery({
     queryKey: ["admin"],
+    // 창 초점·재연결로 다시 묻지 않는다 — 200 이 아니면 트리를 내려 쓰던 글이 사라진다(1-C2 최종 검토 I-1). 서버가 요청마다 권한을 본다
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => (await api.GET("/api/admin")).response.status,
   });
   if (admin.isPending) return null;
