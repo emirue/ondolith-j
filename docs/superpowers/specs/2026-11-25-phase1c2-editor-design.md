@@ -54,7 +54,7 @@
 - Link 기본값: `openOnClick: true`, `linkOnPaste: true`, `autolink: true`, `HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' }`. 속성은 `href`·`target`·`rel`·`class`·`title` 다섯이고, `parseHTML` 이 없는 넷은 붙여넣은 HTML 의 같은 이름 속성을 그대로 읽는다(`injectExtensionAttributesToParseRule` 의 `getAttribute`). `isAllowedUri` 는 `parseHTML`(거부면 링크가 아니다)·`renderHTML`(거부면 `href=""`)·`setLink`·`toggleLink`(거부면 `false`)·autolink·붙여넣기 여섯 곳에서 불린다. `inclusive()` 는 `autolink` 값이다.
 - OrderedList 속성: `start`(`parseInt`, 범위 검사 없음)와 `type`(`type` 속성, `style` 의 `list-style-type`, 첫 `li` 의 `style` 순으로 읽는다). `renderHTML` 은 `start === 1` 이면 빼고, `type` 이 비었거나 `'1'` 이면 뺀다.
 - Heading `level` 은 `rendered: false`, ListItem 내용은 `paragraph block*`, Blockquote 는 `block+`.
-- TrailingNode 는 플러그인 상태(`init`·`apply`)에 「마지막 노드가 문단이 아니다」를 기억하고, 그 값이 참이면 `appendTransaction` 에서 끝에 빈 문단을 붙인다. 읽은 부분에서 `docChanged` 를 보는 곳은 `apply` 뿐이고 `appendTransaction` 에는 그 조건이 없다 — 싣기 뒤 첫 트랜잭션(누르기만 해도)에서 붙는 것으로 읽힌다(구현 때 확인). 트랜잭션이 없으면 붙지 않는다.
+- TrailingNode 는 플러그인 상태(`init`·`apply`)에 「마지막 노드가 문단이 아니다」를 기억하고, 그 값이 참이면 `appendTransaction` 에서 끝에 빈 문단을 붙인다. 읽은 부분에서 `docChanged` 를 보는 곳은 `apply` 뿐이고 `appendTransaction` 에는 그 조건이 없다 — 싣기 뒤 첫 트랜잭션(누르기만 해도)에서 붙는 것으로 읽힌다(구현 때 확인). 트랜잭션이 없으면 붙지 않는다. → 구현: 끈다(`trailingNode: false`). 켜면 끝이 목록인 문서에 `<p></p>` 가 붙는 것을 변이로 봤다(IME I-3 바이트·`RichEditor.test` 빈 문단 시험이 실패).
 - `Editor` 의 `injectCSS` 기본 `true` 가 `<style>` 요소를 넣는다(`createStyleTag`). 끄는 옵션 `injectCSS: false` 가 있다.
 - 내용 싣기(`elementFromString`)는 `new window.DOMParser().parseFromString` — 비활성 문서다. `getHTML()` 은 `DOMSerializer` 결과를 `document.implementation.createHTMLDocument()` 의 `div` 에 붙여 `innerHTML` 로 낸다.
 - 붙여넣기(prosemirror-view `readHTML`)는 `createHTMLDocument("title")` 의 요소에 `innerHTML`(Trusted Types 감싸기 포함)로 파싱한다 — 비활성 문서다. 화면 쪽 인라인 스타일은 `style.cssText`(CSSOM)로 쓴다(`input.ts`·`viewdesc.ts`).
@@ -93,6 +93,8 @@
 | I-3 목록 안 | 「글머리 목록」 단추 뒤 「한글 입력」 | `ul > li` 하나, 글자 「한글 입력」 | `<ul><li><p>한글 입력</p></li></ul>` |
 | I-4 링크 바로 뒤 | 「안」을 넣어 고르고 링크 `/about`, `End`, 「한글 입력」 | `a` 의 글자 「안」·`href` `/about`, 「한글 입력」은 `a` 밖 | `<p><a href="/about">안</a>한글 입력</p>` |
 | I-5 받침 넘김 | ㅎ→하→한 다음 조합을 「하」로 바꿔 확정하고 「나」(ㄴ→나) 확정 | 글자 「하나」 | `<p>하나</p>` |
+
+→ 구현: 다섯 장면의 바이트 기대가 실제 출력과 같았다(3절 설정을 고치지 않았다, `docs/decisions.md` 1-C2 Task 1 표). I-4 의 `End` 는 `ArrowRight` 로 바꿨다 — macOS 의 Playwright 는 `End` 를 문서 끝 스크롤로 보내 캐럿이 움직이지 않는다(Linux 도 `ArrowRight` 로 같을 것은 추정).
 
 - I-5 는 결정 3.3 에 없던 장면이다. 앞 글자의 받침이 다음 글자로 넘어가는 꼴이 조합 처리에서 가장 잘 깨지는 자리라(추정) 더했다 — 기준을 좁히는 쪽이다.
 - **통과**: 다섯 장면 모두에서 ① DOM 판정 ② Tiptap 바이트 기대 ③ 대조 단언 ④ `pageerror` 0·받지 않은 CSP 위반 0·대화상자 0 이 성립하고, 대조군이 「한글 입력」이다.
@@ -302,7 +304,7 @@
   - 폼과 편집기(또는 렌더러)는 상세 응답의 `updated_at` 이 바뀔 때마다 그 응답으로 다시 채운다. 단 **고치는 중(dirty — 폼 칸이 바뀌었거나 편집기 `onUpdate` 가 났다)이면 채우지 않는다.** 렌더러로 그릴 때는 dirty 가 없다.
   - 발행이 싣는 값은 「지금 폼에 실린 응답」의 `updated_at` 이다(가장 최근 응답이 아니다).
   - 저장이 성공하면 dirty 를 지우고 상세를 다시 읽는다 → 새 `updated_at` 으로 다시 채운다(내용은 보낸 값과 같다 — 짝).
-  - **상세 쿼리는 배경 다시 읽기를 끈다**(`refetchOnWindowFocus: false`). 앱의 `QueryClient` 는 `retry` 만 끈다(확인: `main.tsx`). 창 초점 다시 읽기의 기본값이 켜짐인 것은 TanStack Query 의 기억이다(구현 때 확인 — 아래 Vitest 가 본다). 켜 두면 승인자가 다른 탭에 다녀온 사이 남이 고친 본문이 알림 없이 폼에 실리고 새 `updated_at` 으로 발행이 204 가 된다 — 409 와 그 알림을 비켜 간다. 다시 채우기는 내 동작(저장 성공·발행 409·발행 취소·발행 성공) 뒤의 다시 읽기에서만 일어난다.
+  - **상세 쿼리는 배경 다시 읽기를 끈다**(`refetchOnWindowFocus: false`). 앱의 `QueryClient` 는 `retry` 만 끈다(확인: `main.tsx`). 창 초점 다시 읽기의 기본값이 켜짐인 것은 TanStack Query 의 기억이다(구현 때 확인 — 아래 Vitest 가 본다). → 구현: 켜짐이 맞다(jsdom 에서도 `visibilitychange` 로 돈다 — 끄는 줄을 빼면 Red). 재연결 다시 읽기(`refetchOnReconnect`)도 기본이 켜짐이라 함께 껐다. 켜 두면 승인자가 다른 탭에 다녀온 사이 남이 고친 본문이 알림 없이 폼에 실리고 새 `updated_at` 으로 발행이 204 가 된다 — 409 와 그 알림을 비켜 간다. 다시 채우기는 내 동작(저장 성공·발행 409·발행 취소·발행 성공) 뒤의 다시 읽기에서만 일어난다.
 - 단추(「저장」은 폼 제출 단추, 나머지는 `ConfirmButton` — 단추마다 `useSave` 하나, 1-B2 규칙)
   - 「저장」: 「저장할 수 있나」일 때만(위 렌더러 규칙과 같은 조건).
   - 「발행」(초안, `can["page.publish"]`): 확인 대화상자 「발행할까요?」·「방문자가 /{slug} 에서 이 내용을 봅니다」. **설명 아래에 같은 응답의 `body_html` 을 `RichHtml` 로 미리보기**(높이 제한·세로 스크롤, 스크롤 영역은 `tabIndex={0}`·`aria-label="발행할 본문"` 로 키보드로도 내린다). 미리보기의 응답과 발행이 싣는 `updated_at` 의 응답은 같은 것(「지금 폼에 실린 응답」)이다. 본문 `{ updated_at }`. **dirty 이거나 상세를 다시 읽는 중이면 `aria-disabled` 이고 「저장하지 않은 수정이 있습니다」를 `aria-describedby` 로** — 고치는 중에 누르면 화면과 다른 저장본이 나간다. 409 면 `send` 안에서 상세를 무효화한다 → dirty 가 아니므로 바뀐 내용으로 다시 채워지고 알림이 「그사이 페이지가 바뀌었습니다…」다.
@@ -321,7 +323,7 @@
 
 - 경계 하나: 관리자 트리. `App.tsx` 의 `/admin` 라우트를 `path="/admin/*"` 로 바꾸고 `element` 를 `<Suspense fallback={null}>` 안의 lazy 부품 하나로 둔다. lazy 모듈은 `features/auth/AdminGate.tsx` 의 기본 내보내기 `AdminTree` — `<Routes><Route element={<AdminGate />}>{adminRoutes}</Route></Routes>`. `AdminGate`·`AdminLayout`·관리 화면·Radix 대화상자·Tiptap 이 모두 그 아래다. `/login` 은 작아서 공개 쪽에 둔다(Q21).
 - **불러오기 실패**: 배포 뒤 옛 chunk 가 404 면 lazy 가 렌더 중에 던지고, 오류 경계가 없어 앱 전체가 빈 화면이 된다(1-C1 8.2 의 `ponytail:` 경계 없음). `lazy(() => import(…).catch(() => ({ default: AdminLoadFailed })))` 로 받는다 — `AdminLoadFailed` 는 `App.tsx` 의 몇 줄, h1 「관리자 화면을 불러오지 못했습니다. 새로 고침하세요」. 오류 경계는 여전히 두지 않는다.
-- 바뀌는 기존 시험: `reservedSlugs.test.ts` 의 라우트 정규식이 `path="/admin"` 꼴만 읽는다 — `(?:\/\*)?` 를 허용하게 한 줄 고친다(단언 꼴은 그대로). `AdminLayout.test`·`adminCache.test` 는 `adminRoutes`·화면을 직접 렌더해 바뀌지 않을 것(구현 때 확인).
+- 바뀌는 기존 시험: `reservedSlugs.test.ts` 의 라우트 정규식이 `path="/admin"` 꼴만 읽는다 — `(?:\/\*)?` 를 허용하게 한 줄 고친다(단언 꼴은 그대로). `AdminLayout.test`·`adminCache.test` 는 `adminRoutes`·화면을 직접 렌더해 바뀌지 않을 것(구현 때 확인). → 구현: 코드 분할 커밋(793a100·9ab15c9)에서 두 파일은 바뀌지 않았다(메뉴·쿼리 키 때문에 Task 5·6 이 고쳤다).
 - **검사 — 방문자가 실제로 내려받는 JS**(E2E, 빌드 산출물 위. 셸 시험 자리가 아니다 — `tests/*.test.sh` 는 고정 입력·Docker 없음이고 이 검사는 `dist` 가 필요하다)
   - 공개 화면(`/`, `/about`, `/login`, 스택 없이 `page.route`)을 열며 응답된 모든 `.js` 본문에 `ProseMirror`(prosemirror-view 가 편집 DOM 에 다는 클래스 이름 문자열)·`tiptap`(대소문자 무관, Tiptap 의 오류·경고 문구)이 없다.
   - **반대 단언**: 같은 시험에서 `/admin/pages/new` 를 열면 내려받은 JS 가운데 그 표지가 든 것이 있다. 이것이 없으면 표지가 압축에서 사라져도 공허하게 통과한다.

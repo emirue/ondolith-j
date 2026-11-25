@@ -782,7 +782,7 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 - **17절 7 묶음 크기**(Vite 표시 크기)
   - 편집기를 넣은 단일 chunk 는 967,889바이트였다(넣기 전 크기는 재지 않았다).
   - 관리자 트리만 뗐을 때: 공개 502.58 kB·관리 473.64 kB, 공개 쪽에 경고가 남았다.
-  - `InstallPage` lazy 뒤 Task 8 까지: 공개 `index-*.js` 497.74 kB(gzip 약 161)·관리 `AdminGate-*.js` 473.76 kB(gzip 149.75)·`InstallPage-*.js` 4.96 kB·`password-*.js` 0.51 kB. 「larger than 500 kB」 경고는 없다.
+  - `InstallPage` lazy 뒤 Task 8 부터 지금(4073be0)까지: 공개 `index-*.js` 497.74 kB(gzip 161.08)·관리 `AdminGate-*.js` 473.76 kB(gzip 149.75)·`InstallPage-*.js` 4.96 kB·`password-*.js` 0.51 kB. 「larger than 500 kB」 경고는 없다.
   - **공개 chunk 의 여유는 약 2.3 kB 다.** 공개 chunk 에서 큰 것: react-dom 207k·zod 83k·react-router 38k·react-hook-form 35k·query-core 31k·DOMPurify 30k(sourcemap 집계). DOMPurify 는 공개 chunk 에만 있다.
   - 표지 문자열(`ProseMirror`·`tiptap`)은 압축 뒤에도 남는다 — 반대 단언이 통과한다. 관리 chunk 이름 꼴은 `assets/AdminGate-<hash>.js`(Vite 8.3.8).
 - **17절 8 `linkHref`·`LinkCheck` 가 갈리는 꼴**: `https://a.1/` — 서버는 받고, jsdom·Chromium 의 `new URL` 은 던져 `null` 이다(Vitest 한 줄, E2E 「linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다」). 잘못된 `xn--` 마디는 보지 않았다. `links.json` 의 `allow` 9값은 편집기에서 모두 링크로 남는다.
@@ -827,6 +827,7 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
   - 백엔드 339 통과(39 클래스, surefire 합: 실패 0·오류 0·skip 0)
   - 프런트 247 통과(파일 27), typecheck 오류 0
 - `mise run e2e` → exit 0, 29 통과(admin 3·editor 14·install 2·login 2·pages 3·users 5), Playwright 3.6m(webServer 빌드 포함, Playwright 출력). 벽시계 시간은 재지 못했다. editor 14 는 IME 6(대조군 포함)·붙여넣기 2·링크 입력 1·갈리는 꼴 1·코드 분할 2·흐름 2 다
+- 빌드: 이 트리에서 `npm run build`(tsc + vite build) 1.93s(`/usr/bin/time` real, 바로 앞에 한 번 빌드한 뒤의 둘째 실행), 그중 Vite `built in` 163ms. chunk 는 공개 `index-*.js` 497.74 kB(gzip 161.08)·`AdminGate-*.js` 473.76 kB(gzip 149.75)·`InstallPage-*.js` 4.96 kB·`password-*.js` 0.51 kB, 500 kB 경고 없음 — Task 8 기록과 같다.
 - 1-C1 과 비교: 백엔드 325 → 339, 프런트 190 → 247, E2E 15(2.5m) → 29(3.6m). CI `timeout-minutes: 20` 은 그대로이고 PR CI 의 단계 시간은 아직 보지 않았다(PR 전).
 - **Linux(CI) 실행: 미실행** — 이 브랜치는 macOS 로컬에서만 돌았다. PR CI 가 처음이다.
 - 메모리 측정은 1-C 끝(1-C4 뒤) — 미실행.
