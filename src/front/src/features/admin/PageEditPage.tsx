@@ -98,6 +98,14 @@ function PageEdit({ id }: { id?: string }) {
     if (c.body !== editor.getHTML()) editor.commands.setContent(c.body);
   }, [data, editor, dirty]);
 
+  // I-4: 저장하지 않은 수정이 있으면 탭을 닫거나 새로고침할 때 묻는다. 앱 안 메뉴 이동은 묻지 않는다 — 선언형 BrowserRouter 라 useBlocker 가 없다
+  useEffect(() => {
+    if (!dirty) return;
+    const ask = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [dirty]);
+
   // 발행·발행 취소가 성공하면 연 단추가 다른 단추로 바뀌어 초점 돌릴 곳이 없다 — 다시 읽은 화면을 그린 뒤 h2 로(UserDetailPage 와 같다)
   const lost = useRef(false);
   useEffect(() => {

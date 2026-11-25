@@ -1,6 +1,6 @@
 import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import { EDITOR_TAGS, editorInvariant, vectors } from "../src/test-vectors";
-import { expect, installSite, loginAdmin, offline, test, watch, type CspViolation } from "./stack";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, expect, installSite, loginAdmin, offline, test, watch, type CspViolation } from "./stack";
 
 /**
  * 한글 IME 관문(1-C2 스펙 2절). 실제 입력기 대신 CDP 조합 입력으로 흉내 낸다 — 스택 없이 빌드 산출물 + CSP 위에서.
@@ -581,4 +581,51 @@ test("I-2: 승인자가 연 뒤 본문이 바뀌면 발행이 멈추고 바뀐 �
   updaterSeen.check();
   visitorSeen.check();
   await Promise.all([approverCtx, updaterCtx, visitorCtx].map((c) => c.close()));
+});
+
+test("I-4: 세션이 끊긴 편집 탭에서 새 탭으로 다시 로그인하면 원래 탭의 저장이 본문 그대로 204", async ({ page, stack }) => {
+  await installSite(page, stack);
+  await loginAdmin(page);
+  const { id } = await (await post(page, "/api/admin/pages", 201, { slug: "relogin", title: "다시 로그인", body_html: "<p>처음 본문</p>" })).json();
+  await page.goto(`/admin/pages/${id}`);
+  await expect(page.getByRole("heading", { name: "페이지 편집" })).toBeVisible();
+  const area = page.locator(".ProseMirror");
+  await expect(area).toHaveText("처음 본문");
+  await area.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("새 탭 로그인 뒤 본문");
+  const xsrf = async () => (await page.context().cookies()).find((c) => c.name === "XSRF-TOKEN")?.value;
+  const before = await xsrf();
+  expect(before, "XSRF-TOKEN 쿠키").toBeTruthy();
+
+  // 세션 만료: 서버의 세션 행을 지운다(쿠키는 그대로)
+  expect(stack.sql("DELETE FROM spring_session")).toMatch(/^DELETE [1-9]/);
+  const saves: { status: number; body: string }[] = [];
+  page.on("response", (r) => {
+    if (r.request().method() === "POST" && new URL(r.url()).pathname === `/api/admin/pages/${id}`) {
+      saves.push({ status: r.status(), body: r.request().postDataJSON().body_html });
+    }
+  });
+  await page.getByRole("button", { name: "저장" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("로그인이 끝났습니다");
+  await expect(alert).toContainText("로그인한 뒤 다시 저장하세요");
+  expect(saves.map((s) => s.status), "첫 저장은 CSRF 403 이 아니라 401").toEqual([401]);
+
+  const [tab] = await Promise.all([page.context().waitForEvent("page"), alert.getByRole("link", { name: "다시 로그인" }).click()]);
+  await tab.getByLabel("이메일").fill(ADMIN_EMAIL);
+  await tab.getByLabel("비밀번호").fill(ADMIN_PASSWORD);
+  await tab.getByRole("button", { name: "로그인" }).click();
+  await expect(tab.getByRole("heading", { name: "페이지 편집" })).toBeVisible();
+  const after = await xsrf();
+  expect(after, "다시 로그인하면 CSRF 토큰이 바뀐다").not.toBe(before);
+  await tab.close();
+
+  // 원래 탭: 본문이 그대로이고 같은 저장 단추가 새 세션·새 토큰으로 간다
+  await expect(area).toHaveText("새 탭 로그인 뒤 본문");
+  await page.bringToFront();
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page.getByRole("status")).toHaveText("저장했습니다");
+  expect(saves).toEqual([{ status: 401, body: "<p>새 탭 로그인 뒤 본문</p>" }, { status: 204, body: "<p>새 탭 로그인 뒤 본문</p>" }]);
+  expect(stack.sql(`SELECT body_html FROM pages WHERE id = '${id}'`)).toBe("<p>새 탭 로그인 뒤 본문</p>");
 });

@@ -446,6 +446,41 @@ describe("저장 응답을 기다리는 동안 친 글자 (1-C2 최종 검토 I-
   });
 });
 
+describe("떠날 때 (1-C2 최종 검토 I-4)", () => {
+  /** 브라우저가 「떠날까요?」를 묻는지 — 처리기가 막으면(defaultPrevented) 묻는다. */
+  const asks = () => {
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+
+  it("dirty_일_때만_beforeunload_가_묻고_저장하면_묻지_않는다", async () => {
+    renderEdit({
+      post: (path, s) => {
+        if (path === `/api/admin/pages/${U}`) s.page = page({ title: "소개 고침", updated_at: AT2 });
+        return NO_CONTENT();
+      },
+    });
+    await loadedEditor();
+    expect(asks()).toBe(false);
+    const u = userEvent.setup();
+    await u.type(screen.getByLabelText("제목"), " 고침");
+    expect(asks()).toBe(true);
+    await u.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(publishButton()).not.toHaveAttribute("aria-disabled"));
+    expect(asks()).toBe(false);
+  });
+
+  it("본문만_고쳐도_묻는다", async () => {
+    renderEdit();
+    const editor = await loadedEditor();
+    act(() => {
+      editor.commands.insertContent("더함");
+    });
+    expect(asks()).toBe(true);
+  });
+});
+
 describe("삭제", () => {
   it("삭제_단추가_발행본_발행_권한_없음이면_없고_안내가_보인다", async () => {
     renderEdit({ can: WRITER, initial: page({ status: "published" }) });
