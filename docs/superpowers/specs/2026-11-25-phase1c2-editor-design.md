@@ -216,7 +216,7 @@
 ### 6.1 발행에 읽은 `updated_at` (I-2)
 
 - `POST /api/admin/pages/{id}/publish` 본문 `{updated_at}` — 고정 레코드 하나(`PublishInput(Instant updatedAt)`). 없거나 `null` 이면 422 `errors.updated_at` 「필수입니다」, 형식이 틀리면 400(Jackson, 1-B 관례). 다른 칸은 읽지 않는다.
-- `updated_at` 은 **불투명 값**이다. 화면은 상세 응답의 문자열을 그대로 되돌려 보낸다 — `Date` 로 바꾸면 마이크로초가 잘려 늘 409 다. 서버 직렬화는 1-C1 그대로(`Instant`, Jackson 기본 ISO-8601). PostgreSQL `timestamptz` 마이크로초가 문자열 왕복에서 그대로인지는 시험 `상세의_updated_at_을_그대로_실으면_204` 가 확인한다. → 구현: 그대로다(응답 예 `…T00:50:09.332977Z`). 바인딩은 `Instant` 그대로면 pgjdbc 가 형을 추론하지 못해 500 이라 `OffsetDateTime`(UTC)으로 바꿔 싣는다. 범위 밖 `Instant.MAX` 는 500 이 남았다(최종 검토 몫).
+- `updated_at` 은 **불투명 값**이다. 화면은 상세 응답의 문자열을 그대로 되돌려 보낸다 — `Date` 로 바꾸면 마이크로초가 잘려 늘 409 다. 서버 직렬화는 1-C1 그대로(`Instant`, Jackson 기본 ISO-8601). PostgreSQL `timestamptz` 마이크로초가 문자열 왕복에서 그대로인지는 시험 `상세의_updated_at_을_그대로_실으면_204` 가 확인한다. → 구현: 그대로다(응답 예 `…T00:50:09.332977Z`). 바인딩은 `Instant` 그대로면 pgjdbc 가 형을 추론하지 못해 500 이라 `OffsetDateTime`(UTC)으로 바꿔 싣는다. 범위 밖 `updated_at` 은 `Instant.MAX` 만이 아니라 `timestamptz` 범위(4714-11-24 BC ~ 294276-12-31 AD) 밖 전부가 500 이었다 → 최종 검토 M-1 에서 `PublishInput` 생성자가 범위를 보아 형식 불량과 같은 400(`updated_at_이_표현_범위_밖이면_형식_불량과_같은_400`).
 - 순서
   1. 슬러그 읽기 → 없으면 404 → 예약어면 409 「이 주소는 시스템 경로와 충돌합니다」(1-C1 그대로, 내용 비교보다 앞 — 예약어 충돌은 다시 읽어도 풀리지 않는다).
   2. `UPDATE pages SET status = 'published', updated_at = now() WHERE id = ? AND status = 'draft' AND updated_at = ?` → 1행이면 204·기록 `page.publish`.

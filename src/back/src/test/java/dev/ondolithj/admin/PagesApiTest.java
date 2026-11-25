@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -745,6 +746,37 @@ class PagesApiTest {
 		HttpResponse<String> ok = editor.http().post(path, json.writeValueAsString(other));
 		assertThat(ok.statusCode()).as(ok.body()).isEqualTo(204);
 		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("published");
+	}
+
+	/** M-1(1-C2 최종 검토): Instant 로는 읽히지만 timestamptz 로 표현할 수 없는 시각도 형식 불량 400 과 같은 꼴 — 500 이 아니다. */
+	@Test
+	void updated_at_이_표현_범위_밖이면_형식_불량과_같은_400() throws Exception {
+		Login editor = login("editor");
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		HttpResponse<String> malformed = publishAt(editor.http(), id, "abc");
+		assertThat(malformed.statusCode()).isEqualTo(400);
+		String path = "/api/admin/pages/" + id + "/publish";
+		List<String> values = List.of("\"+294277-01-01T00:00:00Z\"", "\"+300000-01-01T00:00:00Z\"",
+				"\"-1000000000-01-01T00:00:00Z\"", "31556889864403199", "\"" + Instant.MAX + "\"");
+		Map<String, HttpResponse<String>> got = new LinkedHashMap<>();
+		for (String value : values) {
+			got.put(value, editor.http().post(path, "{\"updated_at\": " + value + "}"));
+		}
+		Map<String, Integer> statuses = new LinkedHashMap<>();
+		got.forEach((value, r) -> statuses.put(value, r.statusCode()));
+		Map<String, Integer> all400 = new LinkedHashMap<>();
+		values.forEach((value) -> all400.put(value, 400));
+		assertThat(statuses).isEqualTo(all400);
+		for (Map.Entry<String, HttpResponse<String>> e : got.entrySet()) {
+			assertThat(e.getValue().headers().firstValue("Content-Type")).as(e.getKey()).isEqualTo(malformed.headers().firstValue("Content-Type"));
+			assertThat(json.readTree(e.getValue().body())).as(e.getKey()).isEqualTo(json.readTree(malformed.body()));
+		}
+		// 경계: timestamptz 의 양 끝 안쪽은 읽혀서 낡은 값 409, 아래 끝 바로 밖은 400
+		refused(publishAt(editor.http(), id, "-4713-11-24T00:00:00Z"), 409, STALE);
+		refused(publishAt(editor.http(), id, "+294276-12-31T23:59:59.999999Z"), 409, STALE);
+		assertThat(publishAt(editor.http(), id, "-4713-11-23T23:59:59.999999Z").statusCode()).isEqualTo(400);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(logs(editor.id())).isEqualTo(1);
 	}
 
 	/** 예약어 충돌은 다시 읽어도 풀리지 않는다 — 내용 비교보다 앞이다. */

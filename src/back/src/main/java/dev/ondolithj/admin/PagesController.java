@@ -67,6 +67,16 @@ class PagesController {
 
 	/** 승인자가 읽은 상세의 updated_at(불투명 값 — 화면은 응답 문자열을 그대로 되돌린다, 1-C2 스펙 6.1). 다른 칸은 읽지 않는다. */
 	record PublishInput(Instant updatedAt) {
+		// PostgreSQL timestamptz 의 범위(4714-11-24 BC ~ 294276-12-31 AD). 밖은 DB·OffsetDateTime 이 던져 500 이었다(M-1).
+		// 생성자에서 던지면 Jackson 이 읽기 실패로 감싸 형식 불량과 같은 400 이 된다
+		private static final Instant MIN = Instant.parse("-4713-11-24T00:00:00Z");
+		private static final Instant MAX = Instant.parse("+294276-12-31T23:59:59.999999Z");
+
+		PublishInput {
+			if (updatedAt != null && (updatedAt.isBefore(MIN) || updatedAt.isAfter(MAX))) {
+				throw new IllegalArgumentException("updated_at 범위 밖");
+			}
+		}
 	}
 
 	record PageItem(UUID id, String slug, String title, String status, Instant updatedAt) {
