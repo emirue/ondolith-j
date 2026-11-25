@@ -24,7 +24,15 @@ class RichTextTest {
 	record Vector(String id, String input, String server) {
 	}
 
-	static final List<Vector> VECTORS = load();
+	record EditorRow(String id, String input, String editor) {
+	}
+
+	static final List<Vector> VECTORS = load("/richtext/vectors.json", new TypeReference<>() {
+	});
+
+	// 1-C2 스펙 5.1. 프런트 RichEditor.test 가 같은 파일로 편집기 출력을 본다
+	static final List<EditorRow> EDITOR_ROWS = load("/richtext/editor.json", new TypeReference<>() {
+	});
 
 	// 스펙 3.2 표. 구현의 SAFELIST 를 읽지 않고 표에서 따로 적는다
 	static final Map<String, Set<String>> ALLOWED = Map.ofEntries(Map.entry("p", Set.of()), Map.entry("br", Set.of()),
@@ -40,10 +48,9 @@ class RichTextTest {
 
 	static final String U = "00000000-0000-4000-8000-000000000001";
 
-	static List<Vector> load() {
-		try (InputStream in = RichTextTest.class.getResourceAsStream("/richtext/vectors.json")) {
-			return JsonMapper.builder().build().readValue(in, new TypeReference<List<Vector>>() {
-			});
+	static <T> List<T> load(String file, TypeReference<List<T>> type) {
+		try (InputStream in = RichTextTest.class.getResourceAsStream(file)) {
+			return JsonMapper.builder().build().readValue(in, type);
 		}
 		catch (java.io.IOException e) {
 			throw new IllegalStateException(e);
@@ -52,9 +59,17 @@ class RichTextTest {
 
 	@Test
 	void 벡터_표의_모든_줄이_server_와_바이트까지_같다() {
-		assertThat(VECTORS).hasSize(92);
+		assertThat(VECTORS).hasSize(96);
 		for (Vector v : VECTORS) {
 			assertThat(RichText.clean(v.input())).as(v.id()).isEqualTo(v.server());
+		}
+	}
+
+	@Test
+	void 편집기_고정_파일의_editor_는_clean_해도_같다() {
+		assertThat(EDITOR_ROWS).hasSize(13);
+		for (EditorRow r : EDITOR_ROWS) {
+			assertThat(RichText.clean(r.editor())).as(r.id()).isEqualTo(r.editor());
 		}
 	}
 
