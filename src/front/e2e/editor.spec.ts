@@ -297,6 +297,8 @@ test("링크 입력이 javascript 와 //evil.example 을 받지 않는다", asyn
     await page.getByLabel("주소", { exact: true }).fill("link");
     await page.getByRole("button", { name: "만들기" }).click();
     await expect.poll(() => saved.length).toBe(i + 1);
+    // 201 뒤 상세로 옮긴 것을 본 뒤에 다음 값으로 — 옮기기 전에 goto 하면 아직 dirty 인 작성 화면이 beforeunload 로 묻는다(I-4)
+    await expect(page.getByRole("heading", { name: "페이지 편집" })).toBeVisible();
     expect(saved[i], bad).not.toContain("href");
     expect(saved[i], bad).toBe("<p>a</p>");
   }
