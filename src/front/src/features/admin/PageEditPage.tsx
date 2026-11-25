@@ -28,6 +28,15 @@ type PageValues = z.infer<typeof pageSchema>;
 type PageDetail = components["schemas"]["PageDetail"];
 /** 상세·목록을 다시 읽는다. 내 동작의 send 가 기다린다 — 다시 읽는 동안은 그 단추의 pending 이 막는다. */
 type Refresh = () => Promise<unknown>;
+/** 칸과 본문의 지금 값. 저장을 보낸 순간의 것과 응답 뒤의 것을 견준다(I-2). */
+type Snapshot = PageValues & { body: string };
+const same = (a: Snapshot | null, b: Snapshot) => a !== null && a.title === b.title && a.slug === b.slug && a.body === b.body;
+
+/**
+ * 작성 201 을 기다리는 동안 더 쓴 값 — 상세로 옮기면 다시 마운트되므로 메모리로 한 번 넘긴다(주소 state 는 새로고침에도 남는다).
+ * ponytail: 값만 넘긴다. 캐럿 위치와 그 순간 조합 중이던 글자는 다시 마운트로 끊긴다. 작성 뒤 옮기지 않는 화면이 되면 지운다.
+ */
+let carried: (Snapshot & { id: string }) | null = null;
 
 /**
  * /admin/pages/new(A-302 작성)와 /admin/pages/:id(A-302 수정 + A-303 단추).
@@ -69,6 +78,8 @@ function PageEdit({ id }: { id?: string }) {
   const form = useForm<PageValues>({ resolver: zodResolver(pageSchema), defaultValues: { title: "", slug: "" } });
   // isDirty 는 렌더에서 읽어야 react-hook-form 이 구독한다
   const dirty = form.formState.isDirty || touched;
+  const now = (): Snapshot => ({ ...form.getValues(), body: editor?.getHTML() ?? "" });
+  const sent = useRef<Snapshot | null>(null);
 
   // 다시 채우기. dirty 가 풀릴 때도 다시 본다 — 저장의 새 응답은 dirty 가 켜진 동안 온다
   const data = detail.data;
@@ -78,6 +89,13 @@ function PageEdit({ id }: { id?: string }) {
     form.reset({ title: data.title ?? "", slug: data.slug ?? "" });
     // emitUpdate: false — 싣기는 고침이 아니다(onUpdate 를 내지 않아 dirty 가 켜지지 않는다, @tiptap/core setContent.ts)
     editor.commands.setContent(data.body_html ?? "", { emitUpdate: false });
+    // 작성 201 을 기다리는 동안 더 쓴 것 — 고친 것으로 싣는다(dirty, onUpdate)
+    const c = carried;
+    if (c?.id !== id || !c) return;
+    carried = null;
+    form.setValue("title", c.title, { shouldDirty: true });
+    form.setValue("slug", c.slug, { shouldDirty: true });
+    if (c.body !== editor.getHTML()) editor.commands.setContent(c.body);
   }, [data, editor, dirty]);
 
   // 발행·발행 취소가 성공하면 연 단추가 다른 단추로 바뀌어 초점 돌릴 곳이 없다 — 다시 읽은 화면을 그린 뒤 h2 로(UserDetailPage 와 같다)
@@ -93,7 +111,9 @@ function PageEdit({ id }: { id?: string }) {
 
   const save = useSave<PageValues, components["schemas"]["Created"]>({
     send: async (values) => {
-      const body = { ...values, body_html: editor?.getHTML() ?? "" };
+      // 칸 값은 다듬기(nameSchema) 전의 것으로 둔다 — 응답 뒤 칸과 견준다
+      sent.current = now();
+      const body = { ...values, body_html: sent.current.body };
       if (id === undefined) return api.POST("/api/admin/pages", { body });
       const r = await api.POST("/api/admin/pages/{id}", { params: { path: { id } }, body });
       if (r.response.ok) await refresh();
@@ -102,13 +122,17 @@ function PageEdit({ id }: { id?: string }) {
     success: id === undefined ? "페이지를 만들었습니다" : "저장했습니다",
     noticePath: id === undefined ? (d) => `/admin/pages/${d?.id}` : undefined,
     onSuccess: (d) => {
+      // I-2: 응답을 기다리는 동안 더 썼으면 dirty 를 그대로 둔다 — 다시 채우기가 더 쓴 글자를 덮지 않게(편집기는 잠그지 않는다 — 조합 중 IME)
+      const unchanged = same(sent.current, now());
       if (id !== undefined) {
+        if (!unchanged) return;
         // 새 응답은 이미 왔다 — dirty 를 지우면 다시 채우기가 그 응답으로 채운다
         setTouched(false);
         form.reset(form.getValues());
         return;
       }
       queries.invalidateQueries({ queryKey: ["admin", "pages"] });
+      if (!unchanged && d?.id) carried = { id: d.id, ...now() };
       navigate(`/admin/pages/${d?.id}`);
     },
     focus: (field) => (field === "body_html" ? editor?.commands.focus() : form.setFocus(field as FieldPath<PageValues>)),

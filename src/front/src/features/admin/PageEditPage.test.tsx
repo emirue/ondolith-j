@@ -384,6 +384,68 @@ describe("다시 읽기", () => {
   });
 });
 
+describe("저장 응답을 기다리는 동안 친 글자 (1-C2 최종 검토 I-2)", () => {
+  /** 저장 POST 를 붙잡는다. 서버는 받은 값을 새 updated_at 으로 저장한 것으로 한다 — 상세가 바뀌어야 다시 채우기가 돈다. */
+  function held() {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const post = async (path: string, s: State) => {
+      if (path === `/api/admin/pages/${U}`) {
+        const b = JSON.parse(s.sent.at(-1)!.body);
+        s.page = page({ title: b.title, slug: b.slug, body_html: b.body_html, updated_at: AT2 });
+      }
+      await gate;
+      return path === "/api/admin/pages" ? json(201, { id: U }) : NO_CONTENT();
+    };
+    return { post, release };
+  }
+
+  it.each([
+    ["본문", () => void area().editor.commands.insertContent(" 더함"), () => expect(area().editor.getHTML()).toBe("<p>본문 더함</p>")],
+    ["제목", () => {}, () => expect(screen.getByLabelText("제목")).toHaveValue("소개 고침 더함")],
+  ] as [string, () => void, () => void][])("저장_중에_%s_에_더한_글자가_응답_뒤에도_남고_dirty_라_발행이_막힌다", async (what, during, kept) => {
+    const { post, release } = held();
+    const { state } = renderEdit({ post });
+    await loadedEditor();
+    const u = userEvent.setup();
+    await u.type(screen.getByLabelText("제목"), " 고침");
+    await u.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(state.sent).toHaveLength(1));
+    if (what === "제목") await u.type(screen.getByLabelText("제목"), " 더함");
+    act(() => {
+      during();
+    });
+    await act(async () => release());
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("저장했습니다"));
+    await settle();
+    kept();
+    expect(publishButton()).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("작성_중에_본문에_더한_글자가_201_뒤_상세로_옮겨도_남고_dirty_라_발행이_막힌다", async () => {
+    const { post, release } = held();
+    const { state } = renderEdit({ route: "/admin/pages/new", post });
+    const u = userEvent.setup();
+    await u.type(await screen.findByLabelText("제목"), "소개");
+    await u.type(screen.getByLabelText("주소"), "about");
+    await waitFor(() => expect(area()).not.toBeNull());
+    act(() => {
+      area().editor.commands.insertContent("본문");
+    });
+    await u.click(screen.getByRole("button", { name: "만들기" }));
+    await waitFor(() => expect(state.sent).toHaveLength(1));
+    act(() => {
+      area().editor.commands.insertContent(" 더함");
+    });
+    await act(async () => release());
+    expect(await screen.findByRole("heading", { name: "페이지 편집" })).toBeInTheDocument();
+    await settle();
+    expect(area().editor.getHTML()).toBe("<p>본문 더함</p>");
+    expect(screen.getByLabelText("제목")).toHaveValue("소개");
+    expect(publishButton()).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
 describe("삭제", () => {
   it("삭제_단추가_발행본_발행_권한_없음이면_없고_안내가_보인다", async () => {
     renderEdit({ can: WRITER, initial: page({ status: "published" }) });
