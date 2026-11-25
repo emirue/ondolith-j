@@ -25,6 +25,9 @@ import tools.jackson.databind.json.JsonMapper;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+	/** API 응답의 CSP. 체인과, 체인보다 앞에서 413 을 쓰는 RequestSizeLimit 이 함께 쓴다. */
+	public static final String API_CSP = "default-src 'none'; frame-ancestors 'none'";
+
 	/** @RequiresPermission(Permission.X) 의 {value} 를 채운다(Spring Security 애너테이션 템플릿). */
 	@Bean
 	static AnnotationTemplateExpressionDefaults templateExpressionDefaults() {
@@ -58,7 +61,7 @@ public class SecurityConfig {
 				.accessDeniedHandler((req, res, ex) -> problem(res, json, HttpStatus.FORBIDDEN, "권한이 없습니다")))
 			.headers(h -> h.frameOptions(f -> f.deny())
 				.referrerPolicy(r -> r.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-				.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
+				.contentSecurityPolicy(csp -> csp.policyDirectives(API_CSP)))
 			// URL 층은 열어 둔다. 기본 거부는 메서드마다 붙인 @RequiresPermission·@PublicApi 와 기동 점검이 맡는다(1-A 스펙 5절).
 			// 없는 경로는 MVC 가 404 를 낸다(D-3)
 			.authorizeHttpRequests(a -> a.anyRequest().permitAll());

@@ -10,7 +10,7 @@ it("App_의_최상위_정적_라우트와_assetsDir_가_예약어에_있다", ()
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#"));
-  const routes = [...read("../../app/App.tsx").matchAll(/<Route path="\/([a-z][a-z0-9-]*)"/g)].map((m) => m[1]!);
+  const routes = [...read("../../app/App.tsx").matchAll(/<Route path="\/([a-z][a-z0-9-]*)(?:\/\*)?"/g)].map((m) => m[1]!);
   const assetsDir = read("../../../vite.config.ts").match(/assetsDir:\s*"([^"]+)"/)?.[1] ?? "assets";
   expect(routes).toEqual(expect.arrayContaining(["login", "admin"]));
   for (const name of [...routes, assetsDir]) expect(reserved, name).toContain(name);

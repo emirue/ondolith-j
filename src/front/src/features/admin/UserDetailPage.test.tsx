@@ -190,6 +190,21 @@ describe("사용자 상세", () => {
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["운영자"]);
   });
 
+  it("superuser_역할은_assignable_roles_에_없으면_빼기가_없다", async () => {
+    renderDetail({ initial: user({ roles: [ADMIN, EDITOR], assignable_roles: [EDITOR] }) });
+    const list = await screen.findByRole("list", { name: "가진 역할" });
+    const row = (name: string) => within(list).getByText(name).closest("li")!;
+    await settle();
+    expect(within(row("관리자")).queryByRole("button", { name: "빼기" })).toBeNull();
+    expect(within(row("편집자")).getByRole("button", { name: "빼기" })).toBeInTheDocument();
+  });
+
+  it("superuser_역할도_assignable_roles_에_있으면_빼기가_있다", async () => {
+    renderDetail({ initial: user({ roles: [ADMIN, EDITOR] }) });
+    const list = await screen.findByRole("list", { name: "가진 역할" });
+    expect(within(within(list).getByText("관리자").closest("li")!).getByRole("button", { name: "빼기" })).toBeInTheDocument();
+  });
+
   it("역할_빼기는_확인_뒤_POST_하나_줄이_사라지면_초점은_h2", async () => {
     const { state } = renderDetail({
       initial: user({ roles: [EDITOR, OPERATOR] }),

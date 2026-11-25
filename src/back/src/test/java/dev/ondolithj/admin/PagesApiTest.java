@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,11 @@ class PagesApiTest {
 	static final String NOT_FOUND = "페이지를 찾을 수 없습니다";
 
 	static final String U = "00000000-0000-4000-8000-000000000001";
+
+	/** 없는 id·예약어 시험용 updated_at(값은 판정에 닿지 않는다). */
+	static final String ANY_TIME = "2026-11-24T00:00:00Z";
+
+	static final String STALE = "그사이 페이지가 바뀌었습니다. 바뀐 내용을 확인한 뒤 발행하세요";
 
 	static AuthFixture f;
 
@@ -111,8 +117,22 @@ class PagesApiTest {
 		return UUID.fromString(json.readTree(r.body()).get("id").asString());
 	}
 
+	/** 상세 GET 의 updated_at 문자열 그대로(화면처럼 되돌려 보낼 값). */
+	static String updatedAt(TestHttp http, UUID id) throws Exception {
+		HttpResponse<String> r = http.get("/api/admin/pages/" + id);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+		return json.readTree(r.body()).get("updated_at").asString();
+	}
+
+	/** 본문 {"updated_at": 값}. null 이면 JSON null. */
+	static HttpResponse<String> publishAt(TestHttp http, UUID id, String updatedAt) throws Exception {
+		Map<String, Object> m = new LinkedHashMap<>();
+		m.put("updated_at", updatedAt);
+		return http.post("/api/admin/pages/" + id + "/publish", json.writeValueAsString(m));
+	}
+
 	static void publish(TestHttp http, UUID id) throws Exception {
-		HttpResponse<String> r = http.post("/api/admin/pages/" + id + "/publish", "");
+		HttpResponse<String> r = publishAt(http, id, updatedAt(http, id));
 		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
 	}
 
@@ -630,10 +650,10 @@ class PagesApiTest {
 		Login editor = login("editor");
 		f.sql("INSERT INTO pages (slug, title, body_html) VALUES ('admin', '옛 페이지', '<p>a</p>')");
 		UUID id = UUID.fromString(text("SELECT id::text FROM pages WHERE slug = 'admin'"));
-		refused(editor.http().post("/api/admin/pages/" + id + "/publish", ""), 409, "이 주소는 시스템 경로와 충돌합니다");
+		refused(publishAt(editor.http(), id, ANY_TIME), 409, "이 주소는 시스템 경로와 충돌합니다");
 		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
 		f.sql("UPDATE pages SET status = 'published' WHERE id = ?", id);
-		refused(editor.http().post("/api/admin/pages/" + id + "/publish", ""), 409, "이 주소는 시스템 경로와 충돌합니다");
+		refused(publishAt(editor.http(), id, ANY_TIME), 409, "이 주소는 시스템 경로와 충돌합니다");
 		assertThat(unpublish(editor.http(), id).statusCode()).isEqualTo(204);
 		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
 		assertThat(one("SELECT count(*) FROM operation_logs WHERE actor_user_id = ? AND action <> 'auth.login'",
@@ -644,12 +664,141 @@ class PagesApiTest {
 	void 없는_id_와_UUID_가_아닌_경로는_404() throws Exception {
 		TestHttp editor = login("editor").http();
 		UUID ghost = UUID.randomUUID();
-		refused(editor.post("/api/admin/pages/" + ghost + "/publish", ""), 404, NOT_FOUND);
+		refused(publishAt(editor, ghost, ANY_TIME), 404, NOT_FOUND);
 		refused(unpublish(editor, ghost), 404, NOT_FOUND);
 		for (String bad : List.of("abc", "%20", "1")) {
 			assertThat(editor.post("/api/admin/pages/" + bad + "/publish", "").statusCode()).as(bad).isEqualTo(404);
 			assertThat(editor.post("/api/admin/pages/" + bad + "/unpublish", "").statusCode()).as(bad).isEqualTo(404);
 		}
+	}
+
+	// ---- 발행에 읽은 updated_at (1-C2 스펙 6.1, I-2) ----
+
+	@Test
+	void 읽은_뒤_본문이_바뀌면_발행이_409_이고_상태와_기록이_그대로() throws Exception {
+		Login approver = login(role("admin.access", "page.view", "page.publish"));
+		Login fixer = login(role("admin.access", "page.update"));
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<p>a</p>");
+		String seen = updatedAt(approver.http(), id);
+		assertThat(update(fixer.http(), id, s, "<p>b</p>").statusCode()).isEqualTo(204);
+		refused(publishAt(approver.http(), id, seen), 409, STALE);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(logs(approver.id())).isZero();
+	}
+
+	/** 16절 1: 승인자는 page.update 없이 본문을 읽고 발행한다. */
+	@Test
+	void page_view_와_page_publish_만_가진_승인자가_상세를_읽고_그_updated_at_으로_발행하면_204() throws Exception {
+		Login approver = login(role("admin.access", "page.view", "page.publish"));
+		TestHttp editor = login("editor").http();
+		UUID id = create(editor, slug(), "<p>a</p>");
+		HttpResponse<String> r = publishAt(approver.http(), id, updatedAt(approver.http(), id));
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("published");
+		assertThat(logged(approver.id(), "page.publish", id)).isEqualTo(1);
+		assertThat(logs(approver.id())).isEqualTo(1);
+	}
+
+	/** now() 의 마이크로초가 문자열 왕복에서 그대로다. 소수 자리 수는 Instant ISO 출력이라 0·3·6 으로 바뀐다. */
+	@Test
+	void 상세의_updated_at_을_그대로_실으면_204() throws Exception {
+		Login editor = login("editor");
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		String at = updatedAt(editor.http(), id);
+		int dot = at.indexOf('.');
+		System.out.println("[updated_at] " + at + " 소수 자리 " + (dot < 0 ? 0 : at.length() - dot - 2));
+		HttpResponse<String> r = publishAt(editor.http(), id, at);
+		assertThat(r.statusCode()).as(r.body()).isEqualTo(204);
+		assertThat(logged(editor.id(), "page.publish", id)).isEqualTo(1);
+	}
+
+	/** Q7: 응답을 잃고 다시 누른 같은 승인자는 409 가 아니다(발행이 updated_at 을 바꿔도). */
+	@Test
+	void 같은_값으로_두_번_발행하면_둘째도_204_이고_기록이_늘지_않는다() throws Exception {
+		Login editor = login("editor");
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		String at = updatedAt(editor.http(), id);
+		assertThat(publishAt(editor.http(), id, at).statusCode()).isEqualTo(204);
+		HttpResponse<String> again = publishAt(editor.http(), id, at);
+		assertThat(again.statusCode()).as(again.body()).isEqualTo(204);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("published");
+		assertThat(logged(editor.id(), "page.publish", id)).isEqualTo(1);
+		assertThat(logs(editor.id())).isEqualTo(2);
+	}
+
+	@Test
+	void updated_at_이_없거나_null_이면_422_형식이_틀리면_400_다른_칸은_무시() throws Exception {
+		Login editor = login("editor");
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		String path = "/api/admin/pages/" + id + "/publish";
+		fieldError(editor.http().post(path, ""), "updated_at", "필수입니다");
+		fieldError(editor.http().post(path, "{}"), "updated_at", "필수입니다");
+		fieldError(publishAt(editor.http(), id, null), "updated_at", "필수입니다");
+		HttpResponse<String> bad = publishAt(editor.http(), id, "abc");
+		assertThat(bad.statusCode()).as(bad.body()).isEqualTo(400);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(logs(editor.id())).isEqualTo(1);
+		Map<String, Object> other = new LinkedHashMap<>();
+		other.put("updated_at", updatedAt(editor.http(), id));
+		other.put("status", "x");
+		HttpResponse<String> ok = editor.http().post(path, json.writeValueAsString(other));
+		assertThat(ok.statusCode()).as(ok.body()).isEqualTo(204);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("published");
+	}
+
+	/** M-1(1-C2 최종 검토): Instant 로는 읽히지만 timestamptz 로 표현할 수 없는 시각도 형식 불량 400 과 같은 꼴 — 500 이 아니다. */
+	@Test
+	void updated_at_이_표현_범위_밖이면_형식_불량과_같은_400() throws Exception {
+		Login editor = login("editor");
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		HttpResponse<String> malformed = publishAt(editor.http(), id, "abc");
+		assertThat(malformed.statusCode()).isEqualTo(400);
+		String path = "/api/admin/pages/" + id + "/publish";
+		List<String> values = List.of("\"+294277-01-01T00:00:00Z\"", "\"+300000-01-01T00:00:00Z\"",
+				"\"-1000000000-01-01T00:00:00Z\"", "31556889864403199", "\"" + Instant.MAX + "\"");
+		Map<String, HttpResponse<String>> got = new LinkedHashMap<>();
+		for (String value : values) {
+			got.put(value, editor.http().post(path, "{\"updated_at\": " + value + "}"));
+		}
+		Map<String, Integer> statuses = new LinkedHashMap<>();
+		got.forEach((value, r) -> statuses.put(value, r.statusCode()));
+		Map<String, Integer> all400 = new LinkedHashMap<>();
+		values.forEach((value) -> all400.put(value, 400));
+		assertThat(statuses).isEqualTo(all400);
+		for (Map.Entry<String, HttpResponse<String>> e : got.entrySet()) {
+			assertThat(e.getValue().headers().firstValue("Content-Type")).as(e.getKey()).isEqualTo(malformed.headers().firstValue("Content-Type"));
+			assertThat(json.readTree(e.getValue().body())).as(e.getKey()).isEqualTo(json.readTree(malformed.body()));
+		}
+		// 경계: timestamptz 의 양 끝 안쪽은 읽혀서 낡은 값 409, 아래 끝 바로 밖은 400
+		refused(publishAt(editor.http(), id, "-4713-11-24T00:00:00Z"), 409, STALE);
+		refused(publishAt(editor.http(), id, "+294276-12-31T23:59:59.999999Z"), 409, STALE);
+		assertThat(publishAt(editor.http(), id, "-4713-11-23T23:59:59.999999Z").statusCode()).isEqualTo(400);
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(logs(editor.id())).isEqualTo(1);
+	}
+
+	/** 예약어 충돌은 다시 읽어도 풀리지 않는다 — 내용 비교보다 앞이다. */
+	@Test
+	void 예약어_슬러그는_옛_updated_at_이어도_409_시스템_경로() throws Exception {
+		Login editor = login("editor");
+		f.sql("INSERT INTO pages (slug, title, body_html) VALUES ('admin', '옛 페이지', '<p>a</p>')");
+		UUID id = UUID.fromString(text("SELECT id::text FROM pages WHERE slug = 'admin'"));
+		refused(publishAt(editor.http(), id, ANY_TIME), 409, "이 주소는 시스템 경로와 충돌합니다");
+		assertThat(text("SELECT status FROM pages WHERE id = ?", id)).isEqualTo("draft");
+		assertThat(logs(editor.id())).isZero();
+	}
+
+	@Test
+	void 없는_id_와_지워진_뒤는_404() throws Exception {
+		Login editor = login("editor");
+		refused(publishAt(editor.http(), UUID.randomUUID(), ANY_TIME), 404, NOT_FOUND);
+		UUID id = create(editor.http(), slug(), "<p>a</p>");
+		String at = updatedAt(editor.http(), id);
+		assertThat(delete(editor.http(), id).statusCode()).isEqualTo(204);
+		refused(publishAt(editor.http(), id, at), 404, NOT_FOUND);
+		assertThat(logged(editor.id(), "page.publish", id)).isZero();
 	}
 
 	// ---- 작업 로그 ----
@@ -682,8 +831,7 @@ class PagesApiTest {
 		long base = logs(editor.id());
 		assertThat(post(probe.http(), slug(), "<p>a</p>").statusCode()).isEqualTo(403);
 		assertThat(probe.http().post("/api/admin/pages/" + id + "/publish", "").statusCode()).isEqualTo(403);
-		assertThat(editor.http().post("/api/admin/pages/" + UUID.randomUUID() + "/publish", "").statusCode())
-			.isEqualTo(404);
+		assertThat(publishAt(editor.http(), UUID.randomUUID(), ANY_TIME).statusCode()).isEqualTo(404);
 		assertThat(post(editor.http(), s, "<p>b</p>").statusCode()).isEqualTo(409);
 		assertThat(post(editor.http(), "Bad", "<p>b</p>").statusCode()).isEqualTo(422);
 		assertThat(logs(probe.id())).isZero();
@@ -837,6 +985,51 @@ class PagesApiTest {
 		assertThat(logs(editor.id())).isEqualTo(3);
 	}
 
+	/** 16절 3: 지우기는 공개를 끝내는 동작이라 발행본은 page.publish 도 있어야 지운다. */
+	@Test
+	void page_delete_만_가진_역할은_발행된_페이지를_지울_수_없다_403_이고_행과_기록이_그대로() throws Exception {
+		Login probe = login(role("admin.access", "page.delete"));
+		TestHttp editor = login("editor").http();
+		UUID id = create(editor, slug(), "<p>a</p>");
+		publish(editor, id);
+		String before = row(id);
+		refused(delete(probe.http(), id), 403, "발행된 페이지는 발행 권한이 있어야 지울 수 있습니다");
+		assertThat(row(id)).isEqualTo(before);
+		assertThat(logs(probe.id())).isZero();
+	}
+
+	@Test
+	void page_delete_만으로_초안은_지운다_204() throws Exception {
+		Login probe = login(role("admin.access", "page.delete"));
+		TestHttp editor = login("editor").http();
+		String s = slug();
+		UUID id = create(editor, s, "<p>a</p>");
+		assertThat(delete(probe.http(), id).statusCode()).isEqualTo(204);
+		assertThat(rows(s)).isZero();
+		assertThat(logged(probe.id(), "page.delete", id)).isEqualTo(1);
+		assertThat(logs(probe.id())).isEqualTo(1);
+	}
+
+	@Test
+	void 편집자는_발행본도_지운다_204() throws Exception {
+		Login editor = login("editor");
+		String s = slug();
+		UUID id = create(editor.http(), s, "<p>a</p>");
+		publish(editor.http(), id);
+		assertThat(delete(editor.http(), id).statusCode()).isEqualTo(204);
+		assertThat(rows(s)).isZero();
+		assertThat(logged(editor.id(), "page.delete", id)).isEqualTo(1);
+	}
+
+	@Test
+	void 없는_id_는_두_갈래_모두_404() throws Exception {
+		TestHttp editor = login("editor").http();
+		TestHttp probe = login(role("admin.access", "page.delete")).http();
+		for (TestHttp http : List.of(editor, probe)) {
+			refused(delete(http, UUID.randomUUID()), 404, NOT_FOUND);
+		}
+	}
+
 	@Test
 	void page_update_만_가진_역할은_삭제가_403() throws Exception {
 		Login probe = login(role("admin.access", "page.update"));
@@ -851,7 +1044,7 @@ class PagesApiTest {
 	// ---- 상세 ----
 
 	@Test
-	void 상세는_편집자_200_page_view_만이면_403() throws Exception {
+	void 상세는_page_view_만이면_200_권한이_없으면_403() throws Exception {
 		TestHttp editor = login("editor").http();
 		String s = slug();
 		UUID id = create(editor, s, "<h2>t</h2><p>a</p>");
@@ -868,11 +1061,12 @@ class PagesApiTest {
 		assertThat(d.get("created_at").asString()).isNotBlank();
 		assertThat(d.get("updated_at").asString()).isNotBlank();
 		assertThat(r.headers().firstValue("Cache-Control")).hasValueSatisfying(v -> assertThat(v).contains("no-store"));
-		// 상세는 편집 폼 조회라 page.update(D19:2632)
+		// 1-C2 결정 A(스펙 16절 1): 승인자가 고칠 권한 없이 본문을 읽도록 상세는 page.view(원문 D19:2632 와 다르다)
 		assertThat(login(role("admin.access", "page.view")).http().get("/api/admin/pages/" + id).statusCode())
-			.isEqualTo(403);
-		assertThat(login(role("admin.access", "page.update")).http().get("/api/admin/pages/" + id).statusCode())
 			.isEqualTo(200);
+		assertThat(login(role("admin.access")).http().get("/api/admin/pages/" + id).statusCode()).isEqualTo(403);
+		assertThat(login(role("admin.access", "page.update")).http().get("/api/admin/pages/" + id).statusCode())
+			.isEqualTo(403);
 		refused(editor.get("/api/admin/pages/" + UUID.randomUUID()), 404, NOT_FOUND);
 	}
 

@@ -90,5 +90,9 @@
   {"id": "S7", "input": "<ol start=\"3\"><li>a</li></ol>", "server": "<ol start=\"3\"><li>a</li></ol>"},
   {"id": "S8a", "input": "<ol start=\"x\"><li>a</li></ol>", "server": "<ol><li>a</li></ol>"},
   {"id": "S8b", "input": "<ol start=\"1234567\"><li>a</li></ol>", "server": "<ol><li>a</li></ol>"},
-  {"id": "A1", "input": "<h2>제목</h2><h3>작은 제목</h3><p>문단 <strong>굵게</strong> <em>기울임</em><br>다음 줄</p><ul><li>하나</li></ul><ol start=\"3\"><li>셋</li></ol><blockquote><p>인용</p></blockquote><p><a href=\"/about\">안</a> <a href=\"https://example.com/a?b=1&amp;c=2#d\">밖</a></p><p><img src=\"/api/media/00000000-0000-4000-8000-000000000001\" alt=\"사진\"></p>", "server": "<h2>제목</h2><h3>작은 제목</h3><p>문단 <strong>굵게</strong> <em>기울임</em><br>다음 줄</p><ul><li>하나</li></ul><ol start=\"3\"><li>셋</li></ol><blockquote><p>인용</p></blockquote><p><a href=\"/about\">안</a> <a href=\"https://example.com/a?b=1&amp;c=2#d\">밖</a></p><p><img src=\"/api/media/00000000-0000-4000-8000-000000000001\" alt=\"사진\"></p>"}
+  {"id": "A1", "input": "<h2>제목</h2><h3>작은 제목</h3><p>문단 <strong>굵게</strong> <em>기울임</em><br>다음 줄</p><ul><li>하나</li></ul><ol start=\"3\"><li>셋</li></ol><blockquote><p>인용</p></blockquote><p><a href=\"/about\">안</a> <a href=\"https://example.com/a?b=1&amp;c=2#d\">밖</a></p><p><img src=\"/api/media/00000000-0000-4000-8000-000000000001\" alt=\"사진\"></p>", "server": "<h2>제목</h2><h3>작은 제목</h3><p>문단 <strong>굵게</strong> <em>기울임</em><br>다음 줄</p><ul><li>하나</li></ul><ol start=\"3\"><li>셋</li></ol><blockquote><p>인용</p></blockquote><p><a href=\"/about\">안</a> <a href=\"https://example.com/a?b=1&amp;c=2#d\">밖</a></p><p><img src=\"/api/media/00000000-0000-4000-8000-000000000001\" alt=\"사진\"></p>"},
+  {"id": "W1", "input": "<p>a<object><p>b</p></object></p>", "server": "<p>a</p><p>b</p><p></p>"},
+  {"id": "W2", "input": "<ul><li>a<section><li>b</li></section></li></ul>", "server": "<ul><li>a</li><li>b</li></ul>"},
+  {"id": "W3", "input": "<a href=\"/a\">x<object><a href=\"/b\">y</a></object></a>", "server": "<a href=\"/a\">x</a><a href=\"/b\">y</a>"},
+  {"id": "W4", "input": "<h2>a<div><h2>b</h2></div></h2>", "server": "<h2>a</h2><h2>b</h2>"}
 ]

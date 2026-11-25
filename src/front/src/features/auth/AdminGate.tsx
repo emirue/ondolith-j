@@ -1,14 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
-import { Navigate, useLocation } from "react-router";
-import { AdminLayout } from "@/features/admin/AdminLayout";
+import { Navigate, Route, Routes, useLocation } from "react-router";
+import { AdminLayout, adminRoutes } from "@/features/admin/AdminLayout";
 import { api } from "@/shared/api/client";
 import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
+import { NotFound } from "@/shared/ui/NotFound";
+
+/**
+ * `/admin/*` 아래 전부. App 이 lazy 로 가져와 관리 화면·편집기가 공개 묶음에 들지 않는다(1-C2 스펙 8절).
+ * 없는 하위 주소는 분할 전처럼 문을 거치지 않고 「찾을 수 없습니다」.
+ */
+export default function AdminTree() {
+  return (
+    <Routes>
+      <Route element={<AdminGate />}>{adminRoutes}</Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
 
 /** /admin — 관리자 트리의 문(1-A). 막는 것은 서버의 GET /api/admin 이고, 여기서는 그 결과로 화면을 고른다. 통과하면 관리자 셸(1-B1). */
 export function AdminGate() {
   const location = useLocation();
   const admin = useQuery({
     queryKey: ["admin"],
+    // 창 초점·재연결로 다시 묻지 않는다 — 200 이 아니면 트리를 내려 쓰던 글이 사라진다(1-C2 최종 검토 I-1). 서버가 요청마다 권한을 본다
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => (await api.GET("/api/admin")).response.status,
   });
   if (admin.isPending) return null;

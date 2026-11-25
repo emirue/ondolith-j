@@ -4,7 +4,8 @@ set -u
 cd "$(dirname "$0")/.."
 
 # 시험 파일(*.test.*, test-*.ts(x))이 아닌 파일에서 세는 이름
-NAMES=(dangerouslySetInnerHTML innerHTML outerHTML insertAdjacentHTML document.write srcdoc 'eval(' 'new Function' localStorage sessionStorage 'href={')
+NAMES=(dangerouslySetInnerHTML innerHTML outerHTML insertAdjacentHTML document.write srcdoc 'eval(' 'new Function' localStorage sessionStorage 'href={'
+  setHTMLUnsafe parseHTMLUnsafe createContextualFragment)
 
 # 예외 표 — 이 한 곳에만 더한다(PR 에서 보이게). 경로는 src 기준|이름|최대 횟수|사유
 EXCEPTIONS=(
@@ -12,7 +13,8 @@ EXCEPTIONS=(
 )
 
 RICH=shared/ui/RichHtml.tsx
-RICH_FORBIDDEN=(addHook IN_PLACE RETURN_DOM SAFE_FOR_TEMPLATES CUSTOM_ELEMENT_HANDLING ADD_TAGS setConfig)
+RICH_FORBIDDEN=(addHook IN_PLACE RETURN_DOM SAFE_FOR_TEMPLATES CUSTOM_ELEMENT_HANDLING ADD_TAGS setConfig
+  ADD_ATTR ALLOW_UNKNOWN_PROTOCOLS USE_PROFILES SAFE_FOR_XML ADD_DATA_URI_TAGS ALLOWED_NAMESPACES PARSER_MEDIA_TYPE WHOLE_DOCUMENT)
 RICH_REASON="서버가 저장·내보낼 때 허용 목록으로 정화한 본문(1-C1 스펙 3절). 브라우저 파서로 한 번 더 거른다"
 
 allowed() { # <src 기준 경로> <이름> → 허용 횟수
@@ -97,6 +99,10 @@ for name in "${RICH_FORBIDDEN[@]}"; do
   fresh; printf '%s\n' "DOMPurify.$name;" >> "$tmp/src/shared/ui/RichHtml.tsx"
   expect "RichHtml 의 $name 은 실패" 1 "RichHtml.tsx:4: $name"
 done
+
+# 지금 쓰는 ADD_URI_SAFE_ATTR 는 ADD_ATTR 과 글자가 달라 걸리지 않는다
+fresh; printf '%s\n' 'const C = { ADD_URI_SAFE_ATTR: ["start"] };' >> "$tmp/src/shared/ui/RichHtml.tsx"
+expect "RichHtml 의 ADD_URI_SAFE_ATTR 는 통과" 0
 
 fresh
 printf '%s\n' 'expect(el.innerHTML).toBe(x); localStorage; href={a}' > "$tmp/src/features/A.test.tsx"

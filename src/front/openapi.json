@@ -380,6 +380,15 @@
         },
         "type" : "object"
       },
+      "PublishInput" : {
+        "properties" : {
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReauthRequest" : {
         "properties" : {
           "password" : {
@@ -946,7 +955,7 @@
                 }
               }
             },
-            "description" : "page.update 권한 없음"
+            "description" : "page.view 권한 없음"
           },
           "404" : {
             "content" : {
@@ -1104,7 +1113,7 @@
                 }
               }
             },
-            "description" : "page.delete 권한 없음·CSRF 토큰 없음"
+            "description" : "page.delete 권한 없음·CSRF 토큰 없음·발행본인데 page.publish 없음"
           },
           "404" : {
             "content" : {
@@ -1142,9 +1151,28 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PublishInput"
+              }
+            }
+          }
+        },
         "responses" : {
           "204" : {
-            "description" : "발행함(이미 발행됐어도 — 그때는 기록하지 않는다)"
+            "description" : "발행함(이미 발행됐어도 — 그때는 updated_at 을 보지 않고 기록하지 않는다)"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "본문이 JSON 이 아님·형식 불량"
           },
           "401" : {
             "content" : {
@@ -1184,7 +1212,17 @@
                 }
               }
             },
-            "description" : "슬러그가 시스템 경로(예약어)와 충돌함"
+            "description" : "예약어(슬러그가 시스템 경로와 충돌함)·낡은 updated_at(읽은 뒤 초안이 바뀜)"
+          },
+          "422" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "읽은 상세의 updated_at 이 없음(칸 검사가 대상 조회보다 앞). errors.updated_at"
           },
           "429" : {
             "content" : {

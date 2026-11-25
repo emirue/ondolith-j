@@ -286,6 +286,15 @@ describe("useSave 재인증", () => {
     expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute("href", "/login?next=%2Fadmin%2Fusers%2Fx");
   });
 
+  it("401_의_다시_로그인은_새_탭으로_열고_로그인한_뒤_다시_저장하라고_알린다_I_4", () => {
+    renderWithQuery(<SaveAlert failure={{ message: "로그인이 끝났습니다", login: "/login?next=%2Fadmin%2Fx" }} />);
+    const link = screen.getByRole("link", { name: "다시 로그인" });
+    expect(link).toHaveAttribute("href", "/login?next=%2Fadmin%2Fx");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByRole("alert")).toHaveTextContent("로그인이 끝났습니다 다시 로그인(새 탭). 로그인한 뒤 다시 저장하세요");
+  });
+
   it("재인증_연결_실패여도_풀리고_알림", async () => {
     const { send, finish } = pendingSend();
     mockApi(() => {

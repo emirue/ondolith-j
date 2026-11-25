@@ -50,6 +50,7 @@ export function UserDetailPage() {
   const u = user.data;
   const assign = can?.["role.assign"] === true;
   const held = new Set(u?.roles?.map((r) => r.id));
+  const assignable = new Set(u?.assignable_roles?.map((r) => r.id));
   const options = (u?.assignable_roles ?? []).filter((r) => !held.has(r.id));
   return (
     <>
@@ -74,7 +75,8 @@ export function UserDetailPage() {
             {(u.roles ?? []).map((r) => (
               <li key={r.id} className="flex items-center gap-2">
                 {r.name}
-                {assign && <RevokeRole id={id} role={r} done={done} />}
+                {/* m-11: 서버는 비-superuser 에게 superuser 역할을 assignable_roles 에서 뺀다 — R3 이 늘 거절하는 단추를 그리지 않는다 */}
+                {assign && (!r.is_superuser || assignable.has(r.id)) && <RevokeRole id={id} role={r} done={done} />}
               </li>
             ))}
           </ul>

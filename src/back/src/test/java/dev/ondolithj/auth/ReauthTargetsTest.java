@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 처리기 대조(1-B2 스펙 3.4, D15 5.3-1). /api/admin 의 GET 이 아닌 처리기는 모두 두 표 중 하나에 있어야 한다 —
@@ -49,6 +50,8 @@ class ReauthTargetsTest {
 	}
 
 	static final AtomicInteger SEQ = new AtomicInteger();
+
+	static final JsonMapper JSON = JsonMapper.builder().build();
 
 	static AuthFixture f;
 
@@ -89,8 +92,8 @@ class ReauthTargetsTest {
 		return keys;
 	}
 
-	/** 키마다 실제로 보낼 요청. */
-	static Call call(String key, Ids ids) {
+	/** 키마다 실제로 보낼 요청. 발행은 보내기 직전 상세의 updated_at 을 싣는다 — 다른 키의 수정이 먼저 돌면 값이 바뀐다. */
+	static Call call(String key, Ids ids, TestHttp http) throws Exception {
 		return switch (key) {
 			case "POST /api/admin/settings" -> new Call("/api/admin/settings", "{\"name\": \"이름-" + SEQ.incrementAndGet() + "\"}");
 			case "POST /api/admin/reauth" -> new Call("/api/admin/reauth", "{\"password\": \"" + PASSWORD + "\"}");
@@ -108,7 +111,9 @@ class ReauthTargetsTest {
 					"{\"role_id\": \"" + ids.operator() + "\"}");
 			case "POST /api/admin/pages" -> new Call("/api/admin/pages", "{\"slug\": \"rt-" + SEQ.incrementAndGet()
 					+ "\", \"title\": \"시험\", \"body_html\": \"<p>a</p>\"}");
-			case "POST /api/admin/pages/{id}/publish" -> new Call("/api/admin/pages/" + ids.page() + "/publish", "");
+			case "POST /api/admin/pages/{id}/publish" -> new Call("/api/admin/pages/" + ids.page() + "/publish",
+					"{\"updated_at\": \"" + JSON.readTree(http.get("/api/admin/pages/" + ids.page()).body()).get("updated_at")
+						.asString() + "\"}");
 			case "POST /api/admin/pages/{id}/unpublish" -> new Call("/api/admin/pages/" + ids.page() + "/unpublish", "");
 			// 같은 값으로 고친다 — 다른 키의 call 과 도는 순서에 상관없이 204
 			case "POST /api/admin/pages/{id}" -> new Call("/api/admin/pages/" + ids.page(),
@@ -180,7 +185,7 @@ class ReauthTargetsTest {
 			Ids ids = ids();
 			f.reauthAt(http, null);
 			String before = state();
-			Call c = call(key, ids);
+			Call c = call(key, ids, http);
 			ReauthApiTest.reauthRequired(http.post(c.path(), c.body()));
 			assertThat(state()).as(key).isEqualTo(before);
 		}
@@ -191,7 +196,7 @@ class ReauthTargetsTest {
 		for (String key : NOT_TARGETS) {
 			TestHttp http = admin();
 			f.reauthAt(http, null);
-			Call c = call(key, ids());
+			Call c = call(key, ids(), http);
 			HttpResponse<String> r = http.post(c.path(), c.body());
 			assertThat(r.statusCode()).as(key).isBetween(200, 299);
 			assertThat(r.body()).as(key).doesNotContain(ReauthApiTest.URN);

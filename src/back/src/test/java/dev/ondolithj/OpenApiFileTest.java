@@ -188,7 +188,14 @@ class OpenApiFileTest {
 		assertThat(fieldNames(createPage)).containsExactlyInAnyOrder("201", "400", "401", "403", "409", "422", "429");
 		assertThat(createPage.at("/422/description").asString()).contains("errors.status");
 		JsonNode publish = written.at("/paths/~1api~1admin~1pages~1{id}~1publish/post/responses");
-		assertThat(fieldNames(publish)).containsExactlyInAnyOrder("204", "401", "403", "404", "409", "429");
+		assertThat(fieldNames(publish)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "409", "422", "429");
+		// 1-C2 스펙 6.1·6.5: 발행은 승인자가 읽은 updated_at 을 싣는다
+		assertThat(publish.at("/409/description").asString()).contains("예약어").contains("낡은 updated_at");
+		assertThat(publish.at("/422/description").asString()).contains("errors.updated_at");
+		assertThat(publish.at("/400/description").asString()).contains("형식 불량");
+		assertThat(written.at("/paths/~1api~1admin~1pages~1{id}~1publish/post/requestBody/content/application~1json/schema/$ref")
+			.asString()).isEqualTo("#/components/schemas/PublishInput");
+		assertThat(fieldNames(written.at("/components/schemas/PublishInput/properties"))).containsExactly("updated_at");
 		JsonNode unpublish = written.at("/paths/~1api~1admin~1pages~1{id}~1unpublish/post/responses");
 		assertThat(fieldNames(unpublish)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
 		JsonNode publicPage = written.at("/paths/~1api~1pages~1{slug}/get/responses");
@@ -197,7 +204,7 @@ class OpenApiFileTest {
 			assertThat(r.at("/204/content").isMissingNode()).isTrue();
 		}
 		for (JsonNode r : java.util.List.of(createPage.get("409"), createPage.get("422"), publish.get("404"),
-				publish.get("409"), unpublish.get("403"), publicPage.get("404"))) {
+				publish.get("409"), publish.get("400"), publish.get("422"), unpublish.get("403"), publicPage.get("404"))) {
 			assertThat(r.at("/content/application~1problem+json/schema/$ref").asString())
 				.isEqualTo("#/components/schemas/ProblemDetail");
 		}
@@ -206,12 +213,14 @@ class OpenApiFileTest {
 		assertThat(fieldNames(listPages)).containsExactlyInAnyOrder("200", "400", "401", "403", "422", "429");
 		JsonNode detailPage = written.at("/paths/~1api~1admin~1pages~1{id}/get/responses");
 		assertThat(fieldNames(detailPage)).containsExactlyInAnyOrder("200", "401", "403", "404", "429");
+		assertThat(detailPage.at("/403/description").asString()).isEqualTo("page.view 권한 없음");
 		JsonNode updatePage = written.at("/paths/~1api~1admin~1pages~1{id}/post/responses");
 		assertThat(fieldNames(updatePage)).containsExactlyInAnyOrder("204", "400", "401", "403", "404", "409", "422", "429");
 		assertThat(updatePage.at("/403/description").asString()).contains("발행본인데 page.publish 없음");
 		assertThat(updatePage.at("/422/description").asString()).contains("errors.status");
 		JsonNode deletePage = written.at("/paths/~1api~1admin~1pages~1{id}~1delete/post/responses");
 		assertThat(fieldNames(deletePage)).containsExactlyInAnyOrder("204", "401", "403", "404", "429");
+		assertThat(deletePage.at("/403/description").asString()).contains("발행본인데 page.publish 없음");
 		for (JsonNode r : java.util.List.of(updatePage, deletePage)) {
 			assertThat(r.at("/204/content").isMissingNode()).isTrue();
 		}

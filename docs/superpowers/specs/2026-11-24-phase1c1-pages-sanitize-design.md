@@ -161,8 +161,8 @@ CREATE TABLE pages (
 ### 5.3 상세·목록·삭제
 
 - **목록** `GET /api/admin/pages?page=1`(A-301, `page.view`): 1-B2 사용자 목록과 같은 방식(Q19) — 쪽당 50, 한 행 더 읽어 `has_next`, 전체 건수 없음, 정렬 `updated_at DESC, id`. `page` 는 A-601 과 같다(1 미만 422 `errors.page`, 정수가 아니면 400, offset 은 long). **본문을 읽지 않는다** — 슬러그·제목·상태·수정 시각만(SC-4, 초안 본문이 목록 캐시에 남지 않는다).
-- **상세** `GET /api/admin/pages/{id}`(`page.update` — D19:2632 「편집 폼 조회 GET = `page.update`」): 모든 칸, `body_html` 은 `clean` 을 지난 값. 초안도 여기서만 나온다(Q16).
-- **삭제** `POST /api/admin/pages/{id}/delete`(`page.delete`): `DELETE … WHERE id = ?` → 0행 404 → 204, 기록 `page.delete`. 메뉴를 건드리지 않는다(Q14 — 원문 코드는 메뉴를 함께 지워, `page.delete` 만 가진 사람이 `menu.manage` 몫을 바꿨다). 발행 중인 페이지의 삭제 확인(D19:2647)은 화면의 확인 대화상자다(1-C2).
+- **상세** `GET /api/admin/pages/{id}`(`page.update` — D19:2632 「편집 폼 조회 GET = `page.update`」. **1-C2 고침: `page.view`** — 1-C2 스펙 6.1-2·16절 1): 모든 칸, `body_html` 은 `clean` 을 지난 값. 초안도 여기서만 나온다(Q16).
+- **삭제** `POST /api/admin/pages/{id}/delete`(`page.delete`): `DELETE … WHERE id = ?` → 0행 404 → 204, 기록 `page.delete`(**1-C2 고침: 발행본은 `page.publish` 도 요구, 없으면 403** — 1-C2 스펙 6.1-3·16절 3). 메뉴를 건드리지 않는다(Q14 — 원문 코드는 메뉴를 함께 지워, `page.delete` 만 가진 사람이 `menu.manage` 몫을 바꿨다). 발행 중인 페이지의 삭제 확인(D19:2647)은 화면의 확인 대화상자다(1-C2).
 - 경로 `{id}` 는 1-B2 그대로 `@PathVariable UUID` + 형식 불량·공백 404(`ApiErrors`).
 
 ### 5.4 발행·발행 취소 (A-303, `page.publish`)
@@ -189,9 +189,9 @@ CREATE TABLE pages (
 |---|---|---|---|---|
 | `/api/admin/pages` (A-301) | GET | `@AdminPermission(PAGE_VIEW)` | `page`(기본 1) | 200 `{items: [{id, slug, title, status, updated_at}], page, page_size: 50, has_next}` / 400 / 401 / 403 / 422 / 429 |
 | `/api/admin/pages` (A-302 작성) | POST | `@AdminPermission(PAGE_CREATE)` | `{slug, title, body_html}` | 201 `{id}` / 400 / 401 / 403(권한·CSRF) / 409 / 422 / 429 |
-| `/api/admin/pages/{id}` (A-302 상세) | GET | `@AdminPermission(PAGE_UPDATE)` | — | 200 `{id, slug, title, body_html, status, created_at, updated_at}` / 401 / 403 / 404 / 429 |
+| `/api/admin/pages/{id}` (A-302 상세) | GET | `@AdminPermission(PAGE_UPDATE)`(**1-C2 고침: `PAGE_VIEW`**) | — | 200 `{id, slug, title, body_html, status, created_at, updated_at}` / 401 / 403 / 404 / 429 |
 | `/api/admin/pages/{id}` (A-302 수정) | POST | `@AdminPermission(PAGE_UPDATE)` | `{slug, title, body_html}` | 204 / 400 / 401 / 403(권한·CSRF·발행본인데 `page.publish` 없음) / 404 / 409 / 422 / 429 |
-| `/api/admin/pages/{id}/delete` | POST | `@AdminPermission(PAGE_DELETE)` | — | 204 / 401 / 403 / 404 / 429 |
+| `/api/admin/pages/{id}/delete` | POST | `@AdminPermission(PAGE_DELETE)` | — | 204 / 401 / 403(**1-C2 고침: 발행본인데 `page.publish` 없음도**) / 404 / 429 |
 | `/api/admin/pages/{id}/publish` (A-303) | POST | `@AdminPermission(PAGE_PUBLISH)` | — | 204 / 401 / 403 / 404 / 409(예약어) / 429 |
 | `/api/admin/pages/{id}/unpublish` (A-303) | POST | `@AdminPermission(PAGE_PUBLISH)` | — | 204 / 401 / 403 / 404 / 429 |
 | `/api/pages/{slug}` (P-202) | GET | `@PublicApi` | — | 200 `{slug, title, body_html}` / 404 |
@@ -257,7 +257,7 @@ CREATE TABLE pages (
 ### 8.3 빌드 CSP
 
 - `vite.config.ts` 에 플러그인 하나: `apply: 'build'`, `transformIndexHtml` 이 `<meta http-equiv="Content-Security-Policy">` 를 `injectTo: 'head-prepend'` 로 넣는다. `<meta>` CSP 는 그 뒤의 요소부터 걸린다(추정 — 그래서 맨 앞에 둔다). 확인: `dist/index.html` 의 `head` 첫 자식이다(`<meta charset>` 앞, E2E 가 `head.firstElementChild` 로 단언). 값의 `'` 는 `&#39;` 로 나가고 브라우저가 풀어 E2E 의 `toHaveAttribute` 가 아래 문자열과 같다. 산출물에 인라인 `<script>`·`<style>`·CSS `data:` 가 없다(폰트는 woff2 파일).
-- 정책(1-C1 E2E 로 확정했고, 1-C2 에서 편집기 화면으로 다시 본다):
+- 정책(1-C1 E2E 로 확정했고, 1-C2 에서 편집기 화면으로 다시 본다. **1-C2 고침: 끝에 `; style-src-attr 'none'` 을 더했다** — 1-C2 스펙 9절 m-6):
   `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'`
   - `style-src 'unsafe-inline'` 없이 시작했다가 **더했다**(이 절이 정해 둔 길). 증거: 빌드 E2E 에서 `style-src-elem` `blocked: "inline"` 5건 — `/admin/roles` 1건, `/admin/users/{id}` 4건, 시험 `users.spec.ts` 「재인증 창이 닫히면 같은 대화상자가 비밀번호를 묻고 비활성화된다」·「확인 단추를 두 번 눌러도 POST 는 하나」·「키보드만으로 대화상자를 열고 비밀번호를 넣고 확인한다」. Radix 대화상자의 스크롤 잠금이 넣는 `<style>` 요소다. 스타일 주입은 스크립트 실행보다 대가가 작다. React 가 `style` 속성을 쓰는 것은 위반이 없었다.
   - **`script-src` 는 넓히지 않는다.** zod 4.6.7 은 객체 스키마를 만들 때 `new Function("")` 으로 JIT 가능 여부를 떠보고(`v4/core/util.js` `allowsEval`, 잡아서 계속 간다) 빌드 CSP 아래에서 모든 화면에 `script-src` `blocked: "eval"` 위반을 남겼다. `src/zod-jitless.ts`(`z.config({ jitless: true })`)를 `main.tsx` 의 첫 import 로 두어 떠보지 않게 한다. CSP 아래에서는 탐지가 원래 실패해 JIT 가 꺼지므로 빌드 동작은 같고, 개발 서버에서도 JIT 가 꺼진다.

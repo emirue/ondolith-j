@@ -149,13 +149,21 @@ export function useSave<V, R = unknown>(o: {
   return { save, pending, fieldErrors, failure, done, reauthNeeded, reauthError, reauth, cancel };
 }
 
-/** 저장 실패 알림. 401 이면 지금 주소로 돌아오는 로그인 링크. */
+/**
+ * 저장 실패 알림. 401 이면 지금 주소로 돌아오는 로그인 링크를 새 탭으로 연다 — 이 탭의 입력이 남아 로그인한 뒤 다시 저장한다(1-C2 최종 검토 I-4).
+ * 새 로그인의 세션·CSRF 쿠키는 탭이 함께 쓰고, 클라이언트는 보낼 때마다 쿠키를 다시 읽는다(client.ts).
+ */
 export function SaveAlert({ failure }: { failure: SaveFailure | null }) {
   if (!failure) return null;
   return (
     <p role="alert" className="my-4 rounded-md border border-destructive p-3 text-sm text-destructive">
       {failure.message}
-      {failure.login && <> <Link to={failure.login} className="underline">다시 로그인</Link></>}
+      {failure.login && (
+        <>
+          {" "}
+          <Link to={failure.login} target="_blank" rel="noopener noreferrer" className="underline">다시 로그인</Link>(새 탭). 로그인한 뒤 다시 저장하세요
+        </>
+      )}
     </p>
   );
 }
