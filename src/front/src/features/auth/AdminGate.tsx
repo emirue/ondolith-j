@@ -3,12 +3,17 @@ import { Navigate, Route, Routes, useLocation } from "react-router";
 import { AdminLayout, adminRoutes } from "@/features/admin/AdminLayout";
 import { api } from "@/shared/api/client";
 import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
+import { NotFound } from "@/shared/ui/NotFound";
 
-/** `/admin/*` 아래 전부. App 이 lazy 로 가져와 관리 화면·편집기가 공개 묶음에 들지 않는다(1-C2 스펙 8절). */
+/**
+ * `/admin/*` 아래 전부. App 이 lazy 로 가져와 관리 화면·편집기가 공개 묶음에 들지 않는다(1-C2 스펙 8절).
+ * 없는 하위 주소는 분할 전처럼 문을 거치지 않고 「찾을 수 없습니다」.
+ */
 export default function AdminTree() {
   return (
     <Routes>
       <Route element={<AdminGate />}>{adminRoutes}</Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

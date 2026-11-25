@@ -42,6 +42,12 @@ describe("첫 진입 분기", () => {
     expect(await screen.findByRole("heading", { name: "찾을 수 없습니다" })).toBeInTheDocument();
   });
 
+  it("관리자_아래_없는_주소면_찾을_수_없습니다", async () => {
+    mockApi((req) => (req.url.endsWith("/api/me") ? json(200, { user: null, can: {} }) : json(200, { state: "running", version: "t" })));
+    renderWithQuery(<App />, "/admin/없는-주소");
+    expect(await screen.findByRole("heading", { name: "찾을 수 없습니다" })).toBeInTheDocument();
+  });
+
   it("운영 상태에서 /about 이면 공개 페이지", async () => {
     mockApi((req) => {
       if (req.url.endsWith("/api/me")) return json(200, { user: null, can: {} });
