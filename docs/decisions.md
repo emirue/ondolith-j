@@ -822,7 +822,7 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 
 ### 시험 (2026-11-25, 4073be0 트리 — 이 커밋은 문서만 바꾼다. 시험은 `docs/` 를 읽지 않는다)
 
-최종 검토 수정 뒤의 숫자는 아래 「1-C2 최종 검토」 절에 있다(백엔드 340·프런트 255·E2E 31).
+최종 검토 수정 뒤의 숫자는 아래 「1-C2 최종 검토」 절에 있다(백엔드 340·프런트 257·E2E 31).
 
 - `nice -n 19 mise run test` → exit 0, 2분 27초(`time`)
   - 셸 144 통과: check-public 17·html-sinks 39·measure 67·pre-commit 4·summarize 17
@@ -852,14 +852,14 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 - `linkHref` 가 `features/auth/safeNext` 를 가져온다(shared → features). 옮기면 작은 이동이다.
 - 동시 편집은 나중 저장이 이긴다(스펙 6.3, 자동 저장 없음) — 화면이 생겨 실제로 부딪힌다(스펙 15절 3).
 
-### 1-C2 최종 검토 (2026-11-25, 새 검토자) — 판정 With fixes, Critical 0 · Important 4 · Minor 5
+### 1-C2 최종 검토 (2026-11-25, fable 검토자) — Critical 0 · Important 4 · Minor 5
 
-검토자가 실제 화면에서 재현한 장면이다. 스크립트가 실행되는 길은 보고되지 않았다(Critical 0).
+검토자가 실제로 재현한 장면이다.
 
 | 지적 | 처리 |
 |---|---|
 | **I-1** 창에 돌아오면 쓰던 글이 사라진다 — 관문 `["admin"]` 이 창 초점·재연결마다 다시 읽고 200 이 아니면(401 → `/login`, 503·429·403 → 메시지) 관리자 트리를 내린다 | **고침**. 관문 쿼리에 `refetchOnWindowFocus: false`·`refetchOnReconnect: false`. 관문의 초점 다시 확인을 기대하는 시험은 없었다(grep). 서버가 요청마다 권한을 본다 — 만료는 다음 요청 때 안다. `AdminGate.test` 「편집_중_창에_돌아오거나_다시_이어져도_관문이_%i_로_바뀌었다고_편집기를_내리지_않는다」(401·503, `/api/me` 도 함께 바꿈) RED→GREEN, 옵션 하나씩 빼도 Red |
-| **I-2** 저장 응답을 기다리는 동안 친 글자가 사라진다 — 저장 `onSuccess` 가 늘 dirty 를 지워 다시 채우기가 서버 응답으로 덮는다 | **고침**. 보낸 순간의 제목·주소·본문과 응답 뒤 값이 같을 때만 dirty 를 지운다(편집기는 잠그지 않는다 — 조합 중 IME). 「저장_중에_본문_에_더한_글자가_…」·「저장_중에_제목_에_…」 RED→GREEN. 작성(201) 뒤 상세로 옮기는 경로도 같은 꼴로 재현돼(다시 마운트) 더 쓴 값을 메모리로 한 번 넘겨 dirty 로 싣는다 — 「작성_중에_본문에_더한_글자가_201_뒤_상세로_옮겨도_…」 RED→GREEN. 캐럿과 그 순간 조합 중 글자는 다시 마운트로 여전히 끊긴다(`ponytail:`) |
+| **I-2** 저장 응답을 기다리는 동안 친 글자가 사라진다 — 저장 `onSuccess` 가 늘 dirty 를 지워 다시 채우기가 서버 응답으로 덮는다 | **고침**. 보낸 순간의 제목·주소·본문과 응답 뒤 값이 같을 때만 dirty 를 지운다(편집기는 잠그지 않는다 — 조합 중 IME). 「저장_중에_본문_에_더한_글자가_…」·「저장_중에_제목_에_…」 RED→GREEN. 작성(201) 뒤 상세로 옮기는 경로도 같은 꼴로 재현돼(다시 마운트) 더 쓴 값을 메모리로 한 번 넘겨 dirty 로 싣는다 — 「작성_중에_본문에_더한_글자가_201_뒤_상세로_옮겨도_…」 RED→GREEN. 넘기는 값은 새 초안을 고칠 수 있을 때(`page.update`)만 만들고, 상세 화면이 마운트 때 꺼내 비운다 — 「page_update_가_없어_렌더러로_뜨면_dirty_가_켜지지_않는다」·「상세가_실리기_전에_떠나면_남지_않아_…」 RED→GREEN. 캐럿과 그 순간 조합 중 글자는 다시 마운트로 여전히 끊긴다(`ponytail:`) |
 | **I-3** 편집 영역에서 제목·목록·인용이 보통 글자처럼 보인다 — 서식 CSS 가 `.rich` 에만 있다 | **고침**. 클래스를 공유하지 않고 선택자를 `:is(.rich, .ProseMirror)` 로 넓혔다(편집 화면에 `.rich` 가 둘이면 렌더러를 가리키는 시험 선택자가 흐려진다). E2E 「I-3: 편집 영역에서도 제목·목록·인용이 서식대로 보인다」 RED(h2 16px = 문단, ul `none`, 테두리 0)→GREEN(24px, disc, 3px). IME 관문 6 다시 통과 |
 | **I-4** 저장하지 않고 떠나도 묻지 않는다, 저장 401 의 「다시 로그인」을 누르면 본문을 잃는다 | **일부 고침**. dirty 면 `beforeunload`(탭 닫기·새로고침) — 「dirty_일_때만_beforeunload_가_묻고_저장하면_묻지_않는다」·「본문만_고쳐도_묻는다」 RED→GREEN. 401 링크를 새 탭(`target="_blank" rel="noopener noreferrer"`)으로 열고 「(새 탭). 로그인한 뒤 다시 저장하세요」 — `useSave` 의 `SaveAlert` 는 공용이라 **모든 폼의 401 링크가 바뀐다**(결정에 따른 변경, 기존 href 단언은 그대로 통과). E2E 「I-4: 세션이 끊긴 편집 탭에서 새 탭으로 다시 로그인하면 원래 탭의 저장이 본문 그대로 204」: 서버 세션 행을 지움 → 첫 저장 401(CSRF 403 아님) → 새 탭 로그인(XSRF-TOKEN 값이 바뀜) → 원래 탭 저장 204·DB 본문 일치. 링크를 같은 탭으로 되돌리면 Red. **앱 안 메뉴로 떠나는 장면은 미해결이다** — `main.tsx` 가 선언형 `BrowserRouter` 라 `useBlocker` 를 쓸 수 없고 라우터 교체는 범위가 크다. 메뉴를 누르면 쓰던 글을 말없이 잃는다 |
 | **M-1** 발행 `updated_at` 이 표현 범위 밖이면 500 | **고침**. `Instant.MAX` 만이 아니라 `timestamptz` 범위(4714-11-24 BC ~ 294276-12-31 AD) 밖 전부였다(PostgreSQL `timestamp out of range`, `OffsetDateTime.ofInstant` 의 `DateTimeException`). `PublishInput` 생성자가 범위를 보아 Jackson 읽기 실패로 감싸여 형식 불량(`"abc"`)과 같은 400 본문이다. `PagesApiTest.updated_at_이_표현_범위_밖이면_형식_불량과_같은_400`(다섯 값 + 경계 안쪽 409·바로 밖 400, 상태 초안·기록 0) RED(다섯 모두 500)→GREEN |
@@ -868,16 +868,16 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 | M-4 설치 chunk 를 받지 못하면 빈 화면 | 미룸 — 1-C4 에서 `/login` lazy 와 함께 |
 | M-5 링크 칸이 기존 링크 주소를 채우지 않는다 | 미룸 |
 
-검토자가 동의하지 않은 Ruling 셋:
+검토자가 동의하지 않은 Ruling 셋(이름과 처분만 적는다 — 검토 원문을 보지 못해 동의하지 않은 이유는 미확인):
 
-- **Task 6 의 dirty 의존 「틀렸을 때 비용: 없음」** — 비용이 없지 않다(빼면 저장 뒤 옛 `updated_at` 으로 발행 409 가 날 수 있다고 Ruling 자신이 적었다). 의존 배열의 `dirty` 를 빼는 변이의 Red 는 이번에도 보지 못했다 — I-2 시험은 dirty 가 남는 장면이라 그 의존을 지나지 않는다. 조건의 `dirty` 가드는 빼면 I-2 시험 둘이 실패한다.
-- **M-1 의 범위 「`Instant.MAX` 만」** — 틀렸다. 위 M-1 처럼 `timestamptz` 범위 밖 전부였고 함께 고쳤다.
-- **Task 7 의 `InstallPage` lazy** — 스펙 8절 「경계 하나」와 다르고 설치 chunk 를 못 받으면 빈 화면이다(M-4). 1-C4 에서 `/login` lazy(Q21)와 함께 다시 정한다.
+- **Task 6 의 dirty 비용** — 처분: 그대로 둔다. 사실만 덧붙인다: 다시 채우기 effect 의존 배열의 `dirty` 를 빼는 변이는 최종 검토 수정 뒤에도 Red 가 나지 않는다(28 통과). 조건의 `dirty` 가드는 빼면 I-2 시험 둘과 기존 「고치는_중에_발행을_취소하면…」이 실패한다.
+- **M-1 범위** — 처분: 위 M-1 로 고쳤다(`Instant.MAX` 만이 아니라 `timestamptz` 범위 밖 전부).
+- **Task 7 `InstallPage` lazy** — 처분: 1-C4 에서 `/login` lazy(Q21)와 함께 다시 정한다(M-4 와 같은 곳).
 
 시험 (2026-11-25 — 이 커밋은 문서만 바꾼다. 0327dd0 → ea6d332 는 E2E 파일만 바뀌었고 ea6d332 에서 typecheck 0 을 다시 봤다):
 
-- `nice -n 19 mise run test`(0327dd0) → exit 0, 140초. 셸 144(check-public 17·html-sinks 39·measure 67·pre-commit 4·summarize 17), 백엔드 340(39 클래스, 실패·오류·skip 0), 프런트 255(파일 27), typecheck 오류 0
+- `nice -n 19 mise run test`(0327dd0) → exit 0, 140초. 셸 144(check-public 17·html-sinks 39·measure 67·pre-commit 4·summarize 17), 백엔드 340(39 클래스, 실패·오류·skip 0), 프런트 255(파일 27). 그 뒤 `carried` 빈틈 두 시험을 더한 트리에서 `npm test` 257 통과(파일 27)·typecheck 0, `e2e/editor.spec.ts` 16 통과(55초)를 다시 봤다(셸·백엔드는 프런트만 바뀌어 다시 돌리지 않았다), typecheck 오류 0
 - `mise run e2e` → exit 0, 31 통과(admin 3·editor 16·install 2·login 2·pages 3·users 5), Playwright 3.9m(벽시계 238초, jar 빌드 포함), ea6d332 트리. editor 16 은 앞 14 + I-3 서식 1 + I-4 다시 로그인 1. 첫 실행(0327dd0)은 30 통과·1 실패였다 — 「링크 입력이 …」가 201 뒤 옮기기 전에 goto 해 dirty 작성 화면의 `beforeunload` 대화상자 1건(앱은 맞게 동작). 단언은 그대로 두고 상세 제목 대기를 더했다(ea6d332, `--repeat-each=3` 3 통과)
 - 빌드: 공개 `index-*.js` 497.83 kB(gzip 161.13)·`AdminGate-*.js` 474.40 kB(gzip 149.96)·`InstallPage-*.js` 4.96 kB·`password-*.js` 0.51 kB, 500 kB 경고 없음. 공개 chunk 는 `useSave` 문구로 +0.09 kB, 여유 약 2.2 kB.
-- 앞 절(4073be0 트리)과 비교: 백엔드 339 → 340, 프런트 247 → 255, E2E 29 → 31.
+- 앞 절(4073be0 트리)과 비교: 백엔드 339 → 340, 프런트 247 → 257, E2E 29 → 31.
 - **Linux(CI) 실행: 미실행.**

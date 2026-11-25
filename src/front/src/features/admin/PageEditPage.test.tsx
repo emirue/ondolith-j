@@ -446,6 +446,60 @@ describe("저장 응답을 기다리는 동안 친 글자 (1-C2 최종 검토 I-
   });
 });
 
+describe("작성 201 뒤 넘기는 값(carried)의 빈틈", () => {
+  const asks = () => {
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+  /** 작성 화면에서 저장을 붙잡고 그사이 본문에 더 쓴 뒤 놓는다. */
+  async function createWhileTyping(can: Record<string, boolean>, detail = (s: State) => void s) {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const r = renderEdit({
+      can,
+      route: "/admin/pages/new",
+      post: async (_p, s) => {
+        detail(s);
+        await gate;
+        return json(201, { id: U });
+      },
+    });
+    const u = userEvent.setup();
+    await u.type(await screen.findByLabelText("제목"), "소개");
+    await u.type(screen.getByLabelText("주소"), "about");
+    await waitFor(() => expect(area()).not.toBeNull());
+    await u.click(screen.getByRole("button", { name: "만들기" }));
+    await waitFor(() => expect(r.state.sent).toHaveLength(1));
+    act(() => {
+      area().editor.commands.insertContent("더함");
+    });
+    await act(async () => release());
+    expect(await screen.findByRole("heading", { name: "페이지 편집" })).toBeInTheDocument();
+    return r;
+  }
+
+  it("page_update_가_없어_렌더러로_뜨면_dirty_가_켜지지_않는다", async () => {
+    await createWhileTyping({ "page.view": true, "page.create": true, "page.publish": true });
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    await settle();
+    expect(document.querySelector(".ProseMirror")).toBeNull();
+    expect(publishButton()).not.toHaveAttribute("aria-disabled");
+    expect(asks()).toBe(false);
+  });
+
+  it("상세가_실리기_전에_떠나면_남지_않아_나중에_같은_id_를_열어도_낡은_글이_실리지_않는다", async () => {
+    // 상세 GET 이 끝나지 않는다 — 실리기 전에 화면을 내린다(메뉴로 떠남·로그아웃)
+    await createWhileTyping(ALL, (s) => void (s.gate = new Promise(() => {})));
+    cleanup();
+    renderEdit();
+    await loadedEditor();
+    await settle();
+    expect(area().editor.getHTML()).toBe("<p>본문</p>");
+    expect(asks()).toBe(false);
+  });
+});
+
 describe("떠날 때 (1-C2 최종 검토 I-4)", () => {
   /** 브라우저가 「떠날까요?」를 묻는지 — 처리기가 막으면(defaultPrevented) 묻는다. */
   const asks = () => {

@@ -80,6 +80,11 @@ function PageEdit({ id }: { id?: string }) {
   const dirty = form.formState.isDirty || touched;
   const now = (): Snapshot => ({ ...form.getValues(), body: editor?.getHTML() ?? "" });
   const sent = useRef<Snapshot | null>(null);
+  // 넘겨받은 값은 마운트 때 꺼내고 모듈 변수는 비운다 — 상세가 실리기 전에 떠나도(메뉴·로그아웃) 다음에 같은 id 에 남지 않게
+  const [carry, setCarry] = useState(() => (carried?.id === id ? carried : null));
+  useEffect(() => {
+    if (carried?.id === id) carried = null;
+  }, [id]);
 
   // 다시 채우기. dirty 가 풀릴 때도 다시 본다 — 저장의 새 응답은 dirty 가 켜진 동안 온다
   const data = detail.data;
@@ -90,9 +95,9 @@ function PageEdit({ id }: { id?: string }) {
     // emitUpdate: false — 싣기는 고침이 아니다(onUpdate 를 내지 않아 dirty 가 켜지지 않는다, @tiptap/core setContent.ts)
     editor.commands.setContent(data.body_html ?? "", { emitUpdate: false });
     // 작성 201 을 기다리는 동안 더 쓴 것 — 고친 것으로 싣는다(dirty, onUpdate)
-    const c = carried;
-    if (c?.id !== id || !c) return;
-    carried = null;
+    const c = carry;
+    if (!c) return;
+    setCarry(null);
     form.setValue("title", c.title, { shouldDirty: true });
     form.setValue("slug", c.slug, { shouldDirty: true });
     if (c.body !== editor.getHTML()) editor.commands.setContent(c.body);
@@ -140,7 +145,8 @@ function PageEdit({ id }: { id?: string }) {
         return;
       }
       queries.invalidateQueries({ queryKey: ["admin", "pages"] });
-      if (!unchanged && d?.id) carried = { id: d.id, ...now() };
+      // 새 초안을 고칠 수 있을 때만 — page.update 가 없으면 상세가 렌더러라 실을 곳이 없다
+      if (!unchanged && d?.id && can?.["page.update"] === true) carried = { id: d.id, ...now() };
       navigate(`/admin/pages/${d?.id}`);
     },
     focus: (field) => (field === "body_html" ? editor?.commands.focus() : form.setFocus(field as FieldPath<PageValues>)),
