@@ -18,7 +18,7 @@ import { UsersPage } from "./UsersPage";
  * 관리자 쿼리 키는 모두 ["admin", …] 아래 — 로그인·로그아웃이 지운다(adminCache.test).
  */
 export const ADMIN_SCREENS: {
-  path: "settings" | "oplog" | "system" | "users" | "roles" | "users/new" | "users/:id" | "pages" | "pages/new";
+  path: "settings" | "oplog" | "system" | "users" | "roles" | "users/new" | "users/:id" | "pages" | "pages/new" | "pages/:id";
   name: string;
   perm: "settings.update" | "log.view" | "settings.view" | "user.view" | "role.view" | "user.create" | "user.update" | "page.view" | "page.create";
   menu: boolean;
@@ -33,6 +33,7 @@ export const ADMIN_SCREENS: {
   { path: "users/new", name: "새 사용자", perm: "user.create", menu: false, element: <UserNewPage /> },
   { path: "users/:id", name: "사용자 상세", perm: "user.update", menu: false, element: <UserDetailPage /> },
   { path: "pages/new", name: "새 페이지", perm: "page.create", menu: false, element: <PageEditPage /> },
+  { path: "pages/:id", name: "페이지 편집", perm: "page.view", menu: false, element: <PageEditPage /> },
 ];
 
 /** `/admin` 의 자식 라우트. 권한과 관계없이 모두 둔다 — 숨김은 메뉴만, 막는 것은 서버다. `/admin` 자체는 빈 대시보드(Q6, M-4: element 가 없으면 라우터가 경고한다). */

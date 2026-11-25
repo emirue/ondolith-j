@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { NoticeProvider } from "@/shared/ui/notice";
 import { json, mockApi } from "@/test-api";
 import { OplogPage } from "./OplogPage";
+import { PageEditPage } from "./PageEditPage";
 import { PagesPage } from "./PagesPage";
 import { RolesPage } from "./RolesPage";
 import { SystemPage } from "./SystemPage";
@@ -25,6 +26,10 @@ it("관리자 화면의 쿼리는 모두 admin 키 아래에 있어 로그아웃
     const path = new URL(req.url).pathname;
     if (path === "/api/admin/system") return json(200, { version: "0.1.0", migrations: [], pending_count: 0, database: { server_version: "18" } });
     if (path === "/api/admin/pages") return json(200, { items: [], page: 1, page_size: 50, has_next: false });
+    // 상세 화면도 같은 :id 를 읽는다
+    if (path === `/api/admin/pages/${ID}`) {
+      return json(200, { id: ID, slug: "about", title: "소개", status: "draft", body_html: "<p>상세 본문</p>", updated_at: "2026-11-24T01:02:03.123456Z" });
+    }
     if (path === "/api/admin/users") return json(200, { items: [], page: 1, page_size: 50, has_next: false });
     if (path === `/api/admin/users/${ID}`) {
       return json(200, { id: ID, email: "target@ondolith.test", display_name: "대상", is_active: true, roles: [ROLE], assignable_roles: [ROLE] });
@@ -42,7 +47,7 @@ it("관리자 화면의 쿼리는 모두 admin 키 아래에 있어 로그아웃
       <MemoryRouter initialEntries={[`/admin/users/${ID}`]}>
         <NoticeProvider>
           <Routes>
-            <Route path="/admin/users/:id" element={<><OplogPage /><SystemPage /><UsersPage /><UserDetailPage /><RolesPage /><PagesPage /></>} />
+            <Route path="/admin/users/:id" element={<><OplogPage /><SystemPage /><UsersPage /><UserDetailPage /><RolesPage /><PagesPage /><PageEditPage /></>} />
           </Routes>
         </NoticeProvider>
       </MemoryRouter>
@@ -55,9 +60,11 @@ it("관리자 화면의 쿼리는 모두 admin 키 아래에 있어 로그아웃
   await screen.findByText("target@ondolith.test");
   await screen.findByRole("region", { name: "편집자" });
   await screen.findAllByRole("button", { name: "빼기" });
+  await screen.findByText("상세 본문");
   const keys = client.getQueryCache().findAll().map((q) => q.queryKey);
-  expect(keys.filter((k) => k[0] === "admin").length).toBeGreaterThanOrEqual(6);
+  expect(keys.filter((k) => k[0] === "admin").length).toBeGreaterThanOrEqual(7);
   expect(keys).toContainEqual(["admin", "pages", 1]);
+  expect(keys).toContainEqual(["admin", "page", ID]);
   // 사용자 목록은 can 을 읽으려고 /api/me 를 쓴다 — ["me"] 는 관리자 데이터가 아니고, 로그인·로그아웃이 ["admin"] 과 함께 지운다
   expect(keys.filter((k) => k[0] !== "admin")).toEqual([["me"]]);
   client.removeQueries({ queryKey: ["admin"] });
