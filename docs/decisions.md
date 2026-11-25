@@ -710,7 +710,9 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 ### Task 8 — CSP 다시 보기(m-3·m-4·m-6·m-5)
 
 - **m-6 `style-src-attr 'none'`: 더했다.** `vite.config.ts` 와 E2E 기대 문자열(`pages.spec.ts`) 두 곳. 판정은 `mise run e2e` 전체(2026-11-25, macOS 로컬, Chromium headless shell).
-  - 붙인 DOM 에서 난 `style-src-attr` 위반 0. 관리 화면(Radix)·편집기·IME 관문·흐름 시험 모두 0이다.
+  - 붙인 DOM 에서 난 `style-src-attr` 위반 0. 범위는 지금 E2E 27개가 지나는 화면이다 — 관리 화면(Radix 확인 대화상자 포함)·작성 화면의 편집기·IME 관문.
+  - 수정 화면(`/admin/pages/{id}`)·발행 대화상자·렌더러·미리보기는 아직 E2E 가 지나지 않는다(Task 9 가 처음 지난다). 거기서 대상이 요소인 `style-src-attr` 가 나면 이 판정을 되돌린다.
+  - 편집기 확장이 `renderHTML` 로 `style` 속성을 내면(1-C3 사진 등) 붙은 DOM 에서 막힐 수 있다(추정) — 넣을 때 E2E 로 본다.
   - 붙이지 않은 문서 파싱 보고 2건. 둘 다 `/admin/pages/new` 의 붙여넣기이고 `blocked` 는 `inline`, 위치는 관리 chunk 의 prosemirror-view `readHTML`(`createHTMLDocument` 본문에 `innerHTML`)이다.
     - `붙여넣기: 오염 HTML 을 붙여도 스크립트가 돌지 않는다` 의 X14 줄(`style="color:red"`)
     - `붙여넣기: 표·색·밑줄은 빠지고 글자는 남는다`(`<p style="color:red">`)
