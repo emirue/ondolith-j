@@ -1,6 +1,6 @@
-import type { CDPSession, Page } from "@playwright/test";
+import type { BrowserContext, CDPSession, Page } from "@playwright/test";
 import { EDITOR_TAGS, editorInvariant, vectors } from "../src/test-vectors";
-import { expect, offline, test, type CspViolation } from "./stack";
+import { expect, offline, test, watch, type CspViolation } from "./stack";
 
 /**
  * 한글 IME 관문(1-C2 스펙 2절). 실제 입력기 대신 CDP 조합 입력으로 흉내 낸다 — 스택 없이 빌드 산출물 + CSP 위에서.
@@ -307,4 +307,60 @@ test("linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다", as
     }
   }, "https://a.1/");
   expect(throws).toBe(true);
+});
+
+/** 문맥이 내려받은 .js 응답 본문을 모은다. 끝에 부르면 모인 본문을 돌려준다. */
+function scripts(ctx: BrowserContext) {
+  const bodies: Promise<string>[] = [];
+  ctx.on("response", (r) => {
+    if (new URL(r.url()).pathname.endsWith(".js")) bodies.push(r.text());
+  });
+  return () => Promise.all(bodies);
+}
+
+// 편집기 표지(스펙 8절): prosemirror-view 가 편집 DOM 에 다는 클래스 이름, Tiptap 의 오류·경고 문구
+const hasEditor = (js: string) => js.includes("ProseMirror") || /tiptap/i.test(js);
+
+test("공개 화면 JS 에는 편집기 표지가 없고 관리 편집 화면에는 있다", async ({ page, browser }) => {
+  const publicJs = scripts(page.context());
+  await offline(page);
+  await page.route("**/api/pages/about", (r) => r.fulfill({ json: { slug: "about", title: "소개", body_html: "<p>a</p>" } }));
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "E2E 사이트" })).toBeVisible();
+  await page.goto("/about");
+  await expect(page.getByRole("heading", { level: 1, name: "소개" })).toBeVisible();
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "로그인" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const visitor = await publicJs();
+  expect(visitor.length, "내려받은 JS").toBeGreaterThan(0);
+  expect(visitor.filter(hasEditor).length, "표지가 든 공개 JS").toBe(0);
+
+  // 반대 단언: 표지가 압축 뒤에도 남아 있어야 위의 0 이 뜻이 있다
+  const admin = await browser.newContext();
+  const seen = await watch(admin);
+  const adminJs = scripts(admin);
+  const editor = await admin.newPage();
+  await offline(editor, EDITOR_CAN);
+  await editor.goto("/admin/pages/new");
+  await expect(editor.getByRole("heading", { name: "새 페이지" })).toBeVisible();
+  await editor.waitForLoadState("networkidle");
+  expect((await adminJs()).filter(hasEditor).length, "표지가 든 관리 JS").toBeGreaterThan(0);
+  seen.check();
+  await admin.close();
+});
+
+test("관리 묶음을 받지 못하면 대체 화면", async ({ page }) => {
+  let refused = 0;
+  // 배포 뒤 옛 chunk 가 사라진 꼴(스펙 8절). 이름 꼴은 빌드 출력(dist/assets)으로 확인했다
+  await page.route("**/assets/AdminGate-*.js", (r) => {
+    refused++;
+    return r.fulfill({ status: 404 });
+  });
+  await offline(page, EDITOR_CAN);
+  await page.goto("/admin/pages/new");
+  const heading = page.getByRole("heading", { level: 1, name: "관리자 화면을 불러오지 못했습니다. 새로 고침하세요" });
+  await expect(heading).toBeVisible();
+  await expect(heading).toBeFocused();
+  expect(refused).toBeGreaterThan(0);
 });

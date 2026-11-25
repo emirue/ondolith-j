@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { json, mockApi, renderWithQuery } from "@/test-api";
 import { App } from "./App";
 
@@ -51,6 +51,20 @@ describe("첫 진입 분기", () => {
     });
     renderWithQuery(<App />, "/about");
     expect(await screen.findByRole("heading", { level: 1, name: "소개" })).toBeInTheDocument();
+  });
+
+  it("관리자_묶음을_불러오지_못하면_대체_화면", async () => {
+    // 배포 뒤 옛 chunk 가 404 인 꼴(스펙 8절): lazy 의 import 가 거절된다. App 을 새로 읽어 앞 시험이 채운 lazy 캐시를 피한다
+    vi.resetModules();
+    vi.doMock("@/features/auth/AdminGate", () => {
+      throw new Error("chunk 없음");
+    });
+    onTestFinished(() => vi.doUnmock("@/features/auth/AdminGate"));
+    const { App: Fresh } = await import("./App");
+    mockApi((req) => (req.url.endsWith("/api/me") ? json(200, { user: null, can: {} }) : json(200, { state: "running", version: "t" })));
+    renderWithQuery(<Fresh />, "/admin/pages/new");
+    const heading = await screen.findByRole("heading", { level: 1, name: "관리자 화면을 불러오지 못했습니다. 새로 고침하세요" });
+    expect(heading).toHaveFocus();
   });
 
   it("응답이 없으면(전환 중 새로고침) 대기 화면", async () => {
