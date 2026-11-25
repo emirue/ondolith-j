@@ -160,6 +160,25 @@ class RequestSizeLimitTest {
 		}
 	}
 
+	/** 크기 필터는 보안 체인보다 앞이라 체인의 헤더 필터를 지나지 않는다(1-C2 스펙 6.4). 두 갈래 모두 본다. */
+	@Test
+	void _413_에도_API_보안_헤더가_붙는다() throws Exception {
+		HttpResponse<String> normal = f.http().get("/api/health");
+		assertThat(normal.statusCode()).isEqualTo(200);
+		String cache = normal.headers().firstValue("Cache-Control").orElseThrow();
+		assertThat(cache).contains("no-store");
+		List<HttpResponse<String>> refused = List.of(
+				f.http().send("POST", "/api/admin/settings", JSON, nameJson(MAX + 1), false, false),
+				f.http().send("PUT", "/api/admin/settings", FORM, form(2 * MAX), true, true));
+		for (HttpResponse<String> r : refused) {
+			tooLarge(r);
+			assertThat(r.headers().firstValue("X-Content-Type-Options")).hasValue("nosniff");
+			assertThat(r.headers().firstValue("Content-Security-Policy")).hasValue("default-src 'none'; frame-ancestors 'none'");
+			assertThat(r.headers().firstValue("X-Frame-Options")).hasValue("DENY");
+			assertThat(r.headers().firstValue("Cache-Control")).hasValue(cache);
+		}
+	}
+
 	@Test
 	void multipart_해석기가_없다() {
 		assertThat(f.ctx.getBeanNamesForType(MultipartResolver.class)).isEmpty();

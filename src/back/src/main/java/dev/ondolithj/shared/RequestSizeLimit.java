@@ -50,7 +50,7 @@ public class RequestSizeLimit extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
 		if (request.getContentLengthLong() > MAX) {
-			SecurityConfig.problem(response, json, HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다");
+			refuse(response);
 			return;
 		}
 		try {
@@ -64,8 +64,20 @@ public class RequestSizeLimit extends OncePerRequestFilter {
 				throw e;
 			}
 			response.reset();
-			SecurityConfig.problem(response, json, HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다");
+			refuse(response);
 		}
+	}
+
+	/**
+	 * 413 을 쓰는 한 곳. 보안 체인보다 앞이라(또는 reset 이 지워서) 체인의 헤더 필터가 단 헤더가 없다 — 보통 응답의 넷을 직접 단다(1-C2 스펙 6.4).
+	 * Cache-Control 은 Spring Security 의 CacheControlHeadersWriter 값과 같다(RequestSizeLimitTest 가 보통 응답과 비교한다).
+	 */
+	private void refuse(HttpServletResponse response) throws IOException {
+		response.setHeader("X-Content-Type-Options", "nosniff");
+		response.setHeader("Content-Security-Policy", SecurityConfig.API_CSP);
+		response.setHeader("X-Frame-Options", "DENY");
+		response.setHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
+		SecurityConfig.problem(response, json, HttpStatus.CONTENT_TOO_LARGE, "요청 본문이 너무 큽니다");
 	}
 
 	private static boolean tooLarge(Throwable e) {

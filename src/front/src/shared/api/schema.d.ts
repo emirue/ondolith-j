@@ -561,6 +561,10 @@ export interface components {
             slug?: string;
             title?: string;
         };
+        PublishInput: {
+            /** Format: date-time */
+            updated_at?: string;
+        };
         ReauthRequest: {
             password: string;
         };
@@ -937,7 +941,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description page.update 권한 없음 */
+            /** @description page.view 권한 없음 */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1080,7 +1084,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description page.delete 권한 없음·CSRF 토큰 없음 */
+            /** @description page.delete 권한 없음·CSRF 토큰 없음·발행본인데 page.publish 없음 */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1118,14 +1122,27 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishInput"];
+            };
+        };
         responses: {
-            /** @description 발행함(이미 발행됐어도 — 그때는 기록하지 않는다) */
+            /** @description 발행함(이미 발행됐어도 — 그때는 updated_at 을 보지 않고 기록하지 않는다) */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 본문이 JSON 이 아님·형식 불량 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description 로그인이 필요함 */
             401: {
@@ -1154,8 +1171,17 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description 슬러그가 시스템 경로(예약어)와 충돌함 */
+            /** @description 예약어(슬러그가 시스템 경로와 충돌함)·낡은 updated_at(읽은 뒤 초안이 바뀜) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description 읽은 상세의 updated_at 이 없음(칸 검사가 대상 조회보다 앞). errors.updated_at */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

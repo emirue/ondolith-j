@@ -46,7 +46,10 @@ test("API 로 만든 페이지가 비로그인 방문자에게 정화된 채로 
     + "<ul><li>하나</li></ul>" + attacks;
   const { id } = await (await post("/api/admin/pages", { slug: "about", title: "소개", body_html: body })).json();
   await post("/api/admin/pages", { slug: "draft-page", title: "초안", body_html: "<p>초안</p>" });
-  await post(`/api/admin/pages/${id}/publish`);
+  // 발행은 읽은 상세의 updated_at 을 문자열 그대로 싣는다(1-C2 스펙 6.1)
+  const detail = await page.request.get(`/api/admin/pages/${id}`);
+  expect(detail.status()).toBe(200);
+  await post(`/api/admin/pages/${id}/publish`, { updated_at: (await detail.json()).updated_at });
 
   const visitor = await browser.newContext();
   const seen = await watch(visitor);

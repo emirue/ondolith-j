@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,8 @@ class PagesController {
 	private static final String LIST = "SELECT id, slug, title, status, updated_at FROM pages "
 			+ "ORDER BY updated_at DESC, id LIMIT 51 OFFSET ?";
 
+	private static final String DELETE = "DELETE FROM pages WHERE id = ?";
+
 	private static final String UPDATE = "UPDATE pages SET slug = ?, title = ?, body_html = ?, updated_at = now() WHERE id = ?";
 
 	/**
@@ -60,6 +63,10 @@ class PagesController {
 	 * 그 밖의 모르는 칸은 읽지 않는다.
 	 */
 	record PageInput(String slug, String title, String bodyHtml, @Schema(hidden = true) Object status) {
+	}
+
+	/** 승인자가 읽은 상세의 updated_at(불투명 값 — 화면은 응답 문자열을 그대로 되돌린다, 1-C2 스펙 6.1). 다른 칸은 읽지 않는다. */
+	record PublishInput(Instant updatedAt) {
 	}
 
 	record PageItem(UUID id, String slug, String title, String status, Instant updatedAt) {
@@ -119,11 +126,11 @@ class PagesController {
 		return new PageList(hasNext ? rows.subList(0, PAGE_SIZE) : rows, page, PAGE_SIZE, hasNext);
 	}
 
-	@AdminPermission(Permission.PAGE_UPDATE)
+	@AdminPermission(Permission.PAGE_VIEW)
 	@GetMapping("/api/admin/pages/{id}")
 	@ApiResponse(responseCode = "200", description = "편집 폼에 넣을 페이지(초안 포함). body_html 은 내보낼 때 다시 정화한 값")
 	@ApiResponse(responseCode = "401", description = "로그인이 필요함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "page.update 권한 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "page.view 권한 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "없는 페이지·UUID 가 아닌 경로", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	PageDetail detail(@PathVariable UUID id) {
@@ -179,7 +186,7 @@ class PagesController {
 		String html = validate(in);
 		// 17절 1: 발행본은 page.publish 도 있어야 고친다. 조회 뒤 비교가 아니라 한 문장 — 그 사이 발행되는 경쟁이 없다.
 		// superuser 는 ActorQuery 가 권한 전부로 채운다.
-		// ponytail: 동시 편집은 나중 저장이 이긴다(17절 3). 편집이 사라졌다는 보고나 1-C2 자동 저장이 생기면 읽은 updated_at 으로 409
+		// ponytail: 동시 편집은 나중 저장이 이긴다. 1-C2 는 자동 저장 없음(1-C2 스펙 6.3) — 자동 저장이나 편집이 사라졌다는 보고가 생기면 읽은 updated_at 으로 409
 		boolean publisher = actor.permissions().contains(Permission.PAGE_PUBLISH);
 		int n;
 		try {
@@ -204,11 +211,16 @@ class PagesController {
 	@PostMapping("/api/admin/pages/{id}/delete")
 	@ApiResponse(responseCode = "204", description = "지움. 메뉴는 건드리지 않는다", content = @Content)
 	@ApiResponse(responseCode = "401", description = "로그인이 필요함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "page.delete 권한 없음·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "page.delete 권한 없음·CSRF 토큰 없음·발행본인데 page.publish 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "없는 페이지·UUID 가 아닌 경로", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal Actor actor, HttpServletRequest request) {
-		if (jdbc.sql("DELETE FROM pages WHERE id = ?").param(id).update() == 0) {
+		// 1-C2 스펙 6.1-3: 지우기는 공개를 끝내는 동작이라 발행본은 page.publish 도 있어야 지운다. 수정과 같이 한 문장으로 판정한다
+		boolean publisher = actor.permissions().contains(Permission.PAGE_PUBLISH);
+		if (jdbc.sql(publisher ? DELETE : DELETE + " AND status = 'draft'").param(id).update() == 0) {
+			if (jdbc.sql(EXISTS).param(id).query(Boolean.class).single()) {
+				throw new Refused(HttpStatus.FORBIDDEN, "발행된 페이지는 발행 권한이 있어야 지울 수 있습니다");
+			}
 			throw new Refused(HttpStatus.NOT_FOUND, NOT_FOUND);
 		}
 		operationLog.record(actor, Action.PAGE_DELETE, id.toString(), "", ClientIp.of(request));
@@ -217,21 +229,41 @@ class PagesController {
 
 	@AdminPermission(Permission.PAGE_PUBLISH)
 	@PostMapping("/api/admin/pages/{id}/publish")
-
-	@ApiResponse(responseCode = "204", description = "발행함(이미 발행됐어도 — 그때는 기록하지 않는다)", content = @Content)
+	@ApiResponse(responseCode = "204", description = "발행함(이미 발행됐어도 — 그때는 updated_at 을 보지 않고 기록하지 않는다)", content = @Content)
+	@ApiResponse(responseCode = "400", description = "본문이 JSON 이 아님·형식 불량", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "로그인이 필요함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "403", description = "page.publish 권한 없음·CSRF 토큰 없음", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "없는 페이지·UUID 가 아닌 경로", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "409", description = "슬러그가 시스템 경로(예약어)와 충돌함", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = "예약어(슬러그가 시스템 경로와 충돌함)·낡은 updated_at(읽은 뒤 초안이 바뀜)", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "422", description = "읽은 상세의 updated_at 이 없음(칸 검사가 대상 조회보다 앞). errors.updated_at", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "429", description = "관리자 경로 요청이 너무 많음. Retry-After", content = @Content(mediaType = PROBLEM, schema = @Schema(implementation = ProblemDetail.class)))
-	ResponseEntity<Void> publish(@PathVariable UUID id, @AuthenticationPrincipal Actor actor, HttpServletRequest request) {
+	ResponseEntity<Void> publish(@PathVariable UUID id, @RequestBody(required = false) PublishInput in,
+			@AuthenticationPrincipal Actor actor, HttpServletRequest request) {
+		if (in == null || in.updatedAt() == null) {
+			throw new FieldErrors(Map.of("updated_at", "필수입니다"));
+		}
 		String slug = jdbc.sql("SELECT slug FROM pages WHERE id = ?").param(id).query(String.class).optional()
 			.orElseThrow(() -> new Refused(HttpStatus.NOT_FOUND, NOT_FOUND));
-		// 예약어 목록은 릴리스마다 는다 — 저장 때 지났어도 발행 때 다시 본다(D19:2687). 이미 발행된 페이지도
+		// 예약어 목록은 릴리스마다 는다 — 저장 때 지났어도 발행 때 다시 본다(D19:2687). 이미 발행된 페이지도.
+		// 내용 비교보다 앞이다 — 다시 읽어도 풀리지 않는다
 		if (Slug.reserved(slug)) {
 			throw new Refused(HttpStatus.CONFLICT, "이 주소는 시스템 경로와 충돌합니다");
 		}
-		change(id, "published", "draft", Action.PAGE_PUBLISH, actor, request);
+		// I-2: 승인자가 읽은 뒤 초안이 바뀌었으면 발행하지 않는다. 조회 뒤 비교가 아니라 한 문장
+		int n = jdbc.sql("UPDATE pages SET status = 'published', updated_at = now() WHERE id = ? AND status = 'draft' AND updated_at = ?")
+			// pgjdbc 42.7.14 는 Instant 의 SQL 형을 추론하지 못한다(500) — timestamptz 로 가는 OffsetDateTime(UTC)
+			.params(id, OffsetDateTime.ofInstant(in.updatedAt(), ZoneOffset.UTC))
+			.update();
+		if (n == 1) {
+			operationLog.record(actor, Action.PAGE_PUBLISH, id.toString(), "", ClientIp.of(request));
+			return ResponseEntity.noContent().build();
+		}
+		// 이미 발행됐으면 updated_at 을 보지 않는다 — 발행이 updated_at 을 바꾸므로 응답을 잃고 다시 누른 요청이 409 가 되지 않게(Q7)
+		String status = jdbc.sql("SELECT status FROM pages WHERE id = ?").param(id).query(String.class).optional()
+			.orElseThrow(() -> new Refused(HttpStatus.NOT_FOUND, NOT_FOUND));
+		if (status.equals("draft")) {
+			throw new Refused(HttpStatus.CONFLICT, "그사이 페이지가 바뀌었습니다. 바뀐 내용을 확인한 뒤 발행하세요");
+		}
 		return ResponseEntity.noContent().build();
 	}
 
