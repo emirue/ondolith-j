@@ -706,3 +706,19 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 - jsdom: `new Editor` 가 돈다 — 편집기 단위 시험을 E2E 로 옮기지 않는다. `focus` 명령의 `scrollIntoView` 가 jsdom 에 없는 `Range.getClientRects` 를 불러 시험 파일에서만 빈 값으로 채웠다.
 - `linkHref`: `https://a.1/` 은 서버 `LinkCheck` 는 받고 jsdom `new URL` 은 던진다 → `null`(시험 한 줄로 고정). Chromium 결과는 Task 3 이 본다.
 - **사용자 수동 확인(맥 한글 입력기, Chrome·Safari): 미실행 — 사용자 확인 요청.**
+
+### Task 8 — CSP 다시 보기(m-3·m-4·m-6·m-5)
+
+- **m-6 `style-src-attr 'none'`: 더했다.** `vite.config.ts` 와 E2E 기대 문자열(`pages.spec.ts`) 두 곳. 판정은 `mise run e2e` 전체(2026-11-25, macOS 로컬, Chromium headless shell).
+  - 붙인 DOM 에서 난 `style-src-attr` 위반 0. 관리 화면(Radix)·편집기·IME 관문·흐름 시험 모두 0이다.
+  - 붙이지 않은 문서 파싱 보고 2건. 둘 다 `/admin/pages/new` 의 붙여넣기이고 `blocked` 는 `inline`, 위치는 관리 chunk 의 prosemirror-view `readHTML`(`createHTMLDocument` 본문에 `innerHTML`)이다.
+    - `붙여넣기: 오염 HTML 을 붙여도 스크립트가 돌지 않는다` 의 X14 줄(`style="color:red"`)
+    - `붙여넣기: 표·색·밑줄은 빠지고 글자는 남는다`(`<p style="color:red">`)
+    - 두 시험이 경로(붙여넣기는 줄 id)·지시어·건수 1로 받는다.
+  - 가른 근거(임시 탐침, 커밋하지 않음): 위반 이벤트의 대상이 붙은 요소면 그 요소(`setAttribute`·붙은 `div` 의 `innerHTML` 모두 `P`), `createHTMLDocument` 본문이면 주 문서(`#document`)였다. 두 보고는 `#document` 다. `DOMParser` 문서(DOMPurify 겹)는 `style-src-attr` 를 보고하지 않았다 — `DOMPurify 겹` 의 X14 는 `script-src-attr` 1건 그대로다.
+  - 대조: `CSP 가 실제로 걸려 있다` 가 붙은 요소의 `setAttribute("style", …)` 는 위반 1건·색 미적용, CSSOM(`el.style.color`)은 위반 0·색 적용을 단언한다. 정책에 지시어가 없으면 실패한다(위반 기대 2, 받은 1).
+- **m-4**: `DOMPurify 겹` 의 일곱 줄 예외를 경로·지시어·`blocked` 마다 정확히 1건으로 고정했다(`/v-x3`·`x4`·`x5`·`x11`·`x14`·`x15` `script-src-attr` `inline`, `/v-x9` `base-uri` `https://evil.example/`).
+  - 1-C1 검토의 「줄마다 2건」은 지금 트리에서 재현되지 않았다. `useMemo` 를 빼도 1건씩이다 — 이 시험의 공개 화면은 `RichHtml` 을 한 번만 그린다.
+  - Chrome 은 같은 보고를 합치지 않는다. `sanitize` 를 두 번 부르는 변이로 줄마다 2건이 돼 실패하는 것을 봤다.
+- **m-3**: `useMemo` 를 `dangerouslySetInnerHTML` 과 같은 줄에 뒀다. 공개 chunk 497.74 kB, 500 kB 경고 없음.
+- **m-5**: 전역 금지 이름에 3개, `RichHtml.tsx` 금지 이름에 8개를 더했다. 지금 쓰는 `ADD_URI_SAFE_ATTR` 는 걸리지 않는다(고정 입력 한 줄).

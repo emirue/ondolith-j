@@ -205,7 +205,10 @@ type Report = { directive: string; count: number };
  */
 const ATTR = [{ directive: "script-src-attr", count: 1 }];
 const PASTE_REPORTS: Record<string, Report[]> = {
-  X3: ATTR, X4: ATTR, X5: ATTR, X11: ATTR, X14: ATTR, X15: ATTR,
+  X3: ATTR, X4: ATTR, X5: ATTR, X11: ATTR, X15: ATTR,
+  // style-src-attr 'none'(m-6) 뒤의 style="color:red" 파싱 보고. 붙은 DOM 의 보고가 아니다 — 대상이 요소가 아니라 문서이고
+  // 위치가 readHTML 의 innerHTML 이다(2026-11-25 탐침, docs/decisions.md m-6)
+  X14: [...ATTR, { directive: "style-src-attr", count: 1 }],
   X9: [{ directive: "base-uri", count: 1 }],
 };
 
@@ -256,14 +259,18 @@ test("붙여넣기: 오염 HTML 을 붙여도 스크립트가 돌지 않는다",
   expect(errors).toEqual([]);
 });
 
-test("붙여넣기: 표·색·밑줄은 빠지고 글자는 남는다", async ({ page }) => {
+test("붙여넣기: 표·색·밑줄은 빠지고 글자는 남는다", async ({ page, guard }) => {
   const { errors } = await open(page);
   await page.locator(".ProseMirror").focus();
+  // 붙인 style="color:red" 를 readHTML 이 붙이지 않은 문서에 풀 때의 보고 하나만 받는다(PASTE_REPORTS 의 X14 와 같은 꼴)
+  guard.allow((v) => v.directive === "style-src-attr" && v.blocked === "inline" && new URL(v.url).pathname === "/admin/pages/new");
   expect(await paste(page, '<table><tr><td>칸</td></tr></table><p style="color:red"><u>색</u></p>')).toBe(true);
+  await expect.poll(() => guard.violations.length, "CSP 보고").toBe(1);
   const html = await editorHtml(page);
   expect(html).not.toMatch(/table|style|<u/);
   expect(html).toContain("칸");
   expect(html).toContain("색");
+  expect(guard.violations, "늦게 온 보고").toHaveLength(1);
   expect(errors).toEqual([]);
 });
 

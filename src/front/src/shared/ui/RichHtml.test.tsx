@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import DOMPurify from "dompurify";
+import { describe, expect, it, vi } from "vitest";
 import { frontInvariant, vectors } from "@/test-vectors";
 import { RichHtml } from "./RichHtml";
 
@@ -30,6 +31,21 @@ describe("RichHtml", () => {
 
   it("서버_허용_목록_밖의_속성은_남지_않는다", () => {
     expect(rich('<p class="c" id="i" title="t" style="color:red" data-x="1" aria-label="l">a</p>').innerHTML).toBe("<p>a</p>");
+  });
+
+  it("같은_html_로_다시_그려도_sanitize_는_한_번", () => {
+    const spy = vi.spyOn(DOMPurify, "sanitize");
+    try {
+      const { container, rerender } = render(<RichHtml html="<p>a</p>" />);
+      rerender(<RichHtml html="<p>a</p>" />);
+      expect(spy).toHaveBeenCalledTimes(1);
+      // html 이 바뀌면 다시 거른다 — 빈 의존성([])으로 헛통과하지 않게
+      rerender(<RichHtml html="<p>b</p>" />);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(container.querySelector(".rich")!.innerHTML).toBe("<p>b</p>");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("사유_주석이_있다", () => {

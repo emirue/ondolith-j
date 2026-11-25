@@ -5,9 +5,10 @@ import { defineConfig } from "vitest/config";
 
 // 1-C1 스펙 8.3. 빌드 산출물에만 건다 — 개발 서버는 인라인 스크립트(React Refresh)를 넣는다.
 // style-src 'unsafe-inline': Radix 대화상자(스크롤 잠금)가 <style> 요소를 넣는다(1-C1 E2E 위반 보고로 확인). script-src 는 넓히지 않는다.
+// style-src-attr 'none'(1-C2 m-6): 마크업의 style= 속성만 막는다. React·Radix·ProseMirror 는 CSSOM(el.style)으로 써서 대상이 아니다(E2E 전체로 확인).
 // frame-ancestors 는 <meta> 로 걸리지 않아 Phase 4 의 CloudFront 응답 헤더가 더한다
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; "
-  + "object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'";
+  + "object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; style-src-attr 'none'";
 
 export default defineConfig({
   plugins: [
