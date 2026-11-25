@@ -80,13 +80,13 @@ function PageEdit({ id }: { id?: string }) {
     editor.commands.setContent(data.body_html ?? "", { emitUpdate: false });
   }, [data, editor, dirty]);
 
-  // 발행·발행 취소가 성공하면 연 단추가 다른 단추로 바뀌어 초점 돌릴 곳이 없다 — 다시 채운 화면을 그린 뒤 h2 로(UserDetailPage 와 같다)
+  // 발행·발행 취소가 성공하면 연 단추가 다른 단추로 바뀌어 초점 돌릴 곳이 없다 — 다시 읽은 화면을 그린 뒤 h2 로(UserDetailPage 와 같다)
   const lost = useRef(false);
   useEffect(() => {
     if (!lost.current) return;
     lost.current = false;
     heading.current?.focus();
-  }, [loaded]);
+  }, [detail.dataUpdatedAt]);
 
   const refresh: Refresh = () =>
     Promise.all([queries.invalidateQueries({ queryKey: ["admin", "page", id] }), queries.invalidateQueries({ queryKey: ["admin", "pages"] })]);
@@ -125,7 +125,9 @@ function PageEdit({ id }: { id?: string }) {
     );
   }
 
-  const published = loaded?.status === "published";
+  // 상태(와 그것이 고르는 단추)는 가장 최근 응답을 따른다 — 고치는 중에 발행을 취소하면 다시 채우지 않아도 화면이 서버와 맞게.
+  // 고칠 내용·미리보기·발행의 updated_at 은 loaded 그대로다(발행은 고치는 중에 막힌다)
+  const published = data?.status === "published";
   const publisher = can?.["page.publish"] === true;
   const canSave = id === undefined || (can?.["page.update"] === true && (!published || publisher));
   const errors = form.formState.errors;

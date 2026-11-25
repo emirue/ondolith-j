@@ -1,3 +1,4 @@
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { Editor } from "@tiptap/react";
 import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -37,6 +38,12 @@ const problem = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/problem+json" } });
 const NO_CONTENT = () => new Response(null, { status: 204 });
 
+let client: QueryClient;
+function Grab() {
+  client = useQueryClient();
+  return null;
+}
+
 type State = { page: Page; gate?: Promise<void>; sent: { path: string; body: string }[] };
 
 /** GET 상세는 state.page 를 낸다(state.gate 가 있으면 풀릴 때까지 기다린다). POST 는 post 가 답하고 state 를 바꿀 수 있다. */
@@ -58,11 +65,14 @@ function renderEdit({
     return post(path, state);
   });
   renderWithQuery(
-    <Routes>
+    <>
+      <Grab />
+      <Routes>
       <Route path="/admin/pages/new" element={<PageEditPage />} />
       <Route path="/admin/pages/:id" element={<PageEditPage />} />
       <Route path="/admin/pages" element={<LocationProbe />} />
-    </Routes>,
+      </Routes>
+    </>,
     route,
     { notice: true },
   );
@@ -276,6 +286,27 @@ describe("발행", () => {
     expect(state.sent.map((s) => s.path)).toEqual([`/api/admin/pages/${U}/unpublish`]);
   });
 
+  it("고치는_중에_발행을_취소하면_상태와_단추는_새_응답을_따르고_고친_내용은_남는다", async () => {
+    renderEdit({
+      initial: page({ status: "published" }),
+      post: (_p, s) => {
+        s.page = page({ updated_at: AT2 });
+        return NO_CONTENT();
+      },
+    });
+    await loadedEditor();
+    const u = userEvent.setup();
+    await u.type(screen.getByLabelText("제목"), " 고침");
+    await u.click(screen.getByRole("button", { name: "발행 취소" }));
+    await u.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "확인" }));
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("발행을 취소했습니다"));
+    expect(await screen.findByText("초안")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "발행 취소" })).toBeNull();
+    expect(publishButton()).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByLabelText("제목")).toHaveValue("소개 고침");
+    await waitFor(() => expect(screen.getByRole("heading", { name: "페이지 편집" })).toHaveFocus());
+  });
+
   it("작성_201_뒤_상세로_옮기면_상세_응답으로_채워지고_발행이_막히지_않는다", async () => {
     renderEdit({ route: "/admin/pages/new", post: () => json(201, { id: U }) });
     const u = userEvent.setup();
@@ -306,6 +337,13 @@ describe("다시 읽기", () => {
     });
     await settle();
     expect(gets(f)).toHaveLength(1);
+  });
+
+  it("상세_쿼리는_admin_키_아래이고_gcTime_은_0", async () => {
+    renderEdit();
+    await loadedEditor();
+    // 떠나면 지운다 — 로그아웃 뒤 같은 탭의 다른 계정에게 앞 사람의 초안이 응답 전에 보이지 않게
+    expect(client.getQueryCache().find({ queryKey: ["admin", "page", U] })?.options.gcTime).toBe(0);
   });
 
   it("네트워크가_다시_이어져도_상세를_다시_읽지_않는다", async () => {
