@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { api } from "@/shared/api/client";
 import { REAUTH_TYPE, useSave } from "@/shared/api/useSave";
@@ -25,12 +26,16 @@ function pendingApi() {
   return { fetch, answer, paths };
 }
 
-function Harness({ destructive = true }: { destructive?: boolean }) {
+function Harness({ destructive = true, ask, children }: { destructive?: boolean; ask?: boolean; children?: ReactNode }) {
   const save = useSave({
     send: (id: string) => api.POST("/api/admin/users/{id}/deactivate", { params: { path: { id } } }),
     success: "사용자를 비활성화했습니다",
   });
-  return <ConfirmButton label="비활성화" title="사용자를 비활성화할까요?" description="로그인할 수 없게 됩니다." destructive={destructive} save={save} values={ID} />;
+  return (
+    <ConfirmButton label="비활성화" title="사용자를 비활성화할까요?" description="로그인할 수 없게 됩니다." destructive={destructive} ask={ask} save={save} values={ID}>
+      {children}
+    </ConfirmButton>
+  );
 }
 
 const DEACTIVATE = `/api/admin/users/${ID}/deactivate`;
@@ -113,6 +118,30 @@ describe("ConfirmButton", () => {
     expect(dialog()).toBeNull();
     await answer(NO_CONTENT());
     expect(screen.getByTestId("notice")).toHaveTextContent("사용자를 비활성화했습니다");
+  });
+
+  it("ask_면_destructive_가_아니어도_묻는다", async () => {
+    const { answer, paths } = pendingApi();
+    renderWithQuery(<Harness destructive={false} ask />, "/", { notice: true });
+    const u = userEvent.setup();
+    await u.click(trigger());
+    expect(dialog()).toBeInTheDocument();
+    await settle();
+    expect(paths()).toEqual([]);
+    await u.click(screen.getByRole("button", { name: "확인" }));
+    await waitFor(() => expect(paths()).toEqual([DEACTIVATE]));
+    await answer(NO_CONTENT());
+    expect(dialog()).toBeNull();
+  });
+
+  it("children_이_설명_아래에_그려진다", async () => {
+    pendingApi();
+    renderWithQuery(<Harness><p>미리보기 본문</p></Harness>, "/", { notice: true });
+    await userEvent.setup().click(trigger());
+    const preview = screen.getByText("미리보기 본문");
+    const description = screen.getByText("로그인할 수 없게 됩니다.");
+    expect(dialog()).toContainElement(preview);
+    expect(description.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("재인증_403_이면_같은_대화상자에_비밀번호_칸_type_password_autocomplete_current_password", async () => {

@@ -5,6 +5,7 @@ import { useFocusOnMount } from "@/shared/lib/useFocusOnMount";
 import { Button } from "@/shared/ui/button";
 import { OplogPage } from "./OplogPage";
 import { PageEditPage } from "./PageEditPage";
+import { PagesPage } from "./PagesPage";
 import { RolesPage } from "./RolesPage";
 import { SettingsPage } from "./SettingsPage";
 import { SystemPage } from "./SystemPage";
@@ -17,9 +18,9 @@ import { UsersPage } from "./UsersPage";
  * 관리자 쿼리 키는 모두 ["admin", …] 아래 — 로그인·로그아웃이 지운다(adminCache.test).
  */
 export const ADMIN_SCREENS: {
-  path: "settings" | "oplog" | "system" | "users" | "roles" | "users/new" | "users/:id" | "pages/new";
+  path: "settings" | "oplog" | "system" | "users" | "roles" | "users/new" | "users/:id" | "pages" | "pages/new";
   name: string;
-  perm: "settings.update" | "log.view" | "settings.view" | "user.view" | "role.view" | "user.create" | "user.update" | "page.create";
+  perm: "settings.update" | "log.view" | "settings.view" | "user.view" | "role.view" | "user.create" | "user.update" | "page.view" | "page.create";
   menu: boolean;
   element: ReactElement;
 }[] = [
@@ -28,6 +29,7 @@ export const ADMIN_SCREENS: {
   { path: "system", name: "시스템 정보", perm: "settings.view", menu: true, element: <SystemPage /> },
   { path: "users", name: "사용자", perm: "user.view", menu: true, element: <UsersPage /> },
   { path: "roles", name: "역할", perm: "role.view", menu: true, element: <RolesPage /> },
+  { path: "pages", name: "페이지", perm: "page.view", menu: true, element: <PagesPage /> },
   { path: "users/new", name: "새 사용자", perm: "user.create", menu: false, element: <UserNewPage /> },
   { path: "users/:id", name: "사용자 상세", perm: "user.update", menu: false, element: <UserDetailPage /> },
   { path: "pages/new", name: "새 페이지", perm: "page.create", menu: false, element: <PageEditPage /> },

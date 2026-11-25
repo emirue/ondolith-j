@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -69,6 +69,19 @@ describe("관리자 셸 메뉴", () => {
     await within(nav).findByRole("link", { name: "사이트 설정" });
     expect(within(nav).queryByRole("link", { name: "사용자" })).toBeNull();
     expect(within(nav).queryByRole("link", { name: "역할" })).toBeNull();
+  });
+
+  it("can['page.view'] 가 true 일 때만 메뉴에 「페이지」, 자리는 「역할」 뒤", async () => {
+    renderLayout({ "role.view": true, "page.view": true });
+    const nav = screen.getByRole("navigation", { name: "관리자 메뉴" });
+    expect(await within(nav).findByRole("link", { name: "페이지" })).toHaveAttribute("href", "/admin/pages");
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["역할", "페이지"]);
+    cleanup();
+    vi.unstubAllGlobals();
+    renderLayout({ "role.view": true, "page.view": false });
+    const after = screen.getByRole("navigation", { name: "관리자 메뉴" });
+    await within(after).findByRole("link", { name: "역할" });
+    expect(within(after).queryByRole("link", { name: "페이지" })).toBeNull();
   });
 
   it("메뉴 아닌 항목(새 사용자·사용자 상세)은 can 이 모두 true 여도 메뉴에 없다", async () => {

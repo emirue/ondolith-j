@@ -129,6 +129,19 @@ describe("역할", () => {
     expect(screen.getByTestId("notice")).toHaveTextContent("권한을 부여했습니다");
   });
 
+  it("권한을_바꾸면_/api/me_를_다시_읽는다 — 부여도 빼기도", async () => {
+    const { f } = renderRoles();
+    const me = () => f.mock.calls.filter(([req]) => new URL(req.url).pathname === "/api/me").length;
+    const u = userEvent.setup();
+    const op = await role("운영자");
+    await waitFor(() => expect(me()).toBe(1));
+    await u.click(within(op).getByRole("button", { name: "부여" }));
+    await waitFor(() => expect(me()).toBe(2));
+    await u.click(within(grant(op, "log.view")).getByRole("button", { name: "빼기" }));
+    await u.click(within(screen.getByRole("alertdialog", { name: "권한을 뺄까요?" })).getByRole("button", { name: "확인" }));
+    await waitFor(() => expect(me()).toBe(3));
+  });
+
   it("R9_422_는_고르기_옆_칸_오류_초점은_고르기 — role=alert 없음(M-2)", async () => {
     renderRoles({ post: () => problem(422, { status: 422, errors: { permission: "모두가 갖는 역할에는 방문자 권한만 줄 수 있습니다" } }) });
     const member = await role("회원");

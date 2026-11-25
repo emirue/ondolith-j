@@ -27,7 +27,7 @@ async function grantOperator(page: Page) {
   await expect(page.getByRole("list", { name: "가진 역할" }).getByRole("listitem").filter({ hasText: "운영자" })).toBeVisible();
 }
 
-test("사용자 생성 → 운영자 부여 → 그 사용자는 메뉴 다섯·바꾸는 단추 없음 → 역할 빼기 → 작업 로그", async ({ page, stack }) => {
+test("사용자 생성 → 운영자 부여 → 그 사용자는 메뉴 여섯·바꾸는 단추 없음 → 역할 빼기 → 작업 로그", async ({ page, stack }) => {
   await installSite(page, stack);
   await loginAdmin(page);
   await createUser(page, "op@ondolith.test");
@@ -36,7 +36,7 @@ test("사용자 생성 → 운영자 부여 → 그 사용자는 메뉴 다섯·
   await page.getByRole("main").getByRole("button", { name: "로그아웃" }).click(); // 머리글에도 하나 있다
   await loginAdmin(page, "op@ondolith.test", USER_PASSWORD);
   const menu = page.getByRole("navigation", { name: "관리자 메뉴" });
-  await expect(menu.getByRole("link")).toHaveText(["사이트 설정", "작업 로그", "시스템 정보", "사용자", "역할"]);
+  await expect(menu.getByRole("link")).toHaveText(["사이트 설정", "작업 로그", "시스템 정보", "사용자", "역할", "페이지"]);
 
   // 「없다」는 행이 그려진 것을 본 뒤에 센다 — 응답 전이면 그냥 통과한다
   await menu.getByRole("link", { name: "사용자", exact: true }).click();

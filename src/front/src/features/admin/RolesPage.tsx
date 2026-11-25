@@ -42,6 +42,8 @@ export function RolesPage() {
   const done: Done = (gone) => {
     if (gone) lost.current = true;
     queries.invalidateQueries({ queryKey: ["admin", "roles"] });
+    // 자기 역할의 권한이면 메뉴·단추가 바로 바뀌게(1-C2 스펙 7.4 (h))
+    queries.invalidateQueries({ queryKey: ["me"] });
   };
 
   const all = (roles.data?.permissions ?? []).map((p) => p.key ?? "");
