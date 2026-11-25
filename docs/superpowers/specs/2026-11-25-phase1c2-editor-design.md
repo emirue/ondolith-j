@@ -2,7 +2,7 @@
 
 작성 2026-11-24(파일 이름의 날짜는 계획 순서다. 이 문서의 「확인」은 모두 2026-11-24 에 했다). 사용자 답(`docs/decisions.md` 「Phase 1-C 사용자 결정」)과 역할 에이전트 결정(1-C 결정 Q1~Q22, 리치 텍스트 후속 결정 — **사용자 확인 전**)을 옮겼다. 두 결정이 다르면 리치 텍스트 후속 결정을 따른다. 1-C1 스펙과 「1-C1 최종 검토」 표의 1-C2 몫을 이어받는다. 결정에 답이 없던 것은 16절에 역할 에이전트 결정(2026-11-25, 사용자 확인 전)으로 적었고, 다른 절의 문장도 그 결정대로 고쳤다.
 근거: 1-C1 스펙 `2026-11-24-phase1c1-pages-sanitize-design.md`, 리치 텍스트 후속 결정 1절(1-C2 행·완료 기준)·3절(편집기)·5절(CSP), 1-C 결정 Q16·Q19·Q21, 요청서 `request-core.md` `:162`·`:264`·`:290`, ondolith 원문 D11(A-301~303)·D13:266(발행 분리)·D19:2632~2698(A-302·A-303 입출력)·FR-513.
-표기는 1-C1 스펙과 같다 — 「확인」은 이 작업에서 파일·레지스트리·배포 소스를 직접 본 사실, 「추정」은 보지 않은 판단, 「구현 때 확인」은 시험·공식 문서로 확정할 것. 빌드·시험은 돌리지 않았다.
+표기는 1-C1 스펙과 같다 — 「확인」은 이 작업에서 파일·레지스트리·배포 소스를 직접 본 사실, 「추정」은 보지 않은 판단, 「구현 때 확인」은 시험·공식 문서로 확정할 것. 빌드·시험은 돌리지 않았다. 구현(2026-11-24~25) 뒤 「구현 때 확인」의 결과를 `→ 구현:` 으로 덧붙였다(근거는 `docs/decisions.md` 「Phase 1-C2 구현 중 결정과 보안 점검」).
 
 ## 0. 범위
 
@@ -44,7 +44,7 @@
 - **새 의존성은 프런트 다섯이다.** 전이 의존을 합쳐 lock 에 새로 드는 패키지는 51개(이미 있는 `react`·`react-dom`·`@types/react*`·`scheduler`·`csstype` 빼고)다. 스크래치 폴더에서 `npm install --package-lock-only --ignore-scripts` 로 풀어 셌다(설치는 하지 않았다).
   - prosemirror 계열 13개(`prosemirror-view` 1.43.1·`prosemirror-model` 1.25.13 등), `orderedmap`·`rope-sequence`·`w3c-keyname`, `linkifyjs` 4.4.0(Link 가 가져온다. autolink 를 꺼도 모듈은 든다), `fast-equals`·`use-sync-external-store`·`@types/use-sync-external-store`, `@tiptap/extension-*` 스물셋(아래 optional 둘 포함)과 `@tiptap/extensions`·`core`·`pm`·`react`·`starter-kit`.
   - `@tiptap/react` 의 optional 의존 `@tiptap/extension-bubble-menu`·`floating-menu` → `@floating-ui/core`·`dom`·`utils` 도 lock 에 든다. 가져오지 않으므로 묶음에는 들지 않는다(추정 — 8절 표지 검사가 본다).
-- **OSV**(`api.osv.dev/v1/querybatch`, 2026-11-24): 새 51개 모두 0건. `lexical@0.53.0`·`@lexical/react@0.53.0` 도 0건(그 둘만, 전이 의존은 관문이 실패할 때 조회).
+- **OSV**(`api.osv.dev/v1/querybatch`, 2026-11-24): 새 51개 모두 0건. → 구현: 넣기 직전에 다시 봤다 — 판은 그대로 최신이고, 실제로 lock 에 새로 든 것은 48개(`@floating-ui/core`·`dom`·`utils` 는 radix-ui 경유로 이미 같은 판이 있었다), OSV 0건. `lexical@0.53.0`·`@lexical/react@0.53.0` 도 0건(그 둘만, 전이 의존은 관문이 실패할 때 조회).
   - 과거 이력 중 관련: prosemirror-view GHSA-c8x8(2026-10, 붙여넣기 XSS, 1.42.3 수정). `@tiptap/pm@3.35.0` 이 `prosemirror-view ^1.42.6` 을 요구해 1.43.1 로 풀린다.
   - **`prosemirror-view` 1.43.1 은 2026-11-23 게시, 하루째다.** 붙여넣기 XSS 이력이 있는 패키지라 **넣기 직전에** 그때의 최신 GA 와 OSV 를 다시 본다 — 계획의 Global Constraints 로 넘긴다(Tiptap 다섯도 같은 때 다시 본다).
 - **context7 은 이 세션에 도구가 없어 쓰지 못했다.** 판은 npm 레지스트리, API·기본값은 레지스트리 tarball 을 스크래치에 풀어 배포 소스(`package/src`)로 확인했다. 구현 때 context7 이 되면 Tiptap `useEditor`·`useEditorState`·Link 설정 이름을 다시 본다.
@@ -171,7 +171,7 @@
   1. 서버 `LinkCheck.ok` 규칙을 그대로 옮긴다(1-C1 4절: 길이 1~500, 글자 허용 목록, 내부 경로·외부 주소 두 꼴, `%2e` 를 점으로 보는 점 마디 검사, 포트 1~65535). 정규식은 전체 일치(`^…$`, 플래그 없음 — JS 의 `$` 는 `m` 플래그 없이는 끝 개행 앞에서 맞지 않는다. 확인은 시험의 끝 개행 줄이 한다).
   2. 그리고 브라우저 URL 파서로 한 번 더 본다. 내부 경로는 `safeNext(url)` 이 `/` 로 떨어뜨리지 않아야 하고(`t !== "/" || url === "/"`), 그때 `t` 를 낸다. 외부 주소는 `new URL(url)` 이 던지지 않고 `protocol` 이 `http:`·`https:` 이며 그때 `u.href` 를 낸다. **`new URL` 예외는 잡아서 `null`** 로 본다.
 - 짝 시험(1-C1 13.3 이 1-C2 로 넘긴 열): `links.json` 의 `reject` 40값은 모두 `null`, `allow` 9값은 모두 `null` 이 아니다. 같은 파일을 읽기만 한다 — 새 열을 더하지 않는다.
-- 서버보다 엄격한 곳이 생긴다: 서버가 받는 꼴 가운데 WHATWG 파서가 거부하는 호스트(예: 마지막 마디가 숫자인 `https://a.1/` — IPv4 로 읽혀 실패, 잘못된 `xn--` 마디)는 편집기가 링크로 받지 않는다(추정 — 구현 때 Chromium 에서 확인해 시험 한 줄로 고정한다). API 로 그런 링크를 넣은 본문을 편집기로 열면 링크가 글자로 남고, 저장하면 `href` 가 빠진다(14절 위험).
+- 서버보다 엄격한 곳이 생긴다: 서버가 받는 꼴 가운데 WHATWG 파서가 거부하는 호스트(예: 마지막 마디가 숫자인 `https://a.1/` — IPv4 로 읽혀 실패, 잘못된 `xn--` 마디)는 편집기가 링크로 받지 않는다(추정 — 구현 때 Chromium 에서 확인해 시험 한 줄로 고정한다). → 구현: `https://a.1/` 은 jsdom·Chromium 모두 `new URL` 이 던져 `null` 이다(Vitest 한 줄, E2E 「linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다」). `xn--` 은 보지 않았다. API 로 그런 링크를 넣은 본문을 편집기로 열면 링크가 글자로 남고, 저장하면 `href` 가 빠진다(14절 위험).
 
 ## 5. 편집기 ↔ 서버 짝 시험 (결정 3.4)
 
@@ -194,6 +194,8 @@
 | E8 | `<h1>a</h1><h4>b</h4><p><u>c</u><s>d</s><code>e</code></p><pre>f</pre><hr><p><img src="/api/media/U" alt="g"></p>` | 제목·서식·사진이 빠지고 글자는 남는다. 꼴은 실제 출력으로 고정 |
 | E9 | `<p>a<br>b</p><blockquote><p>c</p></blockquote><ul><li><p>d</p><ul><li><p>e</p></li></ul></li></ul>` | 입력 그대로(이미 편집기 꼴) |
 
+→ 구현(jsdom, Tiptap 3.35.0): E6 은 입력 그대로 `<p>a &amp; b &lt; c &gt; d&nbsp;e "f"</p>`(jsoup 도 같다, Chromium 은 미확인). E7 은 링크가 바깥 `<p><a href="https://example.com/?a=1&amp;b=2"><strong><em>x</em></strong></a></p>`. E8 은 `<p>a</p><p>b</p><p>cde</p><p>f</p><p></p>`. 셋 다 규칙과 맞아 3절 설정을 고치지 않았다. jsdom 에서 `new Editor` 가 돌아 프런트 쪽은 Vitest 에 남았다.
+
 ### 5.2 세 쪽
 
 - **프런트(Vitest)**: 모든 줄에서 `new Editor({ extensions: EXTENSIONS, content: input }).getHTML() === editor`, 그리고 `DOMPurify.sanitize(editor, RichHtml 설정) === editor`. `links.json` 의 `allow` 값마다 `<p><a href="값">x</a></p>`(속성 이스케이프)를 실어 링크가 남는다 — 서버가 받은 링크가 편집기로 열 때 사라지지 않는지 표의 값으로 본다.
@@ -212,11 +214,11 @@
 ### 6.1 발행에 읽은 `updated_at` (I-2)
 
 - `POST /api/admin/pages/{id}/publish` 본문 `{updated_at}` — 고정 레코드 하나(`PublishInput(Instant updatedAt)`). 없거나 `null` 이면 422 `errors.updated_at` 「필수입니다」, 형식이 틀리면 400(Jackson, 1-B 관례). 다른 칸은 읽지 않는다.
-- `updated_at` 은 **불투명 값**이다. 화면은 상세 응답의 문자열을 그대로 되돌려 보낸다 — `Date` 로 바꾸면 마이크로초가 잘려 늘 409 다. 서버 직렬화는 1-C1 그대로(`Instant`, Jackson 기본 ISO-8601). PostgreSQL `timestamptz` 마이크로초가 문자열 왕복에서 그대로인지는 시험 `상세의_updated_at_을_그대로_실으면_204` 가 확인한다.
+- `updated_at` 은 **불투명 값**이다. 화면은 상세 응답의 문자열을 그대로 되돌려 보낸다 — `Date` 로 바꾸면 마이크로초가 잘려 늘 409 다. 서버 직렬화는 1-C1 그대로(`Instant`, Jackson 기본 ISO-8601). PostgreSQL `timestamptz` 마이크로초가 문자열 왕복에서 그대로인지는 시험 `상세의_updated_at_을_그대로_실으면_204` 가 확인한다. → 구현: 그대로다(응답 예 `…T00:50:09.332977Z`). 바인딩은 `Instant` 그대로면 pgjdbc 가 형을 추론하지 못해 500 이라 `OffsetDateTime`(UTC)으로 바꿔 싣는다. 범위 밖 `Instant.MAX` 는 500 이 남았다(최종 검토 몫).
 - 순서
   1. 슬러그 읽기 → 없으면 404 → 예약어면 409 「이 주소는 시스템 경로와 충돌합니다」(1-C1 그대로, 내용 비교보다 앞 — 예약어 충돌은 다시 읽어도 풀리지 않는다).
   2. `UPDATE pages SET status = 'published', updated_at = now() WHERE id = ? AND status = 'draft' AND updated_at = ?` → 1행이면 204·기록 `page.publish`.
-  3. 0행이면 `status, updated_at` 을 다시 읽는다.
+  3. 0행이면 `status, updated_at` 을 다시 읽는다(→ 구현: `status` 만 읽는다 — `updated_at` 은 쓰는 곳이 없다).
      - 없음 → 404(그 사이 지워짐).
      - `status = 'published'` → 204·기록 없음(Q7 그대로 — 이미 발행됨. 요청의 `updated_at` 을 보지 않는다).
      - 초안인데 `updated_at` 이 다름 → **409 「그사이 페이지가 바뀌었습니다. 바뀐 내용을 확인한 뒤 발행하세요」**·기록 없음·상태 그대로.
@@ -313,7 +315,7 @@
 ### 7.4 넘어온 화면 고침
 
 - **(h)**: `RolesPage` 의 권한 부여·빼기 성공 때 `["admin", "roles"]` 와 함께 `["me"]` 도 무효화한다 — 자기 역할의 권한을 바꾸면 메뉴·단추(이제 페이지 단추까지)가 바로 바뀐다.
-- **m-11**: `UserDetailPage` 의 「빼기」 단추를, 역할이 superuser 역할(`is_superuser`)이면 그 역할이 `assignable_roles` 에 있을 때만 그린다. 서버는 비-superuser 에게 superuser 역할을 `assignable_roles` 에서 이미 뺀다(1-C1 M-12) — R3 이 늘 거절하는 단추를 그리지 않는다. superuser 역할이 `is_assignable` 이 아니면 superuser 요청자에게도 단추가 사라진다 — 구현 때 V2 시드로 확인한다.
+- **m-11**: `UserDetailPage` 의 「빼기」 단추를, 역할이 superuser 역할(`is_superuser`)이면 그 역할이 `assignable_roles` 에 있을 때만 그린다. 서버는 비-superuser 에게 superuser 역할을 `assignable_roles` 에서 이미 뺀다(1-C1 M-12) — R3 이 늘 거절하는 단추를 그리지 않는다. superuser 역할이 `is_assignable` 이 아니면 superuser 요청자에게도 단추가 사라진다 — 구현 때 V2 시드로 확인한다. → 구현: 시드는 V1 이다(`V1__init.sql` 의 admin 은 `is_superuser=true, is_assignable=true`, V2~V5 에 바꾸는 줄 없음) — superuser 요청자에게는 「빼기」가 남는다.
 
 ## 8. 코드 분할 (Q21, 넘어온 (g))
 
@@ -325,17 +327,24 @@
   - **반대 단언**: 같은 시험에서 `/admin/pages/new` 를 열면 내려받은 JS 가운데 그 표지가 든 것이 있다. 이것이 없으면 표지가 압축에서 사라져도 공허하게 통과한다.
   - 표지 문자열이 압축 뒤에도 남는지는 구현 때 확인(반대 단언이 확인한다).
 - (g) 500kB 경고: 빌드 출력에서 본다(완료 보고에 chunk 크기를 적는다). 관리자 chunk 가 편집기 때문에 500kB 를 넘어 경고가 남으면 `RichEditor` 를 두 번째 lazy 경계로 뗀다(Q21 「틀렸을 때 비용: 더 쪼갠다」). 크기는 재지 않았다.
+- → 구현
+  - 관리 chunk 는 473.76 kB 라 `RichEditor` 경계는 두지 않았다.
+  - 관리자 트리만 떼면 **공개** chunk 가 502.58 kB 로 경고가 남아, `InstallPage` 도 lazy 로 뗐다(경계 둘 — 이 절의 「경계 하나」와 다르다). 공개 `index-*.js` 497.74 kB, 경고 없음, 여유 약 2.3 kB. 설치 chunk 를 받지 못하면 빈 화면이다(`ponytail:`).
+  - 관리 chunk 이름은 `assets/AdminGate-<hash>.js` 이고, 표지 문자열은 압축 뒤에도 남는다(반대 단언 통과).
+  - `/admin/*` 아래 없는 주소는 `AdminTree` 의 문 밖 `path="*"` 가 「찾을 수 없습니다」로 받는다.
 
 ## 9. CSP 다시 보기 (편집기 화면)
 
 - 정책은 1-C1 8.3 그대로 시작한다: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'`.
+- → 구현(m-6 판정 뒤 최종 정책, `vite.config.ts`·`e2e/pages.spec.ts`): `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; style-src-attr 'none'`.
 - 편집기 화면을 지나는 E2E(2절 관문, 12.5)가 모두 1-C1 의 `guard`(받지 않은 위반 0·대화상자 0) 아래에서 돈다. 기대: 위반 0 — `contenteditable` 은 CSP 대상이 아니고, Tiptap 의 `<style>`(`injectCSS`)은 `style-src 'unsafe-inline'` 이 받으며, ProseMirror 의 인라인 스타일은 CSSOM(`style.cssText`)이라 `style-src-attr` 대상이 아니다(확인: 소스, 브라우저 동작은 추정).
 - **m-6 실험 — `style-src-attr 'none'`**
   - 판정은 소스 grep 이 아니라 E2E 다. 걸리는 것은 마크업의 `style=` 속성(파싱·`setAttribute`)이지 CSSOM 이 아니다.
   - 순서: 정책에 `style-src-attr 'none'` 을 더한 빌드로 전체 E2E 를 돌린다. 볼 곳은 ① 기존 관리 화면(Radix 는 React `style` 속성 — React 는 CSSOM 으로 쓴다, 추정) ② 편집기 ③ `style=` 이 든 HTML 을 편집기에 붙여넣기(12.5-3) ④ DOMPurify 겹(X14 의 `style="color:red"` — 1-C1 에서 Chrome 은 붙이지 않은 문서를 파싱만 해도 `script-src-attr` 을 보고했다. `style-src-attr` 도 그럴 수 있다, 구현 때 확인).
   - 판정: 실제 문서(붙인 DOM)에서 난 `style-src-attr` 위반이 0이면 더한다(플러그인과 E2E 기대 문자열 두 곳, 붙이지 않은 문서 파싱 보고만 있으면 1-C1 8.5-2 처럼 경로 완전 일치·건수 고정으로 받는다). 실제 문서에서 하나라도 나면 더하지 않고 증거(경로·지시어·시험)를 결정 문서에 적는다.
 - 관리 화면도 `RichHtml` 을 쓴다(7.3 렌더러·발행 미리보기). 싣는 값은 서버가 내보낼 때 정화한 본문이라 처리기 속성이 없어, 1-C1 8.5-2 의 「붙이지 않은 문서 파싱 보고」가 관리 화면에서는 나지 않을 것이다(추정 — 모든 E2E 의 `guard` 가 본다).
-- **m-4 — 예외 건수 고정**: 1-C1 8.5-2 의 일곱 줄 예외(`script-src-attr` 여섯, `base-uri` 하나)를 「있으면 받는다」에서 「경로마다 정확히 n건」으로 바꾼다. 지금의 줄마다 2건은 `RichHtml` 의 재렌더 때문이다(검토자 확인). m-3(`useMemo`)을 먼저 넣으면 1건이 될 것이다(추정) — m-3 뒤에 세어 고정한다.
+- → 구현(m-6): 붙인 DOM 의 `style-src-attr` 위반 0 이라 더했다. 흐름 E2E(수정 화면·발행 미리보기·렌더러·공개 화면)에서도 0 이라 유지했다. 붙이지 않은 문서 파싱 보고는 붙여넣기(`createHTMLDocument`)에서만 2건(X14, 「표·색·밑줄」) 났고, 경로·지시어·건수로 받는다. `DOMParser`(DOMPurify 겹)는 `style-src-attr` 를 보고하지 않았다. 관리 화면 `RichHtml` 의 파싱 보고는 0 이었다(추정이 맞았다).
+- **m-4 — 예외 건수 고정**: 1-C1 8.5-2 의 일곱 줄 예외(`script-src-attr` 여섯, `base-uri` 하나)를 「있으면 받는다」에서 「경로마다 정확히 n건」으로 바꾼다. 지금의 줄마다 2건은 `RichHtml` 의 재렌더 때문이다(검토자 확인). m-3(`useMemo`)을 먼저 넣으면 1건이 될 것이다(추정) — m-3 뒤에 세어 고정한다. → 구현: 경로마다 정확히 1건으로 고정했다. 다만 `useMemo` 를 빼도 1건이라 「줄마다 2건」은 지금 트리에서 재현되지 않았다.
 - Trusted Types(`require-trusted-types-for 'script'`)는 넣지 않는다. 편집기는 관리 화면에만 있고, prosemirror-view 는 Trusted Types 감싸기를 갖고 있다(확인) — 공개 화면에 걸지는 리치 텍스트 후속 결정 5절의 `ponytail:` 그대로 남긴다.
 
 ## 10. 넘어온 것 — 처분
@@ -472,12 +481,12 @@
 ## 17. 열린 문제
 
 1. **IME 수동 확인** — 사용자가 맥 한글 입력기로 Chrome·Safari 를 볼 때까지 「미실행」.
-2. **CDP 확정 방법** — `Input.insertText` 가 조합을 끝내는지(2.2). 대조 단언이 알려 준다.
-3. **jsdom 에서 Tiptap** — `new Editor` 가 도는지(5.2). 안 되면 짝 시험 프런트 쪽을 E2E 로 옮긴다.
-4. **합성 붙여넣기** — prosemirror-view 가 `ClipboardEvent` 합성 이벤트를 받는지(12.5-3).
-5. **붙이지 않은 문서 파싱의 CSP 보고** — `createHTMLDocument`(붙여넣기)·`DOMParser`(싣기)에서 Chrome 이 `script-src-attr`·`style-src-attr` 을 보고하는지(9절, 12.5-3). 1-C1 에서는 `DOMParser` 가 보고했다.
-6. **`style-src-attr 'none'`** — 9절 실험 결과.
-7. **묶음 크기** — 관리자 chunk 크기와 (g) 경고. 재지 않았다.
-8. **`linkHref` 와 `LinkCheck` 가 갈리는 꼴** — 4절의 예가 실제로 갈리는지 Chromium 에서 본다.
-9. **판** — `prosemirror-view` 1.43.1 게시 하루째. 구현 때 Tiptap·prosemirror 의 최신 GA·OSV 를 다시 본다. context7 은 이 세션에 없었다.
+2. **CDP 확정 방법** — `Input.insertText` 가 조합을 끝내는지(2.2). 대조 단언이 알려 준다. → 확인했다: 끝낸다(확정마다 `compositionend` 1). 관문 통과.
+3. **jsdom 에서 Tiptap** — `new Editor` 가 도는지(5.2). 안 되면 짝 시험 프런트 쪽을 E2E 로 옮긴다. → 확인했다: 돈다(`focus` 때문에 시험에서 `Range` 레이아웃 함수를 채운다).
+4. **합성 붙여넣기** — prosemirror-view 가 `ClipboardEvent` 합성 이벤트를 받는지(12.5-3). → 확인했다: 받는다(headless shell, 96줄 모두 `dispatchEvent` 가 `false`).
+5. **붙이지 않은 문서 파싱의 CSP 보고** — `createHTMLDocument`(붙여넣기)·`DOMParser`(싣기)에서 Chrome 이 `script-src-attr`·`style-src-attr` 을 보고하는지(9절, 12.5-3). 1-C1 에서는 `DOMParser` 가 보고했다. → 확인했다: `createHTMLDocument` 는 `script-src-attr` 6·`base-uri` 1·`style-src-attr` 2, `DOMParser` 는 `style-src-attr` 를 보고하지 않는다(9절).
+6. **`style-src-attr 'none'`** — 9절 실험 결과. → 더했다(9절).
+7. **묶음 크기** — 관리자 chunk 크기와 (g) 경고. 재지 않았다. → 쟀다: 공개 497.74 kB·관리 473.76 kB, 경고 없음(8절).
+8. **`linkHref` 와 `LinkCheck` 가 갈리는 꼴** — 4절의 예가 실제로 갈리는지 Chromium 에서 본다. → 확인했다: `https://a.1/` 이 갈린다(4절).
+9. **판** — `prosemirror-view` 1.43.1 게시 하루째. 구현 때 Tiptap·prosemirror 의 최신 GA·OSV 를 다시 본다. context7 은 이 세션에 없었다. → 다시 봤다: 판 그대로, 새 48개 OSV 0건(1절).
 10. **1-C1·1-B2 의 열린 문제는 그대로** — Q12 버전 노출(사용자 확인 필요), 시험 이미지 고정, 작업 로그를 일과 다른 트랜잭션에 씀, m-14 시험 DB 접속 멈춤.

@@ -425,8 +425,8 @@ D86(ondolith 보안 점검 목록) 대조 — 1-B2 범위(스펙 13절):
 | (b) `@Valid` 가 권한 검사보다 먼저 돌아 익명에게도 422 | 한계로 둔다(같은 이유) |
 | (d) 서버는 이메일 앞뒤 공백을 빼고 프런트 zod 는 빼지 않는다(설치와 같다). 잘못 보내는 값은 없다 | 1-E(가입 폼과 함께) |
 | (e) A-402 상세의 질의 수 시험 없음, (f) 권한 빼기 E2E 없음 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
-| (g) 빌드 chunk 500kB 경고(AlertDialog) | 1-C2(공개·관리자 코드 분할, Q21) |
-| (h) 자기 역할 권한을 바꿔도 `["me"]` 를 무효화하지 않는다 | 1-C2(페이지 단추를 `can` 으로 그리는 단계) |
+| (g) 빌드 chunk 500kB 경고(AlertDialog) | 1-C2(공개·관리자 코드 분할, Q21) — 1-C2 에서 고침(Task 7) |
+| (h) 자기 역할 권한을 바꿔도 `["me"]` 를 무효화하지 않는다 | 1-C2(페이지 단추를 `can` 으로 그리는 단계) — 1-C2 에서 고침(Task 5) |
 | M-9 Docker 가 꺼졌을 때 측정 하네스 문구가 「PLATFORM()이 Docker 서버와 다르다」로 원인이 안 보인다 | 다음 측정 때 |
 | M-11 M-7 검사가 첫 마디 와일드카드(`/{x}/admin/y`, `/**`)를 놓친다(지금 그런 매핑 없음) | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
 | M-12 화면이 늘 실패하는 선택지를 내놓는다(비-superuser 의 「줄 역할」에 admin, member·anonymous 부여는 늘 422) — 누를 때마다 지울 수 없는 거절 행 | 1-C1(1-C1 스펙 9절) — 1-C1 Task 6 에서 고침 |
@@ -620,15 +620,15 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 |---|---|
 | m-1 공개 조회가 익명 요청마다 `clean` 을 (이제 고정점까지) 돈다 — 시간은 재지 않았다 | 1-C 끝 메모리 측정 때 함께 잰다 |
 | m-2 `alt` 에 `</style>` 같은 닫는 꼴이 있으면 DOMPurify 가 속성째 지운다(서버는 남김) — 짝 시험 밖 | 1-C3(`alt` 칸이 사진 단추와 함께 생긴다 — 1-C2 스펙 10절) |
-| m-3 `RichHtml` 이 렌더마다 `sanitize` 를 다시 부른다 — `useMemo` | 1-C2 |
-| m-4 E2E 일곱 줄 예외가 건수를 고정하지 않는다(줄마다 2건은 재렌더 — 검토자가 실행으로 확인) | 1-C2 |
-| m-5 싱크 검사의 금지 이름 보강(`ADD_ATTR`·`ALLOW_UNKNOWN_PROTOCOLS`·`setHTMLUnsafe` 등) | 1-C2 |
-| m-6 `style-src-attr 'none'` 으로 더 좁히기(미실행) | 1-C2(편집기가 인라인 스타일을 쓰는지 본 뒤) |
-| m-7 413 응답에 보안 헤더가 붙지 않을 것(추정) | 1-C2 |
-| m-8 발행본 수정 403 을 기록하지 않는다 | 1-C2(I-2 와 함께) |
+| m-3 `RichHtml` 이 렌더마다 `sanitize` 를 다시 부른다 — `useMemo` | 1-C2 — 1-C2 에서 고침(Task 8) |
+| m-4 E2E 일곱 줄 예외가 건수를 고정하지 않는다(줄마다 2건은 재렌더 — 검토자가 실행으로 확인) | 1-C2 — 1-C2 에서 고침(Task 8, 경로마다 1건. 「줄마다 2건」은 지금 트리에서 재현되지 않았다) |
+| m-5 싱크 검사의 금지 이름 보강(`ADD_ATTR`·`ALLOW_UNKNOWN_PROTOCOLS`·`setHTMLUnsafe` 등) | 1-C2 — 1-C2 에서 고침(Task 8) |
+| m-6 `style-src-attr 'none'` 으로 더 좁히기(미실행) | 1-C2(편집기가 인라인 스타일을 쓰는지 본 뒤) — 1-C2 에서 판정: 더했다(Task 8, Task 9 흐름에서 유지) |
+| m-7 413 응답에 보안 헤더가 붙지 않을 것(추정) | 1-C2 — 1-C2 에서 고침(Task 4, 추정대로 없었다) |
+| m-8 발행본 수정 403 을 기록하지 않는다 | 1-C2(I-2 와 함께) — 그대로 둔다 — 1-C2 스펙 6.2 |
 | m-9 `body_html` 에 숫자·불리언을 보내면 문자열로 저장(201) | 한계로 둔다 — 정화를 지난다 |
-| m-10 W1~W4 기대값이 프런트 시험에만 있다 | 1-C2(백엔드 시험에도 고정) |
-| m-11 비-superuser 에게 admin 「빼기」 단추가 보인다(R3 가 늘 거절) | 1-C2 |
+| m-10 W1~W4 기대값이 프런트 시험에만 있다 | 1-C2(백엔드 시험에도 고정) — 1-C2 에서 고침(Task 2, `vectors.json` 96줄) |
+| m-11 비-superuser 에게 admin 「빼기」 단추가 보인다(R3 가 늘 거절) | 1-C2 — 1-C2 에서 고침(Task 5) |
 | m-13 「사용자 확인 전」 문구가 공개 문서에 남는다 | Phase 1 끝 사용자 확인 뒤 일괄 정리 |
 | m-14 시험의 DB 접속에 시한이 없다 — `RequestSizeLimitTest.start` 가 12분 CPU 0% 로 멈췄다(재실행 통과, 원인 미확인. 1-B 의 `SwitchTest` 멈춤과 같은 꼴) | 원인을 모른 채 시한을 넣지 않는다. 다음에 멈추면 `jcmd <pid> Thread.print` 로 원인부터 잡는다 |
 
@@ -677,9 +677,9 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
 2. **렌더러 — 편집기는 저장 단추가 있을 때만 띄운다.** 그 밖(`page.update` 없음, 또는 발행본인데 `page.publish` 없음)에는 응답의 `body_html` 을 `RichHtml` 로 그린다. 「발행」 확인 대화상자의 설명 아래에 같은 응답의 `body_html` 을 `RichHtml` 로 미리보기(높이 제한·스크롤) — 발행이 싣는 `updated_at` 과 같은 응답. `ConfirmButton` 에 `children` 하나를 더한다. 이유: 편집기는 `img`(Image 확장 없음)와 `linkHref` 가 서버보다 엄격해 떨어지는 링크를 버려, 편집기로 보여 주면 승인자가 보지 못한 것이 공개된다(I-2 의 다른 경로). 시드가 editor·operator 에 `page.*` 를 다 줘 권한 토글로는 막지 못한다. 대가: 관리 chunk 에 DOMPurify 가 든다. 한계: 승인자가 미리보기를 실제로 읽었는지는 보장하지 못한다. 두 권한을 다 가진 편집자는 편집 화면에서 편집기 모양을 본다(대신 발행 대화상자 미리보기가 공개 렌더러).
 3. **발행본 삭제는 `page.publish` 도 요구한다**(원문과 다르다). 요청자가 `page.publish` 를 갖지 않으면 `DELETE FROM pages WHERE id = ? AND status = 'draft'` 한 문장, 0행이면 `EXISTS` 로 가른다 — 있으면 403 「발행된 페이지는 발행 권한이 있어야 지울 수 있습니다」(기록 없음), 없으면 404. 화면의 「삭제」는 `can["page.delete"]` 이고 (초안이거나 `can["page.publish"]`), 발행본이라 숨기면 「발행을 취소한 뒤 지울 수 있습니다」. 지우기는 공개를 끝내는 동작이라 발행 취소와 같은 무게다.
 
-## Phase 1-C2 구현 중 결정과 보안 점검 (2026-11-24)
+## Phase 1-C2 구현 중 결정과 보안 점검 (2026-11-24~25)
 
-스펙 `docs/superpowers/specs/2026-11-25-phase1c2-editor-design.md`, 계획 `docs/superpowers/plans/2026-11-25-phase1c2-editor.md`.
+스펙 `docs/superpowers/specs/2026-11-25-phase1c2-editor-design.md`, 계획 `docs/superpowers/plans/2026-11-25-phase1c2-editor.md`. Task 마다 개발 에이전트가 순서대로 맡았다(Task 1 은 2026-11-24, 2~10 은 11-25). 스펙에는 아래 「고친 것」과 「구현 때 확인」의 결과를 반영했다(1·4·5.1·6.1·7.4·8·9·17절). 실행 환경은 모두 macOS 로컬이다 — **Linux(CI) 실행은 이 브랜치에서 한 번도 없다.**
 
 ### Task 1 — 한글 IME 관문: **통과**
 
@@ -704,14 +704,14 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
   - 계획의 `End` 대신 `ArrowRight`. Playwright 는 macOS 에서 `End` 를 `scrollToEndOfDocument:` 로 보내 캐럿이 그대로다(`playwright-core` macEditingCommands). 그대로면 고른 「안」 위에서 조합이 시작돼 `<p>한글 입력</p>` 가 나갔다. `ArrowRight` 는 선택을 끝으로 접는다 — macOS 에서 확인, Linux(CI)에서도 같을 것은 추정(CI 에서 확인).
   - `Shift+ArrowLeft` 직후 곧바로 링크 칸으로 가면 편집기가 `selectionchange` 를 읽기 전이라 선택을 버린다(DOM 선택은 바뀌었고 편집기 선택은 접힌 채였다). 시험이 편집기 선택을 기다린 뒤 다음 동작을 한다. 사람 손 입력에서 나는지는 수동 확인 몫이다.
 - jsdom: `new Editor` 가 돈다 — 편집기 단위 시험을 E2E 로 옮기지 않는다. `focus` 명령의 `scrollIntoView` 가 jsdom 에 없는 `Range.getClientRects` 를 불러 시험 파일에서만 빈 값으로 채웠다.
-- `linkHref`: `https://a.1/` 은 서버 `LinkCheck` 는 받고 jsdom `new URL` 은 던진다 → `null`(시험 한 줄로 고정). Chromium 결과는 Task 3 이 본다.
+- `linkHref`: `https://a.1/` 은 서버 `LinkCheck` 는 받고 jsdom `new URL` 은 던진다 → `null`(시험 한 줄로 고정). Chromium 에서도 `new URL` 이 던진다(Task 3, E2E 「linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다」).
 - **사용자 수동 확인(맥 한글 입력기, Chrome·Safari): 미실행 — 사용자 확인 요청.**
 
 ### Task 8 — CSP 다시 보기(m-3·m-4·m-6·m-5)
 
 - **m-6 `style-src-attr 'none'`: 더했다.** `vite.config.ts` 와 E2E 기대 문자열(`pages.spec.ts`) 두 곳. 판정은 `mise run e2e` 전체(2026-11-25, macOS 로컬, Chromium headless shell).
   - 붙인 DOM 에서 난 `style-src-attr` 위반 0. 범위는 지금 E2E 27개가 지나는 화면이다 — 관리 화면(Radix 확인 대화상자 포함)·작성 화면의 편집기·IME 관문.
-  - 수정 화면(`/admin/pages/{id}`)·발행 대화상자·렌더러·미리보기는 아직 E2E 가 지나지 않는다(Task 9 가 처음 지난다). 거기서 대상이 요소인 `style-src-attr` 가 나면 이 판정을 되돌린다.
+  - 수정 화면(`/admin/pages/{id}`)·발행 대화상자·렌더러·미리보기는 Task 9 가 처음 지났다 — **판정 유지.** 흐름 E2E 두 개(「쓰기에서 공개까지」·「I-2: 승인자…」)에서 모든 문맥(관리자·승인자·고치는 사람·방문자)의 CSP 위반 0건(`--repeat-each=3` 세 번 모두, `check()` 가 받기 없이 단언). 한계: 그 흐름의 본문은 서식 요소뿐이다 — `style=` 이 든 본문은 Task 3·8 의 붙여넣기 시험만 본다.
   - 편집기 확장이 `renderHTML` 로 `style` 속성을 내면(1-C3 사진 등) 붙은 DOM 에서 막힐 수 있다(추정) — 넣을 때 E2E 로 본다.
   - 붙이지 않은 문서 파싱 보고 2건. 둘 다 `/admin/pages/new` 의 붙여넣기이고 `blocked` 는 `inline`, 위치는 관리 chunk 의 prosemirror-view `readHTML`(`createHTMLDocument` 본문에 `innerHTML`)이다.
     - `붙여넣기: 오염 HTML 을 붙여도 스크립트가 돌지 않는다` 의 X14 줄(`style="color:red"`)
@@ -724,3 +724,127 @@ D86(ondolith 보안 점검 목록) 대조 — 1-C1 범위(스펙 14절):
   - Chrome 은 같은 보고를 합치지 않는다. `sanitize` 를 두 번 부르는 변이로 줄마다 2건이 돼 실패하는 것을 봤다.
 - **m-3**: `useMemo` 를 `dangerouslySetInnerHTML` 과 같은 줄에 뒀다. 공개 chunk 497.74 kB, 500 kB 경고 없음.
 - **m-5**: 전역 금지 이름에 3개, `RichHtml.tsx` 금지 이름에 8개를 더했다. 지금 쓰는 `ADD_URI_SAFE_ATTR` 는 걸리지 않는다(고정 입력 한 줄).
+
+### 구현하며 찾아 고친 것(시험이 잡았다)
+
+1. **발행 `updated_at` 을 `Instant` 그대로 바인딩하면 500 이었다.** pgjdbc 42.7.14 가 `java.time.Instant` 의 SQL 형을 추론하지 못한다. `OffsetDateTime.ofInstant(…, ZoneOffset.UTC)` 로 바인딩한다(`PagesApiTest` 「상세의_updated_at_을_그대로_실으면_204」, 바인딩을 밀리초로 자르는 변이면 409). Task 4.
+2. **m-7 — 413 응답에 API 보안 헤더가 없었다(추정이 맞았다).** 첫 Red 는 Content-Length 갈래에서 났다. catch 갈래만 옛 꼴로 되돌린 변이에서는 PUT chunked 폼이 `nosniff` 없음으로 실패했다. 필터가 네 헤더를 직접 단다 — `Cache-Control` 은 시험이 `/api/health` 의 값을 읽어 같은지 본다(`RequestSizeLimitTest` 「_413_에도_API_보안_헤더가_붙는다」. 숫자로 시작하는 이름은 Java 식별자가 아니라 앞에 `_`). Task 4.
+3. **재연결 때 상세를 다시 읽었다.** TanStack Query 의 `refetchOnReconnect` 기본값이 켜짐이라, 네트워크가 다시 이어지면 남이 고친 본문이 알림 없이 실린다 — 스펙 7.3 「다시 채우기는 내 동작 뒤에서만」의 구멍이다. 상세 쿼리에 `refetchOnReconnect: false` 를 더했다(`PageEditPage.test` 「네트워크가_다시_이어져도_상세를_다시_읽지_않는다」 Red: 요청 2). Task 6.
+4. **고치는 중에 「발행 취소」하면 화면이 낡은 상태를 보였다.** 다시 읽은 응답이 dirty 때문에 실리지 않아, 알림은 「발행을 취소했습니다」인데 상태 「발행」과 「발행 취소」 단추가 남았다. 이제 두 응답에서 나눠 읽는다.
+   - 가장 최근 응답: 상태와 그것이 고르는 단추·삭제 설명·저장 가능 여부
+   - 폼에 실린 응답: 편집 내용·렌더러 본문·미리보기·발행이 싣는 `updated_at`
+   - h2 초점 effect 의 의존도 응답 시각으로 바꿨다.
+   - 시험: 「고치는_중에_발행을_취소하면_상태와_단추는_새_응답을_따르고_고친_내용은_남는다」 Red(「초안」 없음) → Green. Task 6.
+5. **관리자 트리를 lazy 로 떼자 `/admin/없는-주소` 가 빈 화면이 됐다**(`/admin/*` 가 먼저 잡는다). `AdminTree` 의 `<Routes>` 에 문 밖 형제 `<Route path="*">` 를 더해 분할 전처럼 「찾을 수 없습니다」를 보인다. `App.test` 「관리자_아래_없는_주소면_찾을_수_없습니다」 가 분할 전(2fa57d5)에서 통과·793a100 에서 실패·고친 뒤 통과. Task 7.
+
+### 계획의 「스펙과 다르게 정한 것」 — 실제 결과
+
+1. 발행의 422 가 슬러그 조회·예약어보다 앞이다 — 그대로. 없는 id 로 발행하는 기존 시험(`거절은_기록하지_않는다`)은 유효한 `updated_at` 을 싣게 고쳤다(기대 404 그대로). UUID 가 아닌 경로의 발행은 경로 변환이 먼저라 빈 본문 그대로 404 다.
+2. 발행 본문 `required = false` — 추정이 맞았다. 권한 없는 역할의 빈 본문은 403, 익명 401, CSRF 없음 403 이고, 기존 `PagesApiTest` 50개를 고치지 않고 통과했다(Task 4 Step 1 탐침).
+3. 상세 GET 이 `page.view` 로 바뀌어 뒤집힌 기존 시험은 하나다: `상세는_편집자_200_page_view_만이면_403` → `상세는_page_view_만이면_200_권한이_없으면_403`(page.view 만 200, admin.access 만·page.update 만 403). 스펙 16절 1(역할 에이전트 결정 — 사용자 확인 전)의 귀결이다.
+4. 성공 알림 「발행했습니다」·「발행을 취소했습니다」 — 그대로.
+5. dirty 면 「발행」 자리에 `aria-disabled="true"` 인 평범한 `Button` 과 안내 「저장하지 않은 수정이 있습니다」(`aria-describedby`). 다시 읽는 중은 `send` 가 무효화를 `await` 해 `pending` 이 막는다 — 그대로(`PageEditPage.test` 「dirty_면_발행이_aria_disabled_이고_안내를_읽는다」).
+6. `offline(page, can)` 은 `e2e/stack.ts` 에 있다 — 그대로.
+7. 붙여넣기·링크 거부 E2E 는 Task 3 — 그대로. Task 8 의 m-6 실험이 그 표(`PASTE_REPORTS`)를 늘렸다(X14 에 `style-src-attr` 1).
+8. IME 대조군을 설치보다 먼저 — 기본 `chromium` 프로젝트(headless shell)에서 통과해 채널을 바꾸지 않았다.
+9. A-301 제목은 늘 링크다 — 제목 링크를 `can["page.update"]` 에 묶는 변이로 Red 를 봤다.
+10. `key={id ?? "new"}` 재마운트 — `key` 를 빼면 「작성_201_뒤_상세로_옮기면_상세_응답으로_채워지고_발행이_막히지_않는다」 가 실패한다(React Router 8.5.1 은 같은 부품을 다시 쓴다).
+
+계획에 없던 것(가장 작은 변경으로 정하고 ledger 에 남긴 것):
+
+- **`InstallPage` 도 lazy 로 뗐다**(스펙 8절 「경계 하나」와 다르다). 관리자 트리만 떼면 공개 chunk 가 502.58 kB 로 경고가 남았다 — Q21 「틀렸을 때 비용: 더 쪼갠다」 쪽의 가장 작은 변경이다. 이 변경은 793a100 에 들어 있는데 커밋 메시지(계획 문구 그대로)에는 적혀 있지 않다. 설치 chunk 를 받지 못하면 빈 화면이다(문구가 스펙에 없어 대체 화면은 만들지 않고 `ponytail:` 주석).
+- `RichEditor` 둘째 lazy 경계는 만들지 않았다 — 스펙 8절의 조건(관리 chunk 가 500 kB 를 넘음)이 서지 않았다(473.76 kB).
+- `chunkSizeWarningLimit` 은 쓰지 않았다 — 바이트가 그대로다.
+- `RichEditor` 가 라벨(`label` 속성)을 그리고, 누르면 `editor.commands.focus()`. contenteditable 은 `<label for>` 대상이 아니다.
+- `linkHref`(`shared/lib`)가 `@/features/auth/safeNext` 를 가져온다 — shared → features 로 가져오는 첫 줄이다. 옮기면 LoginPage·시험 이동까지 번져 그대로 뒀다.
+- 발행 UPDATE 0행 뒤 다시 읽기는 `status` 만 본다(스펙 6.1 의 `updated_at` 은 쓰지 않는 칸).
+- 확인 단추 셋(발행·발행 취소·삭제)은 페이지 `<form>` 밖이다 — 대화상자의 submit 이 페이지 폼까지 올라가 저장을 함께 보내지 않게. 발행 시험이 보낸 POST 가 `/publish` 하나뿐인지 본다.
+- 발행·발행 취소 성공 뒤 초점은 h2(`UserDetailPage` 의 관례). 연 단추가 다른 단추로 바뀌어 초점이 body 로 떨어지기 때문이다.
+- `ConfirmButton` 의 `ask` 는 「묻는다」만 정한다. 확인 단추 색은 지금처럼 `destructive` 가 고른다(발행 대화상자는 기본 색).
+- 메뉴 「페이지」가 생겨 E2E `admin.spec.ts`·`users.spec.ts` 의 메뉴 단언이 다섯에서 여섯이 됐다(스펙 7.1 의 귀결).
+- m-11 의 시드는 V1 이다(스펙 7.4 의 「V2」는 틀렸다 — `V1__init.sql` 의 admin 은 `is_superuser=true, is_assignable=true`).
+- Task 9 의 쓰기 시험은 저장 요청의 `body_html` 을 기대 문자열 전체와 먼저 비교하고, 그다음 상세 응답과 바이트 비교한다. 본문에 마크 경계·문단 끝 공백을 두지 않았다 — Chromium 의 `&nbsp;` 직렬화를 확인하지 않아서다.
+
+### 「구현 때 확인」의 결과 (스펙 17절 2~9 와 그 밖)
+
+- **17절 2 CDP 확정 방법**: `Input.insertText` 가 조합을 끝낸다. 확정마다 `compositionend` 1, `compositionupdate` 는 글자당 4(위 Task 1).
+- **17절 3 jsdom 에서 Tiptap**: `new Editor` 가 돈다. 편집기 단위 시험과 짝 시험의 프런트 쪽은 jsdom 에 남겼다. `focus` 명령 때문에 시험 파일에서 `Range.getClientRects`·`getBoundingClientRect` 를 채운다. Tiptap `focus` 는 requestAnimationFrame 안이라 초점 단언은 기다린다.
+- **17절 4 합성 붙여넣기**: `ClipboardEvent("paste")` + `DataTransfer("text/html")` 가 prosemirror-view 에 닿는다(headless shell). 96줄 모두 `dispatchEvent` 가 `false`(편집기가 처리)였고, 시험이 줄마다 이것을 단언한다. CDP 클립보드는 쓰지 않았다.
+- **17절 5 붙이지 않은 문서 파싱 보고**
+  - 붙여넣기(`readHTML` 의 `createHTMLDocument` + `innerHTML`)
+    - `script-src-attr` `inline` 6건: X3·X4·X5·X11·X14·X15
+    - `base-uri` 1건: X9
+    - `style-src-attr` `inline` 2건: X14, 「표·색·밑줄」
+    - `script-src`·`script-src-elem` 0건
+  - `DOMParser`(DOMPurify 겹)는 `style-src-attr` 를 보고하지 않았다.
+  - 편집기 싣기와 관리 화면 `RichHtml` 은 서버가 정화한 값이라 보고 0 이다(Task 9 흐름에서 위반 0).
+- **17절 6 `style-src-attr 'none'`**: 더했다(위 Task 8, Task 9 에서 유지).
+- **17절 7 묶음 크기**(Vite 표시 크기)
+  - 편집기를 넣은 단일 chunk 는 967,889바이트였다(넣기 전 크기는 재지 않았다).
+  - 관리자 트리만 뗐을 때: 공개 502.58 kB·관리 473.64 kB, 공개 쪽에 경고가 남았다.
+  - `InstallPage` lazy 뒤 Task 8 까지: 공개 `index-*.js` 497.74 kB(gzip 약 161)·관리 `AdminGate-*.js` 473.76 kB(gzip 149.75)·`InstallPage-*.js` 4.96 kB·`password-*.js` 0.51 kB. 「larger than 500 kB」 경고는 없다.
+  - **공개 chunk 의 여유는 약 2.3 kB 다.** 공개 chunk 에서 큰 것: react-dom 207k·zod 83k·react-router 38k·react-hook-form 35k·query-core 31k·DOMPurify 30k(sourcemap 집계). DOMPurify 는 공개 chunk 에만 있다.
+  - 표지 문자열(`ProseMirror`·`tiptap`)은 압축 뒤에도 남는다 — 반대 단언이 통과한다. 관리 chunk 이름 꼴은 `assets/AdminGate-<hash>.js`(Vite 8.3.8).
+- **17절 8 `linkHref`·`LinkCheck` 가 갈리는 꼴**: `https://a.1/` — 서버는 받고, jsdom·Chromium 의 `new URL` 은 던져 `null` 이다(Vitest 한 줄, E2E 「linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다」). 잘못된 `xn--` 마디는 보지 않았다. `links.json` 의 `allow` 9값은 편집기에서 모두 링크로 남는다.
+- **17절 9 판·OSV**(넣기 직전, 2026-11-24): `npm view` latest 는 Tiptap 다섯 모두 3.35.0, `prosemirror-view` 1.43.1, `prosemirror-model` 1.25.13 이었다. 새로 드는 48개를 OSV querybatch 로 조회해 0건(위 Task 1). 판·API 의 근거는 npm 레지스트리와 `node_modules` 배포 소스다 — `setContent` 의 `emitUpdate`, Link 마크 `priority: 1000`(링크가 바깥), TanStack 5.107.1 `focusManager` 가 `visibilitychange` 를 듣는 것. context7 을 썼다는 기록은 없다.
+- **짝 시험에서 실제 출력으로 고정한 줄**(jsdom, Tiptap 3.35.0) — 셋 다 규칙과 맞아 3절 설정을 고치지 않았다.
+  - E6 `<p>a &amp; b &lt; c &gt; d&nbsp;e "f"</p>`(입력 그대로, jsoup `clean` 도 같다). **Chromium 직렬화는 확인하지 않았다.**
+  - E7 `<p><a href="https://example.com/?a=1&amp;b=2"><strong><em>x</em></strong></a></p>` — 링크 마크가 바깥이다.
+  - E8 `<p>a</p><p>b</p><p>cde</p><p>f</p><p></p>` — 사진 문단은 빈 문단으로 남는다.
+- **TrailingNode**: 켜면(`trailingNode: {}`) 끝이 목록인 문서에 `<p></p>` 가 붙는다 — 변이로 봤다. 끈 채로 「끝이_목록인_문서에_트랜잭션을_내도_빈_문단이_붙지_않는다」.
+- **`updated_at` 의 꼴**: 응답 예 `2026-11-25T00:50:09.332977Z`(소수 6자리, 한 번 봤다). 끝자리가 0 이면 자리가 줄 수 있다는 것은 추정이다 — 화면은 문자열을 그대로 되돌리므로 자리 수에 기대지 않는다.
+- **범위 밖 `updated_at`**(탐침, 커밋 안 함): `+99999-…`·`-99999-…` → 409, `1e30` → 400, `+1000000000-12-31T23:59:59.999999999Z`(`Instant.MAX`) → **500**. `page.publish` 와 CSRF 를 가진 사람만 닿는다. 고치지 않았다(아래 「넘길 것」).
+- **413 헤더**: 처음부터 없었다(위 고친 것 2).
+- **m-4 건수**: 경로마다 정확히 1건(위 Task 8).
+- **TanStack Query**: 창 초점 다시 읽기는 jsdom 에서도 돈다(`visibilitychange`) — `refetchOnWindowFocus` 를 빼는 변이로 Red 를 봤다.
+- **E2E·빌드 시간**: 아래 「시험」.
+
+### D86 대조 — 1-C2 범위(스펙 13절)
+
+| D86 | 결과 |
+|---|---|
+| **1.12 프록시 뒤 IP** | **미해결 그대로 — Phase 4 배포 전 필수.** 1-C2 에 새 쓰기 경로는 없다 |
+| 2.1 처리기 권한·기동 점검 | ✓ 새 처리기 없음. `PagesApiTest` 의 다음 시험들. 화면의 `can` 숨김은 편의다 |
+| | 상세 `page.view`(16절 1, 역할 에이전트 결정 — 사용자 확인 전): 「상세는_page_view_만이면_200_권한이_없으면_403」 |
+| | 승인자: 「page_view_와_page_publish_만_가진_승인자가_상세를_읽고_그_updated_at_으로_발행하면_204」 |
+| | 발행본 삭제(16절 3, 역할 에이전트 결정 — 사용자 확인 전): 「page_delete_만_가진_역할은_발행된_페이지를_지울_수_없다_403_이고_행과_기록이_그대로」·「page_delete_만으로_초안은_지운다_204」·「편집자는_발행본도_지운다_204」·「없는_id_는_두_갈래_모두_404」 |
+| 2.5 대량 할당 | ✓ 발행 본문은 `{updated_at}` 하나 — 「updated_at_이_없거나_null_이면_422_형식이_틀리면_400_다른_칸은_무시」 |
+| 2.7 `{id}` 는 uuid 만 | ✓ 1-C1 시험 그대로 — 「없는_id_와_UUID_가_아닌_경로는_404」(발행 경로 포함), 「없는_id_와_지워진_뒤는_404」 |
+| 2.8 관리자 60/분 | 그대로(`/api/admin/**`). 직접 친 시험은 없다 |
+| 3.1 CSRF | ✓ 1-C1 시험 그대로(발행 본문 `required = false` 라 CSRF 없음이 403 으로 남는다 — 위 결과 2). 화면은 `api` 클라이언트로 보낸다 |
+| 3.3~3.5 이스케이프 우회 지점 | ✓ 새 싱크 없음. `dangerouslySetInnerHTML` 은 `RichHtml` 한 곳·`useMemo` 도 같은 줄. `tests/html-sinks.test.sh` 고정 입력 39건(m-5 로 27 → 39). 편집기의 HTML 파싱은 라이브러리 안의 비활성 문서다 |
+| 3.6 리치 텍스트 정화 | ✓ 편집기 출력 = 서버 `clean` = DOMPurify. `RichEditor.test` 「editor_json_의_모든_줄에서_편집기_출력이_editor_와_같다」·「편집기_출력은_DOMPurify_가_바꾸지_않는다」·「편집기_출력을_다시_실어도_같다」·「vectors_입력을_실은_편집기_출력의_불변식」·「links_allow_값은_편집기에서_링크로_남는다」, `RichTextTest` 「편집기_고정_파일의_editor_는_clean_해도_같다」·「벡터_표의_모든_줄이_server_와_바이트까지_같다」(W1~W4 포함 96줄, m-10), E2E 「붙여넣기: 오염 HTML 을 붙여도 스크립트가 돌지 않는다」·「붙여넣기: 표·색·밑줄은 빠지고 글자는 남는다」·「쓰기에서 공개까지…」(Chromium 저장 요청 = 상세 응답, 바이트). 한계: 서버 두 겹은 같은 구현(jsoup) |
+| 3.7 보안 헤더 | ✓ 413 에도 API 헤더 넷 — `RequestSizeLimitTest` 「_413_에도_API_보안_헤더가_붙는다」(m-7). 한계: 공개 HTML 의 `frame-ancestors`·`X-Frame-Options` 는 Phase 4 CloudFront |
+| 3.8 CSP | ✓ `style-src-attr 'none'` 을 더했다(m-6). 편집기 화면을 지나는 모든 E2E 가 받지 않은 위반 0건이다. 받는 것은 붙이지 않은 문서 파싱 보고뿐이고 경로·지시어·건수로 고정했다(m-4, `PASTE_REPORTS`). 대조: E2E 「CSP 가 실제로 걸려 있다」(붙은 요소 `style` 속성 위반 1·CSSOM 0). `script-src` 는 넓히지 않았다 |
+| 3.10 오류가 내부를 말하지 않는다 | ✓ 새 409·403 `detail` 은 코드 상수 — 「읽은_뒤_본문이_바뀌면_발행이_409_이고_상태와_기록이_그대로」·「예약어_슬러그는_옛_updated_at_이어도_409_시스템_경로」 의 `refused` 단언. 한계: 범위 밖 `Instant.MAX` 는 500(아래 넘길 것) |
+| 4.1 SQL 바인딩 | 발행의 `updated_at` 도 `JdbcClient.param`. 직접 친 시험은 없다 |
+| 7.1 요청당 고정 질의 수 | 발행(슬러그 1 + 갱신 1, 0행이면 다시 읽기 1)·삭제(1, 0행이면 `EXISTS` 1)는 코드대로다. 직접 센 시험은 없다. 공개 조회 1 은 1-C1 시험(「익명_요청의_질의는_하나」) 그대로 |
+
+### 시험 (2026-11-25, 4073be0 트리 — 이 커밋은 문서만 바꾼다. 시험은 `docs/` 를 읽지 않는다)
+
+- `nice -n 19 mise run test` → exit 0, 2분 27초(`time`)
+  - 셸 144 통과: check-public 17·html-sinks 39·measure 67·pre-commit 4·summarize 17
+  - 백엔드 339 통과(39 클래스, surefire 합: 실패 0·오류 0·skip 0)
+  - 프런트 247 통과(파일 27), typecheck 오류 0
+- `mise run e2e` → exit 0, 29 통과(admin 3·editor 14·install 2·login 2·pages 3·users 5), Playwright 3.6m(webServer 빌드 포함, Playwright 출력). 벽시계 시간은 재지 못했다. editor 14 는 IME 6(대조군 포함)·붙여넣기 2·링크 입력 1·갈리는 꼴 1·코드 분할 2·흐름 2 다
+- 1-C1 과 비교: 백엔드 325 → 339, 프런트 190 → 247, E2E 15(2.5m) → 29(3.6m). CI `timeout-minutes: 20` 은 그대로이고 PR CI 의 단계 시간은 아직 보지 않았다(PR 전).
+- **Linux(CI) 실행: 미실행** — 이 브랜치는 macOS 로컬에서만 돌았다. PR CI 가 처음이다.
+- 메모리 측정은 1-C 끝(1-C4 뒤) — 미실행.
+
+### 최종 검토에 넘길 것(고치지 않았다 / Red 를 따로 보지 못했다)
+
+- **범위 밖 `updated_at`(`Instant.MAX`)으로 발행하면 500.** `page.publish` 와 CSRF 를 가진 사람만 닿는다. 고친다면 변환 예외를 400 으로 받는다(TDD).
+- **IME 사용자 수동 확인(맥 한글 입력기 2벌식, Chrome·Safari, I-1~I-5): 미실행 — 사용자 확인 요청.** I-4 의 선택 경합(Shift+화살표 직후 링크 칸으로 가면 선택을 버림)이 사람 손에서도 나는지 함께 본다.
+- **Linux(CI) 미실행.** 특히 I-4 의 `ArrowRight` 가 Linux 에서도 선택을 끝으로 접는지(추정), 합성 붙여넣기 경로, 붙여넣기 CSP 표의 50ms 양보가 느린 CI 에서 모자라지 않은지(모자라면 헛통과가 아니라 실패).
+- **E6 의 Chromium 직렬화(`&amp;`·`&nbsp;`)는 확인하지 않았다.** jsdom·jsoup 만 봤다. 흐름 E2E 의 본문은 그 꼴을 피했다 — 사람이 링크 앞뒤에 공백을 친 본문의 왕복은 시험이 보지 않는다.
+- **공개 chunk 497.74 kB — 500 kB 경고까지 여유 약 2.3 kB.** 1-C4(공개 셸·메뉴)에서 경고가 다시 나면 `/login` lazy(zod·react-hook-form·resolvers 약 121 kB)를 Q21 과 함께 다시 본다(사용자 결정 몫).
+- **설치 chunk 를 받지 못하면 빈 화면이다**(`InstallPage` lazy, 대체 화면 없음, `ponytail:`).
+- Red 를 따로 보지 못한 시험
+  - Task 9 쓰기 시험의 474행 짝 단언(상세 응답 == 저장 요청). 변이는 471행의 기대 문자열 비교에서 먼저 떨어졌다. 그 줄만 실패시키려면 서버 변이와 jar 재빌드가 두 번 든다.
+  - Task 6 다시 채우기 effect 의 `dirty` 의존. 빼도 Red 가 나지 않는다 — TanStack `notifyManager` 의 `setTimeout(0)` 보다 저장 `onSuccess` 가 먼저 돌아 새 응답과 dirty 해제가 한 렌더에 온다. 의존은 그대로 둔다.
+  - Task 5 의 E2E 메뉴 단언(다섯 → 여섯). Green 만 봤다.
+  - Task 3 「linkHref 와 LinkCheck 가 갈리는 꼴은 Chromium 에서도 같다」 — 망가뜨릴 구현이 없다(브라우저 파서를 본다).
+- m-6 「유지」의 근거인 흐름 본문은 서식 요소뿐이다. 1-C3 의 사진처럼 편집기 확장이 `renderHTML` 로 `style` 속성을 내면 붙은 DOM 에서 막힐 수 있다(추정, 미확인).
+- 1-C1 의 「줄마다 2건(재렌더)」은 지금 트리에서 재현되지 않아 원인을 확인하지 않았다(m-4 는 1건으로 고정했다).
+- `linkHref` 가 `features/auth/safeNext` 를 가져온다(shared → features). 옮기면 작은 이동이다.
+- 동시 편집은 나중 저장이 이긴다(스펙 6.3, 자동 저장 없음) — 화면이 생겨 실제로 부딪힌다(스펙 15절 3).
