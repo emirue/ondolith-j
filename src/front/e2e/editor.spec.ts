@@ -1,6 +1,6 @@
-import type { BrowserContext, CDPSession, Page } from "@playwright/test";
+import type { BrowserContext, CDPSession, Locator, Page } from "@playwright/test";
 import { EDITOR_TAGS, editorInvariant, vectors } from "../src/test-vectors";
-import { expect, offline, test, watch, type CspViolation } from "./stack";
+import { expect, installSite, loginAdmin, offline, test, watch, type CspViolation } from "./stack";
 
 /**
  * 한글 IME 관문(1-C2 스펙 2절). 실제 입력기 대신 CDP 조합 입력으로 흉내 낸다 — 스택 없이 빌드 산출물 + CSP 위에서.
@@ -370,4 +370,215 @@ test("관리 묶음을 받지 못하면 대체 화면", async ({ page }) => {
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   expect(refused).toBeGreaterThan(0);
+});
+
+// 흐름(1-C2 스펙 12.5-2·12.5-4): 실제 jar 위에서 쓰기 → 저장 → 발행 → 공개, 발행 승인 경쟁(I-2)의 409 화면.
+// 두 시험 모두 CSP 예외를 받지 않는다 — 수정 화면·발행 대화상자·렌더러·미리보기·공개 화면의 위반 0(m-6 포함)을 문맥마다 본다
+
+const USER_PASSWORD = "e2e-user-pass-not-real";
+
+/** 문맥의 쿠키로 보내는 POST. CSRF 는 앱처럼 XSRF-TOKEN 쿠키를 헤더로(부를 때마다 다시 읽는다). 상태 코드를 단언한다 */
+async function post(page: Page, url: string, status: number, data?: object) {
+  const token = (await page.context().cookies()).find((c) => c.name === "XSRF-TOKEN")?.value;
+  expect(token, "XSRF-TOKEN 쿠키").toBeTruthy();
+  const res = await page.request.post(url, { headers: { "X-XSRF-TOKEN": token! }, data });
+  expect(res.status(), url).toBe(status);
+  return res;
+}
+
+/** 도구 막대 단추를 누르고 편집기로 초점이 돌아올 때까지 기다린다. */
+async function tool(page: Page, name: string) {
+  await page.getByRole("toolbar", { name: "서식" }).getByRole("button", { name, exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toBeFocused();
+}
+
+/** 캐럿 앞 한 글자를 골라 링크로 만들고, 선택을 끝으로 접는다(IME I-4 와 같은 경합을 기다린다). */
+async function link(page: Page, href: string) {
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect.poll(() => selection(page).then((s) => s.to - s.from)).toBe(1);
+  await page.getByLabel("링크 주소").fill(href);
+  await page.getByRole("button", { name: "적용" }).click();
+  await expect(page.locator(".ProseMirror")).toBeFocused();
+  await page.keyboard.press("ArrowRight"); // End 는 macOS 에서 캐럿을 옮기지 않는다(I-4)
+  await expect.poll(() => selection(page).then((s) => s.to - s.from)).toBe(0);
+}
+
+// 도구 막대·단축키로 쓴 본문의 편집기 출력. 마크 경계와 문단 끝에 공백을 두지 않는다(Chromium 의 &nbsp; 직렬화는 미확인)
+const WRITTEN = '<h2>소제목</h2><h3>작은 제목</h3><p><strong>굵게</strong><em>기울임</em></p>'
+  + '<p><a href="/about">안</a></p><p><a href="https://example.com/">밖</a></p>'
+  + "<ul><li><p>하나</p></li></ul><ol><li><p>첫째</p></li></ol><blockquote><p>인용문</p></blockquote>";
+
+/** RichHtml 로 그린 WRITTEN — 미리보기와 공개 화면이 같은 요소를 보인다. */
+async function expectWritten(root: Locator) {
+  await expect(root.locator("h2")).toHaveText("소제목");
+  await expect(root.locator("h3")).toHaveText("작은 제목");
+  await expect(root.locator("strong")).toHaveText("굵게");
+  await expect(root.locator("em")).toHaveText("기울임");
+  await expect(root.locator("ul > li")).toHaveText("하나");
+  await expect(root.locator("ol > li")).toHaveText("첫째");
+  await expect(root.locator("blockquote")).toHaveText("인용문");
+  await expect(root.getByRole("link", { name: "안" })).toHaveAttribute("href", "/about");
+  await expect(root.getByRole("link", { name: "밖" })).toHaveAttribute("href", "https://example.com/");
+}
+
+test("쓰기에서 공개까지: 도구 막대로 쓴 본문을 방문자가 같은 요소로 본다", async ({ page, stack, browser, guard }) => {
+  await installSite(page, stack);
+  await loginAdmin(page);
+  await page.getByRole("navigation", { name: "관리자 메뉴" }).getByRole("link", { name: "페이지", exact: true }).click();
+  await page.getByRole("link", { name: "새 페이지" }).click();
+  await expect(page.getByRole("heading", { name: "새 페이지" })).toBeVisible();
+  await page.getByLabel("제목").fill("흐름");
+  await page.getByLabel("주소", { exact: true }).fill("flow");
+
+  const k = page.keyboard;
+  await page.locator(".ProseMirror").click();
+  await expect(page.locator(".ProseMirror")).toBeFocused();
+  await tool(page, "제목 2");
+  await k.type("소제목");
+  await k.press("Enter");
+  await tool(page, "제목 3");
+  await k.type("작은 제목");
+  await k.press("Enter");
+  await k.press("ControlOrMeta+b");
+  await k.type("굵게");
+  await k.press("ControlOrMeta+b");
+  await k.press("ControlOrMeta+i");
+  await k.type("기울임");
+  await k.press("ControlOrMeta+i");
+  await k.press("Enter");
+  await k.type("안");
+  await link(page, "/about");
+  await k.press("Enter");
+  await k.type("밖");
+  await link(page, "https://example.com/");
+  await k.press("Enter");
+  await tool(page, "글머리 목록");
+  await k.type("하나");
+  await k.press("Enter");
+  await k.press("Enter"); // 빈 항목에서 Enter → 목록 밖 문단
+  await tool(page, "번호 목록");
+  await k.type("첫째");
+  await k.press("Enter");
+  await k.press("Enter");
+  await tool(page, "인용");
+  await k.type("인용문");
+
+  const sent = page.waitForRequest((r) => r.method() === "POST" && new URL(r.url()).pathname === "/api/admin/pages", { timeout: 10_000 });
+  const read = page.waitForResponse((r) => r.request().method() === "GET" && /^\/api\/admin\/pages\/[0-9a-f-]{36}$/.test(new URL(r.url()).pathname),
+    { timeout: 10_000 });
+  await page.getByRole("button", { name: "만들기" }).click();
+  const saved = (await sent).postDataJSON().body_html;
+  expect(saved, "저장 요청 body_html").toBe(WRITTEN);
+  const detail = await read;
+  expect(detail.status()).toBe(200);
+  expect((await detail.json()).body_html, "상세 응답 body_html — 저장 요청과 바이트까지 같다").toBe(saved);
+  await expect(page.getByRole("status")).toHaveText("페이지를 만들었습니다");
+  await expect(page.getByRole("heading", { name: "페이지 편집" })).toBeVisible();
+
+  await page.getByRole("button", { name: "발행", exact: true }).click();
+  const publish = page.getByRole("alertdialog", { name: "발행할까요?" });
+  await expect(publish).toContainText("방문자가 /flow 에서 이 내용을 봅니다");
+  await expectWritten(publish.getByLabel("발행할 본문"));
+  await publish.getByRole("button", { name: "확인" }).click();
+  await expect(page.getByRole("status")).toHaveText("발행했습니다");
+  await expect(page.getByText("발행", { exact: true })).toBeVisible(); // 상태
+
+  const visitor = await browser.newContext();
+  const seen = await watch(visitor);
+  const guest = await visitor.newPage();
+  await guest.goto("/flow");
+  await expect(guest.getByRole("heading", { level: 1, name: "흐름" })).toBeVisible();
+  await expectWritten(guest.locator(".rich"));
+
+  await page.getByRole("button", { name: "발행 취소" }).click();
+  await page.getByRole("alertdialog", { name: "발행을 취소할까요?" }).getByRole("button", { name: "확인" }).click();
+  await expect(page.getByRole("status")).toHaveText("발행을 취소했습니다");
+  await guest.goto("/flow");
+  await expect(guest.getByRole("heading", { name: "찾을 수 없습니다" })).toBeVisible();
+
+  await page.getByRole("button", { name: "삭제" }).click();
+  await page.getByRole("alertdialog", { name: "페이지를 지울까요?" }).getByRole("button", { name: "확인" }).click();
+  await expect(page.getByRole("status")).toHaveText("페이지를 지웠습니다");
+  // 「없다」는 표가 그려진 뒤에 센다 — 머리 줄 하나만 남는다
+  const list = page.getByRole("table", { name: "페이지 목록" });
+  await expect(list.getByRole("columnheader", { name: "제목" })).toBeVisible();
+  await expect(list.getByRole("row")).toHaveCount(1);
+  await expect(list.getByRole("link", { name: "흐름" })).toHaveCount(0);
+
+  await guest.waitForLoadState("networkidle");
+  console.log("쓰기 흐름 CSP 위반", JSON.stringify({ admin: guard.violations, visitor: seen.violations }));
+  seen.check();
+  await visitor.close();
+});
+
+test("I-2: 승인자가 연 뒤 본문이 바뀌면 발행이 멈추고 바뀐 본문을 다시 보인다", async ({ page, stack, browser, guard }) => {
+  await installSite(page, stack);
+  const role = (key: string, perms: string[]) => {
+    const keys = perms.map((p) => `'${p}'`).join(", ");
+    expect(stack.sql(`WITH r AS (INSERT INTO roles (key, name) VALUES ('${key}', '${key}') RETURNING id) `
+      + `INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM r, permissions p WHERE p.key IN (${keys})`), key)
+      .toBe(`INSERT 0 ${perms.length}`);
+    return stack.sql(`SELECT id FROM roles WHERE key = '${key}'`);
+  };
+  const approverRole = role("approver", ["admin.access", "page.view", "page.publish"]);
+  const updaterRole = role("updater", ["admin.access", "page.update"]);
+
+  await loginAdmin(page);
+  for (const [email, roleId] of [["approver@ondolith.test", approverRole], ["updater@ondolith.test", updaterRole]]) {
+    const { id } = await (await post(page, "/api/admin/users", 201, { email, display_name: email, password: USER_PASSWORD })).json();
+    await post(page, `/api/admin/users/${id}/roles`, 204, { role_id: roleId });
+  }
+  const { id } = await (await post(page, "/api/admin/pages", 201, { slug: "race", title: "경쟁", body_html: "<p>처음 본문</p>" })).json();
+
+  // 승인자: page.update 가 없어 편집기가 아니라 RichHtml 로 본다
+  const approverCtx = await browser.newContext();
+  const approverSeen = await watch(approverCtx);
+  const approver = await approverCtx.newPage();
+  const publishes: number[] = [];
+  approver.on("response", (r) => {
+    if (r.request().method() === "POST" && new URL(r.url()).pathname.endsWith("/publish")) publishes.push(r.status());
+  });
+  await loginAdmin(approver, "approver@ondolith.test", USER_PASSWORD);
+  await approver.goto(`/admin/pages/${id}`);
+  await expect(approver.getByRole("heading", { name: "페이지 편집" })).toBeVisible();
+  const body = approver.getByRole("main").locator(".rich");
+  await expect(body).toHaveText("처음 본문");
+  await expect(approver.getByRole("textbox")).toHaveCount(0);
+
+  // 고치는 사람: page.update 만 — 상세를 읽지 못해 slug·title 을 그대로 싣는다
+  const updaterCtx = await browser.newContext();
+  const updaterSeen = await watch(updaterCtx);
+  const updater = await updaterCtx.newPage();
+  await loginAdmin(updater, "updater@ondolith.test", USER_PASSWORD);
+  await post(updater, `/api/admin/pages/${id}`, 204, { slug: "race", title: "경쟁", body_html: "<p>바뀐 본문</p>" });
+
+  const publishButton = approver.getByRole("button", { name: "발행", exact: true });
+  const dialog = approver.getByRole("alertdialog", { name: "발행할까요?" });
+  await publishButton.click();
+  await expect(dialog.getByLabel("발행할 본문")).toHaveText("처음 본문");
+  await dialog.getByRole("button", { name: "확인" }).click();
+  await expect(approver.getByRole("alert")).toHaveText("그사이 페이지가 바뀌었습니다. 바뀐 내용을 확인한 뒤 발행하세요");
+  // 다시 읽은 본문이 실린 것을 본 뒤에 다시 누른다 — 아니면 옛 updated_at 으로 다시 409
+  await expect(body).toHaveText("바뀐 본문");
+
+  await publishButton.click();
+  await expect(dialog.getByLabel("발행할 본문")).toHaveText("바뀐 본문");
+  await dialog.getByRole("button", { name: "확인" }).click();
+  await expect(approver.getByRole("status")).toHaveText("발행했습니다");
+  expect(publishes).toEqual([409, 204]);
+
+  const visitorCtx = await browser.newContext();
+  const visitorSeen = await watch(visitorCtx);
+  const visitor = await visitorCtx.newPage();
+  await visitor.goto("/race");
+  await expect(visitor.getByRole("heading", { level: 1, name: "경쟁" })).toBeVisible();
+  await expect(visitor.locator(".rich")).toHaveText("바뀐 본문");
+
+  // 위반 보고는 늦게 온다 — 문맥마다 마지막 동작 뒤 조용해질 때까지 기다린 뒤 끝에 모아 본다
+  for (const p of [approver, updater, visitor]) await p.waitForLoadState("networkidle");
+  console.log("I-2 CSP 위반", JSON.stringify({ admin: guard.violations, approver: approverSeen.violations, updater: updaterSeen.violations, visitor: visitorSeen.violations }));
+  approverSeen.check();
+  updaterSeen.check();
+  visitorSeen.check();
+  await Promise.all([approverCtx, updaterCtx, visitorCtx].map((c) => c.close()));
 });
