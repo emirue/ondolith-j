@@ -629,3 +629,22 @@ test("I-4: 세션이 끊긴 편집 탭에서 새 탭으로 다시 로그인하�
   expect(saves).toEqual([{ status: 401, body: "<p>새 탭 로그인 뒤 본문</p>" }, { status: 204, body: "<p>새 탭 로그인 뒤 본문</p>" }]);
   expect(stack.sql(`SELECT body_html FROM pages WHERE id = '${id}'`)).toBe("<p>새 탭 로그인 뒤 본문</p>");
 });
+
+test("I-3: 편집 영역에서도 제목·목록·인용이 서식대로 보인다", async ({ page }) => {
+  const { errors } = await open(page);
+  const area = page.locator(".ProseMirror");
+  await area.evaluate((el) => (Reflect.get(el, "editor") as { commands: { setContent(html: string): void } }).commands
+    .setContent("<h2>제목</h2><p>문단</p><ul><li><p>항목</p></li></ul><blockquote><p>인용</p></blockquote>"));
+  await expect(area.locator("blockquote")).toHaveText("인용");
+  const style = (sel: string) => area.locator(sel).first().evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { fontSize: parseFloat(s.fontSize), listStyleType: s.listStyleType, borderLeftStyle: s.borderLeftStyle, borderLeftWidth: parseFloat(s.borderLeftWidth) };
+  });
+  const [h2, p, ul, quote] = [await style("h2"), await style("p"), await style("ul"), await style("blockquote")];
+  console.log("편집 영역 서식", JSON.stringify({ h2, p, ul, quote }));
+  expect(h2.fontSize, "h2 글자가 문단보다 크다").toBeGreaterThan(p.fontSize);
+  expect(ul.listStyleType, "ul 글머리").not.toBe("none");
+  expect(quote.borderLeftStyle, "blockquote 왼쪽 테두리").not.toBe("none");
+  expect(quote.borderLeftWidth, "blockquote 왼쪽 테두리 두께").toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
